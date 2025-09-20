@@ -41,6 +41,7 @@
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_vector.hpp>
+#include <string>
 
 namespace tb::mdl
 {
@@ -1038,7 +1039,137 @@ TEST_CASE("Map_Entities")
     const auto* duplicateId = duplicateNode->entity().property(EntityPropertyKeys::UniqueId);
     REQUIRE(duplicateId != nullptr);
     CHECK(*duplicateId != *firstId);
-    CHECK(*duplicateId != *secondId);
+   CHECK(*duplicateId != *secondId);
+  }
+
+  SECTION("generate class indices when preference enabled")
+  {
+    auto preferenceGuard = tb::TemporarilySetPref{Preferences::GenerateClassIndices, true};
+
+    auto classFixture = MapFixture{};
+    auto& classMap = classFixture.map();
+    classFixture.create();
+
+    classMap.entityDefinitionManager().setDefinitions(
+      map.entityDefinitionManager().definitions());
+
+    const auto* pointDefinition =
+      classMap.entityDefinitionManager().definition("point_entity");
+    const auto* largeDefinition =
+      classMap.entityDefinitionManager().definition("large_entity");
+    REQUIRE(pointDefinition != nullptr);
+    REQUIRE(largeDefinition != nullptr);
+
+    auto* first = createPointEntity(classMap, *pointDefinition, {0, 0, 0});
+    auto* second = createPointEntity(classMap, *pointDefinition, {64, 0, 0});
+    auto* third = createPointEntity(classMap, *largeDefinition, {128, 0, 0});
+    REQUIRE(first != nullptr);
+    REQUIRE(second != nullptr);
+    REQUIRE(third != nullptr);
+
+    const auto parseIndex = [](const EntityNode* node) {
+      const auto* value = node->entity().property(EntityPropertyKeys::ClassIndex);
+      REQUIRE(value != nullptr);
+      return std::stoul(*value);
+    };
+
+    const auto firstIndex = parseIndex(first);
+    const auto secondIndex = parseIndex(second);
+    CHECK(secondIndex != firstIndex);
+
+    const auto thirdIndex = parseIndex(third);
+    CHECK(thirdIndex == 1);
+
+    selectNodes(classMap, {first});
+    duplicateSelectedNodes(classMap);
+
+    const auto duplicates = classMap.selection().allEntities();
+    REQUIRE(duplicates.size() == 1);
+    const auto* duplicateNode = duplicates.front();
+    const auto duplicateIndex = parseIndex(duplicateNode);
+    CHECK(duplicateIndex != firstIndex);
+    CHECK(duplicateIndex != secondIndex);
+  }
+
+  SECTION("enabling class indices resolves duplicate values")
+  {
+    auto preferenceGuard = tb::TemporarilySetPref{Preferences::GenerateClassIndices, false};
+
+    auto classFixture = MapFixture{};
+    auto& classMap = classFixture.map();
+    classFixture.create();
+
+    classMap.entityDefinitionManager().setDefinitions(
+      map.entityDefinitionManager().definitions());
+
+    const auto* definition =
+      classMap.entityDefinitionManager().definition("point_entity");
+    REQUIRE(definition != nullptr);
+
+    auto* first = createPointEntity(classMap, *definition, {0, 0, 0});
+    auto* second = createPointEntity(classMap, *definition, {64, 0, 0});
+    REQUIRE(first != nullptr);
+    REQUIRE(second != nullptr);
+
+    auto assignDuplicateIndex = [](EntityNode& node) {
+      auto entity = node.entity();
+      entity.addOrUpdateProperty(EntityPropertyKeys::ClassIndex, "1");
+      node.setEntity(std::move(entity));
+    };
+
+    assignDuplicateIndex(*first);
+    assignDuplicateIndex(*second);
+
+    PreferenceManager::instance().set(Preferences::GenerateClassIndices, true);
+
+    const auto* firstIndex = first->entity().property(EntityPropertyKeys::ClassIndex);
+    const auto* secondIndex = second->entity().property(EntityPropertyKeys::ClassIndex);
+    REQUIRE(firstIndex != nullptr);
+    REQUIRE(secondIndex != nullptr);
+    CHECK(*firstIndex != *secondIndex);
+  }
+
+  SECTION("transformations preserve class indices")
+  {
+    auto preferenceGuard = tb::TemporarilySetPref{Preferences::GenerateClassIndices, true};
+
+    auto classFixture = MapFixture{};
+    auto& classMap = classFixture.map();
+    classFixture.create();
+
+    classMap.entityDefinitionManager().setDefinitions(
+      map.entityDefinitionManager().definitions());
+
+    const auto* definition =
+      classMap.entityDefinitionManager().definition("point_entity");
+    REQUIRE(definition != nullptr);
+
+    auto* entityNode = createPointEntity(classMap, *definition, {0, 0, 0});
+    REQUIRE(entityNode != nullptr);
+
+    const auto* initialIndexValue =
+      entityNode->entity().property(EntityPropertyKeys::ClassIndex);
+    REQUIRE(initialIndexValue != nullptr);
+    const auto initialIndex = *initialIndexValue;
+
+    selectNodes(classMap, {entityNode});
+    REQUIRE(translateSelection(classMap, vm::vec3d{32.0, 0.0, 0.0}));
+
+    const auto* afterTranslate =
+      entityNode->entity().property(EntityPropertyKeys::ClassIndex);
+    REQUIRE(afterTranslate != nullptr);
+    CHECK(*afterTranslate == initialIndex);
+
+    REQUIRE(rotateSelection(
+      classMap,
+      vm::vec3d{0.0, 0.0, 0.0},
+      vm::vec3d{0.0, 0.0, 1.0},
+      vm::to_radians(45.0)));
+
+    const auto* afterRotate =
+      entityNode->entity().property(EntityPropertyKeys::ClassIndex);
+    REQUIRE(afterRotate != nullptr);
+    CHECK(*afterRotate == initialIndex);
   }
 }
 

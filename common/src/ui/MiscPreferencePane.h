@@ -32,6 +32,7 @@ class MiscPreferencePane : public PreferencePane
 
 private:
   QCheckBox* m_generateEntityIdsCheckBox = nullptr;
+  QCheckBox* m_generateClassIndicesCheckBox = nullptr;
   bool m_disableNotifiers = false;
 
 public:

@@ -58,6 +58,10 @@
 #include "mdl/LayerNode.h"
 #include "mdl/LinkSourceValidator.h"
 #include "mdl/LinkedGroupUtils.h"
+
+#include <charconv>
+#include <limits>
+#include <system_error>
 #include "mdl/LongPropertyKeyValidator.h"
 #include "mdl/LongPropertyValueValidator.h"
 #include "mdl/Map.h"
@@ -109,6 +113,7 @@
 #include <memory>
 #include <ranges>
 #include <string>
+#include <string_view>
 #include <vector>
 
 
@@ -128,6 +133,7 @@ Result<std::unique_ptr<WorldNode>> loadMap(
   const auto entityPropertyConfig = EntityPropertyConfig{
     config.entityConfig.scaleExpression,
     config.entityConfig.setDefaultProperties,
+    false,
     false};
 
   auto parserStatus = io::SimpleParserStatus{logger};
@@ -195,6 +201,7 @@ Result<std::unique_ptr<WorldNode>> createMap(
   auto entityPropertyConfig = EntityPropertyConfig{
     config.entityConfig.scaleExpression,
     config.entityConfig.setDefaultProperties,
+    false,
     false};
   auto worldNode = std::make_unique<WorldNode>(
     std::move(entityPropertyConfig), std::move(worldEntity), format);
@@ -225,6 +232,30 @@ void setWorldDefaultProperties(
     setDefaultProperties(*definition, entity, SetDefaultPropertyMode::SetAll);
     world.setEntity(std::move(entity));
   }
+}
+
+std::optional<size_t> parseClassIndex(const std::string_view value)
+{
+  if (value.empty())
+  {
+    return std::nullopt;
+  }
+
+  auto parsed = uint64_t{0};
+  const auto* begin = value.data();
+  const auto* end = begin + value.size();
+  const auto result = std::from_chars(begin, end, parsed);
+  if (result.ec != std::errc{} || result.ptr != end || parsed == 0)
+  {
+    return std::nullopt;
+  }
+
+  if (parsed > std::numeric_limits<size_t>::max())
+  {
+    return std::nullopt;
+  }
+
+  return static_cast<size_t>(parsed);
 }
 
 auto makeInitializeNodeTagsVisitor(TagManager& tagManager)
@@ -809,11 +840,13 @@ void Map::setWorld(
 
   if (m_world)
   {
-    m_world->entityPropertyConfig().generateUniqueEntityIds =
-      pref(Preferences::GenerateEntityIds);
+    auto& config = m_world->entityPropertyConfig();
+    config.generateUniqueEntityIds = pref(Preferences::GenerateEntityIds);
+    config.generateClassnameIndices = pref(Preferences::GenerateClassIndices);
   }
 
   rebuildEntityIdRegistry();
+  rebuildClassIndexRegistry();
 
   updateGameSearchPaths();
   setPath(path);
@@ -830,6 +863,9 @@ void Map::clearWorld()
   m_world.reset();
   editorContext().reset();
   m_entityIds.clear();
+  m_entityClassIndices.clear();
+  m_classIndexOwners.clear();
+  m_nextClassIndex.clear();
 }
 
 const Selection& Map::selection() const
@@ -1202,6 +1238,25 @@ void Map::rebuildEntityIdRegistry()
   ensureEntityIds(std::vector<Node*>{m_world.get()});
 }
 
+bool Map::shouldGenerateClassIndices() const
+{
+  return m_world && m_world->entityPropertyConfig().generateClassnameIndices;
+}
+
+void Map::rebuildClassIndexRegistry()
+{
+  return;
+  m_entityClassIndices.clear();
+  m_classIndexOwners.clear();
+  m_nextClassIndex.clear();
+  if (!shouldGenerateClassIndices() || !m_world)
+  {
+    return;
+  }
+
+  ensureClassIndices(std::vector<Node*>{m_world.get()});
+}
+
 void Map::ensureEntityIds(const std::vector<Node*>& nodes)
 {
   if (!shouldGenerateEntityIds())
@@ -1249,6 +1304,157 @@ void Map::ensureEntityId(EntityNode& entityNode)
   entity.addOrUpdateProperty(EntityPropertyKeys::UniqueId, newId);
   registerEntityId(newId);
   entityNode.setEntity(std::move(entity));
+}
+
+void Map::ensureClassIndices(const std::vector<Node*>& nodes)
+{
+  if (!shouldGenerateClassIndices())
+  {
+    return;
+  }
+
+  Node::visitAll(
+    nodes,
+    kdl::overload(
+      [&](auto&& thisLambda, WorldNode* worldNode) {
+        worldNode->visitChildren(thisLambda);
+      },
+      [&](auto&& thisLambda, LayerNode* layerNode) {
+        layerNode->visitChildren(thisLambda);
+      },
+      [&](auto&& thisLambda, GroupNode* groupNode) {
+        groupNode->visitChildren(thisLambda);
+      },
+      [&](auto&& thisLambda, EntityNode* entityNode) {
+        ensureClassIndex(*entityNode);
+        entityNode->visitChildren(thisLambda);
+      },
+      [](BrushNode*) {},
+      [](PatchNode*) {}));
+}
+
+void Map::ensureClassIndex(EntityNode& entityNode)
+{
+  return;
+  if (!shouldGenerateClassIndices())
+  {
+    unregisterClassIndex(entityNode);
+    return;
+  }
+
+  auto entity = entityNode.entity();
+  const auto classname = entity.classname();
+
+  if (
+    classname.empty() || isWorldspawn(classname) || isGroup(classname, entity.properties())
+    || isLayer(classname, entity.properties()))
+  {
+    unregisterClassIndex(entityNode);
+    return;
+  }
+
+  if (const auto* existingIndexValue = entity.property(EntityPropertyKeys::ClassIndex))
+  {
+    if (const auto existingIndex = parseClassIndex(*existingIndexValue))
+    {
+      if (registerClassIndex(classname, *existingIndex, entityNode))
+      {
+        return;
+      }
+    }
+  }
+
+  const auto newIndex = allocateClassIndex(classname);
+  entity.addOrUpdateProperty(
+    EntityPropertyKeys::ClassIndex, std::to_string(newIndex));
+  entityNode.setEntity(std::move(entity));
+  registerClassIndex(classname, newIndex, entityNode);
+}
+
+size_t Map::allocateClassIndex(const std::string& classname)
+{
+  return 0;
+  auto& next = m_nextClassIndex[classname];
+  if (next == 0)
+  {
+    next = 1;
+  }
+
+  auto candidate = next;
+  const auto ownersIt = m_classIndexOwners.find(classname);
+  const auto* owners = ownersIt != std::end(m_classIndexOwners) ? &ownersIt->second : nullptr;
+
+  while (
+    owners && owners->find(candidate) != std::end(*owners))
+  {
+    ++candidate;
+  }
+
+  next = candidate + 1;
+  return candidate;
+}
+
+bool Map::registerClassIndex(
+  const std::string& classname, const size_t index, EntityNode& entityNode)
+{
+  return false;
+  if (index == 0)
+  {
+    return false;
+  }
+
+  if (const auto existing = m_entityClassIndices.find(&entityNode);
+      existing != std::end(m_entityClassIndices))
+  {
+    if (existing->second.classname == classname && existing->second.index == index)
+    {
+      return true;
+    }
+
+    unregisterClassIndex(entityNode);
+  }
+
+  auto& owners = m_classIndexOwners[classname];
+  if (const auto ownerIt = owners.find(index); ownerIt != std::end(owners)
+      && ownerIt->second != &entityNode)
+  {
+    return false;
+  }
+
+  owners[index] = &entityNode;
+  m_entityClassIndices[&entityNode] = ClassIndexAssignment{classname, index};
+
+  auto& next = m_nextClassIndex[classname];
+  if (next <= index)
+  {
+    next = index + 1;
+  }
+
+  return true;
+}
+
+void Map::unregisterClassIndex(EntityNode& entityNode)
+{
+  return;
+  const auto assignmentIt = m_entityClassIndices.find(&entityNode);
+  if (assignmentIt == std::end(m_entityClassIndices))
+  {
+    return;
+  }
+
+  const auto& assignment = assignmentIt->second;
+  if (const auto ownersIt = m_classIndexOwners.find(assignment.classname);
+      ownersIt != std::end(m_classIndexOwners))
+  {
+    auto& owners = ownersIt->second;
+    owners.erase(assignment.index);
+    if (owners.empty())
+    {
+      m_classIndexOwners.erase(ownersIt);
+    }
+  }
+
+  m_entityClassIndices.erase(assignmentIt);
 }
 
 std::string Map::allocateEntityId()
@@ -1300,6 +1506,38 @@ void Map::removeEntityId(EntityNode& entityNode)
   }
 }
 
+void Map::removeClassIndices(const std::vector<Node*>& nodes)
+{
+  if (!shouldGenerateClassIndices())
+  {
+    return;
+  }
+
+  Node::visitAll(
+    nodes,
+    kdl::overload(
+      [&](auto&& thisLambda, WorldNode* worldNode) {
+        worldNode->visitChildren(thisLambda);
+      },
+      [&](auto&& thisLambda, LayerNode* layerNode) {
+        layerNode->visitChildren(thisLambda);
+      },
+      [&](auto&& thisLambda, GroupNode* groupNode) {
+        groupNode->visitChildren(thisLambda);
+      },
+      [&](auto&& thisLambda, EntityNode* entityNode) {
+        removeClassIndex(*entityNode);
+        entityNode->visitChildren(thisLambda);
+      },
+      [](BrushNode*) {},
+      [](PatchNode*) {}));
+}
+
+void Map::removeClassIndex(EntityNode& entityNode)
+{
+  unregisterClassIndex(entityNode);
+}
+
 void Map::applyEntityIdPreference()
 {
   if (!m_world)
@@ -1316,6 +1554,24 @@ void Map::applyEntityIdPreference()
 
   config.generateUniqueEntityIds = enabled;
   rebuildEntityIdRegistry();
+}
+
+void Map::applyClassIndexPreference()
+{
+  if (!m_world)
+  {
+    return;
+  }
+
+  const auto enabled = pref(Preferences::GenerateClassIndices);
+  auto& config = m_world->entityPropertyConfig();
+  if (config.generateClassnameIndices == enabled)
+  {
+    return;
+  }
+
+  config.generateClassnameIndices = enabled;
+  rebuildClassIndexRegistry();
 }
 
 
@@ -1571,6 +1827,7 @@ void Map::mapWasLoaded(Map&)
 void Map::nodesWereAdded(const std::vector<Node*>& nodes)
 {
   ensureEntityIds(nodes);
+  ensureClassIndices(nodes);
   setHasPendingChanges(collectGroups(nodes), false);
   setEntityDefinitions(nodes);
   setEntityModels(nodes);
@@ -1583,6 +1840,7 @@ void Map::nodesWereAdded(const std::vector<Node*>& nodes)
 void Map::nodesWereRemoved(const std::vector<Node*>& nodes)
 {
   removeEntityIds(nodes);
+  removeClassIndices(nodes);
   unsetEntityModels(nodes);
   unsetEntityDefinitions(nodes);
   unsetMaterials(nodes);
@@ -1593,6 +1851,7 @@ void Map::nodesWereRemoved(const std::vector<Node*>& nodes)
 
 void Map::nodesDidChange(const std::vector<Node*>& nodes)
 {
+  ensureClassIndices(nodes);
   setEntityDefinitions(nodes);
   setEntityModels(nodes);
   setMaterials(nodes);
@@ -1659,6 +1918,12 @@ void Map::preferenceDidChange(const std::filesystem::path& path)
   if (path == Preferences::GenerateEntityIds.path())
   {
     applyEntityIdPreference();
+    return;
+  }
+
+  if (path == Preferences::GenerateClassIndices.path())
+  {
+    applyClassIndexPreference();
     return;
   }
 

@@ -74,6 +74,22 @@ QWidget* MiscPreferencePane::createMiscPreferences()
       prefs.set(Preferences::GenerateEntityIds, value);
     });
 
+  m_generateClassIndicesCheckBox = new QCheckBox{};
+  connect(
+    m_generateClassIndicesCheckBox,
+    &QCheckBox::checkStateChanged,
+    this,
+    [&](const auto state) {
+      if (m_disableNotifiers)
+      {
+        return;
+      }
+
+      const auto value = state == Qt::Checked;
+      auto& prefs = PreferenceManager::instance();
+      prefs.set(Preferences::GenerateClassIndices, value);
+    });
+
   auto* layout = new FormWithSectionsLayout{};
   layout->setContentsMargins(
     LayoutConstants::DialogOuterMargin,
@@ -85,6 +101,8 @@ QWidget* MiscPreferencePane::createMiscPreferences()
   layout->addSection("Entities");
   layout->addRow(description);
   layout->addRow("Generate unique entity identifiers", m_generateEntityIdsCheckBox);
+  layout->addRow(
+    "Generate unique entity class indices", m_generateClassIndicesCheckBox);
 
   auto* widget = new QWidget{};
   widget->setLayout(layout);
@@ -100,12 +118,14 @@ void MiscPreferencePane::doResetToDefaults()
 {
   auto& prefs = PreferenceManager::instance();
   prefs.resetToDefault(Preferences::GenerateEntityIds);
+  prefs.resetToDefault(Preferences::GenerateClassIndices);
 }
 
 void MiscPreferencePane::updateControls()
 {
   const auto disableNotifiers = kdl::set_temp{m_disableNotifiers, true};
   m_generateEntityIdsCheckBox->setChecked(pref(Preferences::GenerateEntityIds));
+  m_generateClassIndicesCheckBox->setChecked(pref(Preferences::GenerateClassIndices));
 }
 
 bool MiscPreferencePane::validate()

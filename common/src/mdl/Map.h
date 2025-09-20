@@ -33,8 +33,9 @@
 #include <memory>
 #include <optional>
 #include <string>
-#include <vector>
+#include <unordered_map>
 #include <unordered_set>
+#include <vector>
 
 namespace kdl
 {
@@ -137,6 +138,15 @@ private:
   mutable std::optional<vm::bbox3d> m_cachedSelectionBounds;
   std::optional<vm::bbox3d> m_lastSelectionBounds;
   std::unordered_set<std::string> m_entityIds;
+  struct ClassIndexAssignment
+  {
+    std::string classname;
+    size_t index;
+  };
+  std::unordered_map<const EntityNode*, ClassIndexAssignment> m_entityClassIndices;
+  std::unordered_map<std::string, std::unordered_map<size_t, const EntityNode*>>
+    m_classIndexOwners;
+  std::unordered_map<std::string, size_t> m_nextClassIndex;
 
 public: // notification
   Notifier<Command&> commandDoNotifier;
@@ -347,6 +357,16 @@ private: // Asset management
   void removeEntityIds(const std::vector<Node*>& nodes);
   void removeEntityId(EntityNode& entityNode);
   void applyEntityIdPreference();
+  bool shouldGenerateClassIndices() const;
+  void rebuildClassIndexRegistry();
+  void ensureClassIndices(const std::vector<Node*>& nodes);
+  void ensureClassIndex(EntityNode& entityNode);
+  size_t allocateClassIndex(const std::string& classname);
+  bool registerClassIndex(const std::string& classname, size_t index, EntityNode& entityNode);
+  void unregisterClassIndex(EntityNode& entityNode);
+  void removeClassIndices(const std::vector<Node*>& nodes);
+  void removeClassIndex(EntityNode& entityNode);
+  void applyClassIndexPreference();
 
 public: // resource processing
   void processResourcesSync(const ProcessContext& processContext);

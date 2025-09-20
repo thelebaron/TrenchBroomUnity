@@ -67,7 +67,9 @@ bool isPropertyKeyMutable(const mdl::Entity& entity, const std::string& key)
   assert(!mdl::isGroup(entity.classname(), entity.properties()));
   assert(!mdl::isLayer(entity.classname(), entity.properties()));
 
-  if (key == mdl::EntityPropertyKeys::UniqueId)
+  if (
+    key == mdl::EntityPropertyKeys::UniqueId
+    || key == mdl::EntityPropertyKeys::ClassIndex)
   {
     return false;
   }
@@ -94,7 +96,9 @@ bool isPropertyValueMutable(const mdl::Entity& entity, const std::string& key)
   assert(!mdl::isGroup(entity.classname(), entity.properties()));
   assert(!mdl::isLayer(entity.classname(), entity.properties()));
 
-  if (key == mdl::EntityPropertyKeys::UniqueId)
+  if (
+    key == mdl::EntityPropertyKeys::UniqueId
+    || key == mdl::EntityPropertyKeys::ClassIndex)
   {
     return false;
   }
