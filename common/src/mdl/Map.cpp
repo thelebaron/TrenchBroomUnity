@@ -22,6 +22,7 @@
 #include "Ensure.h"
 #include "Logger.h"
 #include "PreferenceManager.h"
+#include "Preferences.h"
 #include "io/DiskIO.h"
 #include "io/GameConfigParser.h"
 #include "io/LoadMaterialCollections.h"
@@ -47,6 +48,7 @@
 #include "mdl/EntityDefinitionManager.h"
 #include "mdl/EntityModelManager.h"
 #include "mdl/EntityNode.h"
+#include "mdl/EntityProperties.h"
 #include "mdl/Game.h"
 #include "mdl/GameFactory.h"
 #include "mdl/Grid.h"
@@ -78,6 +80,7 @@
 #include "mdl/PointEntityWithBrushesValidator.h"
 #include "mdl/PropertyKeyWithDoubleQuotationMarksValidator.h"
 #include "mdl/PropertyValueWithDoubleQuotationMarksValidator.h"
+#include "Uuid.h"
 #include "mdl/PushSelection.h"
 #include "mdl/RepeatStack.h"
 #include "mdl/ResourceManager.h"
@@ -123,7 +126,9 @@ Result<std::unique_ptr<WorldNode>> loadMap(
   Logger& logger)
 {
   const auto entityPropertyConfig = EntityPropertyConfig{
-    config.entityConfig.scaleExpression, config.entityConfig.setDefaultProperties};
+    config.entityConfig.scaleExpression,
+    config.entityConfig.setDefaultProperties,
+    false};
 
   auto parserStatus = io::SimpleParserStatus{logger};
   return io::Disk::openFile(path) | kdl::and_then([&](auto file) {
@@ -188,7 +193,9 @@ Result<std::unique_ptr<WorldNode>> createMap(
   }
 
   auto entityPropertyConfig = EntityPropertyConfig{
-    config.entityConfig.scaleExpression, config.entityConfig.setDefaultProperties};
+    config.entityConfig.scaleExpression,
+    config.entityConfig.setDefaultProperties,
+    false};
   auto worldNode = std::make_unique<WorldNode>(
     std::move(entityPropertyConfig), std::move(worldEntity), format);
 
@@ -800,18 +807,29 @@ void Map::setWorld(
   entityModelManager().setGame(m_game.get(), taskManager());
   editorContext().setCurrentLayer(world()->defaultLayer());
 
+  if (m_world)
+  {
+    m_world->entityPropertyConfig().generateUniqueEntityIds =
+      pref(Preferences::GenerateEntityIds);
+  }
+
+  rebuildEntityIdRegistry();
+
   updateGameSearchPaths();
   setPath(path);
 
   loadAssets();
   registerValidators();
   registerSmartTags();
+
+  clearModificationCount();
 }
 
 void Map::clearWorld()
 {
   m_world.reset();
   editorContext().reset();
+  m_entityIds.clear();
 }
 
 const Selection& Map::selection() const
@@ -1168,6 +1186,138 @@ void Map::updateGameSearchPaths()
     m_logger);
 }
 
+bool Map::shouldGenerateEntityIds() const
+{
+  return m_world && m_world->entityPropertyConfig().generateUniqueEntityIds;
+}
+
+void Map::rebuildEntityIdRegistry()
+{
+  m_entityIds.clear();
+  if (!shouldGenerateEntityIds() || !m_world)
+  {
+    return;
+  }
+
+  ensureEntityIds(std::vector<Node*>{m_world.get()});
+}
+
+void Map::ensureEntityIds(const std::vector<Node*>& nodes)
+{
+  if (!shouldGenerateEntityIds())
+  {
+    return;
+  }
+
+  Node::visitAll(
+    nodes,
+    kdl::overload(
+      [&](auto&& thisLambda, WorldNode* worldNode) {
+        worldNode->visitChildren(thisLambda);
+      },
+      [&](auto&& thisLambda, LayerNode* layerNode) {
+        layerNode->visitChildren(thisLambda);
+      },
+      [&](auto&& thisLambda, GroupNode* groupNode) {
+        groupNode->visitChildren(thisLambda);
+      },
+      [&](auto&& thisLambda, EntityNode* entityNode) {
+        ensureEntityId(*entityNode);
+        entityNode->visitChildren(thisLambda);
+      },
+      [](BrushNode*) {},
+      [](PatchNode*) {}));
+}
+
+void Map::ensureEntityId(EntityNode& entityNode)
+{
+  if (!shouldGenerateEntityIds())
+  {
+    return;
+  }
+
+  auto entity = entityNode.entity();
+  if (const auto* existingId = entity.property(EntityPropertyKeys::UniqueId))
+  {
+    if (!existingId->empty() && registerEntityId(*existingId))
+    {
+      return;
+    }
+  }
+
+  const auto newId = allocateEntityId();
+  entity.addOrUpdateProperty(EntityPropertyKeys::UniqueId, newId);
+  registerEntityId(newId);
+  entityNode.setEntity(std::move(entity));
+}
+
+std::string Map::allocateEntityId()
+{
+  auto id = generateUuid();
+  while (m_entityIds.contains(id))
+  {
+    id = generateUuid();
+  }
+  return id;
+}
+
+bool Map::registerEntityId(const std::string& id)
+{
+  if (id.empty())
+  {
+    return false;
+  }
+  return m_entityIds.insert(id).second;
+}
+
+void Map::removeEntityIds(const std::vector<Node*>& nodes)
+{
+  Node::visitAll(
+    nodes,
+    kdl::overload(
+      [&](auto&& thisLambda, WorldNode* worldNode) {
+        worldNode->visitChildren(thisLambda);
+      },
+      [&](auto&& thisLambda, LayerNode* layerNode) {
+        layerNode->visitChildren(thisLambda);
+      },
+      [&](auto&& thisLambda, GroupNode* groupNode) {
+        groupNode->visitChildren(thisLambda);
+      },
+      [&](auto&& thisLambda, EntityNode* entityNode) {
+        removeEntityId(*entityNode);
+        entityNode->visitChildren(thisLambda);
+      },
+      [](BrushNode*) {},
+      [](PatchNode*) {}));
+}
+
+void Map::removeEntityId(EntityNode& entityNode)
+{
+  if (const auto* existingId = entityNode.entity().property(EntityPropertyKeys::UniqueId))
+  {
+    m_entityIds.erase(*existingId);
+  }
+}
+
+void Map::applyEntityIdPreference()
+{
+  if (!m_world)
+  {
+    return;
+  }
+
+  const auto enabled = pref(Preferences::GenerateEntityIds);
+  auto& config = m_world->entityPropertyConfig();
+  if (config.generateUniqueEntityIds == enabled)
+  {
+    return;
+  }
+
+  config.generateUniqueEntityIds = enabled;
+  rebuildEntityIdRegistry();
+}
+
 
 void Map::processResourcesSync(const ProcessContext& processContext)
 {
@@ -1420,6 +1570,7 @@ void Map::mapWasLoaded(Map&)
 
 void Map::nodesWereAdded(const std::vector<Node*>& nodes)
 {
+  ensureEntityIds(nodes);
   setHasPendingChanges(collectGroups(nodes), false);
   setEntityDefinitions(nodes);
   setEntityModels(nodes);
@@ -1431,6 +1582,7 @@ void Map::nodesWereAdded(const std::vector<Node*>& nodes)
 
 void Map::nodesWereRemoved(const std::vector<Node*>& nodes)
 {
+  removeEntityIds(nodes);
   unsetEntityModels(nodes);
   unsetEntityDefinitions(nodes);
   unsetMaterials(nodes);
@@ -1504,6 +1656,12 @@ void Map::modsDidChange()
 
 void Map::preferenceDidChange(const std::filesystem::path& path)
 {
+  if (path == Preferences::GenerateEntityIds.path())
+  {
+    applyEntityIdPreference();
+    return;
+  }
+
   if (m_game && m_game->isGamePathPreference(path))
   {
     const auto& gameFactory = GameFactory::instance();

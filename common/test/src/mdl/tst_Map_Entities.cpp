@@ -20,12 +20,15 @@
 #include "MapFixture.h"
 #include "TestFactory.h"
 #include "TestUtils.h"
+#include "PreferenceManager.h"
+#include "Preferences.h"
 #include "mdl/BrushBuilder.h"
 #include "mdl/BrushNode.h"
 #include "mdl/Entity.h"
 #include "mdl/EntityDefinition.h"
 #include "mdl/EntityDefinitionManager.h"
 #include "mdl/EntityNode.h"
+#include "mdl/EntityProperties.h"
 #include "mdl/GroupNode.h"
 #include "mdl/Map.h"
 #include "mdl/Map_Entities.h"
@@ -998,6 +1001,44 @@ TEST_CASE("Map_Entities")
           {"default_prop_b", "default_value_b"},
         }));
     }
+  }
+
+  SECTION("generate unique entity ids when preference enabled")
+  {
+    auto preferenceGuard = tb::TemporarilySetPref{Preferences::GenerateEntityIds, true};
+
+    auto uniqueFixture = MapFixture{};
+    auto& uniqueMap = uniqueFixture.map();
+    uniqueFixture.create();
+
+    uniqueMap.entityDefinitionManager().setDefinitions(
+      map.entityDefinitionManager().definitions());
+
+    const auto* definition =
+      uniqueMap.entityDefinitionManager().definition("point_entity");
+    REQUIRE(definition != nullptr);
+
+    auto* first = createPointEntity(uniqueMap, *definition, {0, 0, 0});
+    auto* second = createPointEntity(uniqueMap, *definition, {64, 0, 0});
+    REQUIRE(first != nullptr);
+    REQUIRE(second != nullptr);
+
+    const auto* firstId = first->entity().property(EntityPropertyKeys::UniqueId);
+    const auto* secondId = second->entity().property(EntityPropertyKeys::UniqueId);
+    REQUIRE(firstId != nullptr);
+    REQUIRE(secondId != nullptr);
+    CHECK(*firstId != *secondId);
+
+    selectNodes(uniqueMap, {first});
+    duplicateSelectedNodes(uniqueMap);
+
+    const auto duplicates = uniqueMap.selection().allEntities();
+    REQUIRE(duplicates.size() == 1);
+    const auto* duplicateNode = duplicates.front();
+    const auto* duplicateId = duplicateNode->entity().property(EntityPropertyKeys::UniqueId);
+    REQUIRE(duplicateId != nullptr);
+    CHECK(*duplicateId != *firstId);
+    CHECK(*duplicateId != *secondId);
   }
 }
 

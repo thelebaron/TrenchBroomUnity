@@ -34,6 +34,7 @@
 #include <optional>
 #include <string>
 #include <vector>
+#include <unordered_set>
 
 namespace kdl
 {
@@ -66,6 +67,7 @@ class EntityModelManager;
 class FaceHandleManager;
 class Game;
 class Grid;
+class EntityNode;
 class GroupNode;
 class Issue;
 class LayerNode;
@@ -134,6 +136,7 @@ private:
   mutable std::optional<Selection> m_cachedSelection;
   mutable std::optional<vm::bbox3d> m_cachedSelectionBounds;
   std::optional<vm::bbox3d> m_lastSelectionBounds;
+  std::unordered_set<std::string> m_entityIds;
 
 public: // notification
   Notifier<Command&> commandDoNotifier;
@@ -334,6 +337,16 @@ private: // Asset management
   void unsetEntityModels(const std::vector<Node*>& nodes);
 
   void updateGameSearchPaths();
+
+  bool shouldGenerateEntityIds() const;
+  void rebuildEntityIdRegistry();
+  void ensureEntityIds(const std::vector<Node*>& nodes);
+  void ensureEntityId(EntityNode& entityNode);
+  std::string allocateEntityId();
+  bool registerEntityId(const std::string& id);
+  void removeEntityIds(const std::vector<Node*>& nodes);
+  void removeEntityId(EntityNode& entityNode);
+  void applyEntityIdPreference();
 
 public: // resource processing
   void processResourcesSync(const ProcessContext& processContext);

@@ -44,7 +44,7 @@ TEST_CASE("convertToString")
   setLinkId(worldNode, "world_link_id");
 
   CHECK(convertToString(worldNode) == R"(WorldNode{
-  m_entityPropertyConfig: EntityPropertyConfig{defaultModelScaleExpression: nullopt, setDefaultProperties: 0, updateAnglePropertyAfterTransform: 1},
+  m_entityPropertyConfig: EntityPropertyConfig{defaultModelScaleExpression: nullopt, setDefaultProperties: 0, updateAnglePropertyAfterTransform: 1, generateUniqueEntityIds: 0},
   m_mapFormat: Quake3,
   m_entity: Entity{m_properties: [EntityProperty{m_key: classname, m_value: worldspawn}], m_protectedProperties: []},
   m_children: [
@@ -79,7 +79,7 @@ TEST_CASE("convertToString")
   worldNode.defaultLayer()->addChild(groupNode);
 
   CHECK(convertToString(worldNode) == R"(WorldNode{
-  m_entityPropertyConfig: EntityPropertyConfig{defaultModelScaleExpression: nullopt, setDefaultProperties: 0, updateAnglePropertyAfterTransform: 1},
+  m_entityPropertyConfig: EntityPropertyConfig{defaultModelScaleExpression: nullopt, setDefaultProperties: 0, updateAnglePropertyAfterTransform: 1, generateUniqueEntityIds: 0},
   m_mapFormat: Quake3,
   m_entity: Entity{m_properties: [EntityProperty{m_key: classname, m_value: worldspawn}], m_protectedProperties: []},
   m_children: [

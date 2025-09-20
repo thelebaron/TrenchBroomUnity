@@ -280,7 +280,9 @@ void GameImpl::initializeFileSystem(Logger& logger)
 EntityPropertyConfig GameImpl::entityPropertyConfig() const
 {
   return {
-    m_config.entityConfig.scaleExpression, m_config.entityConfig.setDefaultProperties};
+    m_config.entityConfig.scaleExpression,
+    m_config.entityConfig.setDefaultProperties,
+    false};
 }
 
 void GameImpl::writeLongAttribute(

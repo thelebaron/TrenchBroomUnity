@@ -59,6 +59,7 @@ extern const std::string GroupName;
 extern const std::string Group;
 extern const std::string GroupTransformation;
 extern const std::string LinkId;
+extern const std::string UniqueId;
 extern const std::string Message;
 extern const std::string ValveVersion;
 extern const std::string SoftMapBounds;
@@ -84,12 +85,14 @@ struct EntityPropertyConfig
   std::optional<el::ExpressionNode> defaultModelScaleExpression;
   bool setDefaultProperties = false;
   bool updateAnglePropertyAfterTransform = true;
+  bool generateUniqueEntityIds = false;
 
   kdl_reflect_decl(
     EntityPropertyConfig,
     defaultModelScaleExpression,
     setDefaultProperties,
-    updateAnglePropertyAfterTransform);
+    updateAnglePropertyAfterTransform,
+    generateUniqueEntityIds);
 };
 
 bool isNumberedProperty(std::string_view prefix, std::string_view key);

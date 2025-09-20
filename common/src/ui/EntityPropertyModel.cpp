@@ -67,6 +67,11 @@ bool isPropertyKeyMutable(const mdl::Entity& entity, const std::string& key)
   assert(!mdl::isGroup(entity.classname(), entity.properties()));
   assert(!mdl::isLayer(entity.classname(), entity.properties()));
 
+  if (key == mdl::EntityPropertyKeys::UniqueId)
+  {
+    return false;
+  }
+
   if (mdl::isWorldspawn(entity.classname()))
   {
     return !(
@@ -88,6 +93,11 @@ bool isPropertyValueMutable(const mdl::Entity& entity, const std::string& key)
 {
   assert(!mdl::isGroup(entity.classname(), entity.properties()));
   assert(!mdl::isLayer(entity.classname(), entity.properties()));
+
+  if (key == mdl::EntityPropertyKeys::UniqueId)
+  {
+    return false;
+  }
 
   if (mdl::isWorldspawn(entity.classname()))
   {

@@ -202,6 +202,8 @@ QString entityLinkModeDirect();
 QString entityLinkModeNone();
 extern Preference<QString> EntityLinkMode;
 
+extern Preference<bool> GenerateEntityIds;
+
 /**
  * Returns all Preferences declared in this file. Needed for migrating preference formats
  * or if we wanted to do a Path to Preference lookup.

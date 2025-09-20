@@ -58,6 +58,7 @@ const std::string GroupName = "_tb_name";
 const std::string Group = "_tb_group";
 const std::string GroupTransformation = "_tb_transformation";
 const std::string LinkId = "_tb_linked_group_id";
+const std::string UniqueId = "_tb_unique_id";
 const std::string Message = "_tb_message";
 const std::string ValveVersion = "mapversion";
 const std::string SoftMapBounds = "_tb_soft_map_bounds";

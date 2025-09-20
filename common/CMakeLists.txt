@@ -487,6 +487,7 @@ set(COMMON_SOURCE
         ${COMMON_SOURCE_DIR}/ui/TwoPaneMapView.cpp
         ${COMMON_SOURCE_DIR}/ui/UpdateConfig.cpp
         ${COMMON_SOURCE_DIR}/ui/UpdatePreferencePane.cpp
+        ${COMMON_SOURCE_DIR}/ui/MiscPreferencePane.cpp
         ${COMMON_SOURCE_DIR}/ui/UpdateVersion.cpp
         ${COMMON_SOURCE_DIR}/ui/UVCameraTool.cpp
         ${COMMON_SOURCE_DIR}/ui/UVEditor.cpp
