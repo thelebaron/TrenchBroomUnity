@@ -1335,7 +1335,6 @@ void Map::ensureClassIndices(const std::vector<Node*>& nodes)
 
 void Map::ensureClassIndex(EntityNode& entityNode)
 {
-  return;
   if (!shouldGenerateClassIndices())
   {
     unregisterClassIndex(entityNode);
@@ -1373,7 +1372,6 @@ void Map::ensureClassIndex(EntityNode& entityNode)
 
 size_t Map::allocateClassIndex(const std::string& classname)
 {
-  return 0;
   auto& next = m_nextClassIndex[classname];
   if (next == 0)
   {
@@ -1397,7 +1395,6 @@ size_t Map::allocateClassIndex(const std::string& classname)
 bool Map::registerClassIndex(
   const std::string& classname, const size_t index, EntityNode& entityNode)
 {
-  return false;
   if (index == 0)
   {
     return false;
@@ -1435,7 +1432,6 @@ bool Map::registerClassIndex(
 
 void Map::unregisterClassIndex(EntityNode& entityNode)
 {
-  return;
   const auto assignmentIt = m_entityClassIndices.find(&entityNode);
   if (assignmentIt == std::end(m_entityClassIndices))
   {
