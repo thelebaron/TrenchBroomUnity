@@ -1378,7 +1378,7 @@ size_t Map::allocateClassIndex(const std::string& classname)
     next = 1;
   }
 
-  auto candidate = next;
+  auto candidate = size_t{1};
   const auto ownersIt = m_classIndexOwners.find(classname);
   const auto* owners = ownersIt != std::end(m_classIndexOwners) ? &ownersIt->second : nullptr;
 
@@ -1847,7 +1847,6 @@ void Map::nodesWereRemoved(const std::vector<Node*>& nodes)
 
 void Map::nodesDidChange(const std::vector<Node*>& nodes)
 {
-  ensureClassIndices(nodes);
   setEntityDefinitions(nodes);
   setEntityModels(nodes);
   setMaterials(nodes);
