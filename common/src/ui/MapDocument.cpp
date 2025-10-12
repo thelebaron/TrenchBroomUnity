@@ -129,6 +129,11 @@ void MapDocument::createEntityDefinitionActions()
     m_map->entityDefinitionManager().definitions());
 }
 
+void MapDocument::rebuildClassIndexRegistry()
+{
+  m_map->rebuildClassIndexRegistry();
+}
+
 void MapDocument::loadPointFile(std::filesystem::path path)
 {
   static_assert(

@@ -1245,7 +1245,6 @@ bool Map::shouldGenerateClassIndices() const
 
 void Map::rebuildClassIndexRegistry()
 {
-  return;
   m_entityClassIndices.clear();
   m_classIndexOwners.clear();
   m_nextClassIndex.clear();

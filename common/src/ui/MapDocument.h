@@ -136,6 +136,9 @@ private: // tag and entity definition actions
   void clearTagActions();
   void createEntityDefinitionActions();
 
+public: // entity management
+  void rebuildClassIndexRegistry();
+
 public: // point file management
   mdl::PointTrace* pointTrace();
   void loadPointFile(std::filesystem::path path);

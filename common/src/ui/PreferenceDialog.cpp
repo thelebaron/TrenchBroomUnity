@@ -124,7 +124,7 @@ void PreferenceDialog::createGui()
   m_stackedWidget->addWidget(new ColorsPreferencePane{});
   m_stackedWidget->addWidget(new MousePreferencePane{});
   m_stackedWidget->addWidget(new KeyboardPreferencePane{m_document});
-  m_stackedWidget->addWidget(new MiscPreferencePane{});
+  m_stackedWidget->addWidget(new MiscPreferencePane{m_document});
   m_stackedWidget->addWidget(new UpdatePreferencePane{});
 
   m_buttonBox = new QDialogButtonBox{

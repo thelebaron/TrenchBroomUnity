@@ -22,18 +22,21 @@
 #include <QBoxLayout>
 #include <QCheckBox>
 #include <QLabel>
+#include <QPushButton>
 
 #include "PreferenceManager.h"
 #include "Preferences.h"
 #include "kdl/set_temp.h"
 #include "ui/FormWithSectionsLayout.h"
+#include "ui/MapDocument.h"
 #include "ui/ViewConstants.h"
 
 namespace tb::ui
 {
 
-MiscPreferencePane::MiscPreferencePane(QWidget* parent)
+MiscPreferencePane::MiscPreferencePane(MapDocument* document, QWidget* parent)
   : PreferencePane{parent}
+  , m_document{document}
 {
   createGui();
 }
@@ -90,6 +93,14 @@ QWidget* MiscPreferencePane::createMiscPreferences()
       prefs.set(Preferences::GenerateClassIndices, value);
     });
 
+  m_updateClassIndicesButton = new QPushButton{tr("Update Current Map Entities")};
+  m_updateClassIndicesButton->setEnabled(m_document != nullptr);
+  connect(
+    m_updateClassIndicesButton,
+    &QPushButton::clicked,
+    this,
+    &MiscPreferencePane::updateClassIndicesClicked);
+
   auto* layout = new FormWithSectionsLayout{};
   layout->setContentsMargins(
     LayoutConstants::DialogOuterMargin,
@@ -103,6 +114,7 @@ QWidget* MiscPreferencePane::createMiscPreferences()
   layout->addRow("Generate unique entity identifiers", m_generateEntityIdsCheckBox);
   layout->addRow(
     "Generate unique entity class indices", m_generateClassIndicesCheckBox);
+  layout->addRow("", m_updateClassIndicesButton);
 
   auto* widget = new QWidget{};
   widget->setLayout(layout);
@@ -131,6 +143,16 @@ void MiscPreferencePane::updateControls()
 bool MiscPreferencePane::validate()
 {
   return true;
+}
+
+void MiscPreferencePane::updateClassIndicesClicked()
+{
+  if (!m_document)
+  {
+    return;
+  }
+
+  m_document->rebuildClassIndexRegistry();
 }
 
 } // namespace tb::ui

@@ -348,6 +348,10 @@ private: // Asset management
 
   void updateGameSearchPaths();
 
+public: // entity index management
+  void rebuildClassIndexRegistry();
+
+private:
   bool shouldGenerateEntityIds() const;
   void rebuildEntityIdRegistry();
   void ensureEntityIds(const std::vector<Node*>& nodes);
@@ -358,7 +362,6 @@ private: // Asset management
   void removeEntityId(EntityNode& entityNode);
   void applyEntityIdPreference();
   bool shouldGenerateClassIndices() const;
-  void rebuildClassIndexRegistry();
   void ensureClassIndices(const std::vector<Node*>& nodes);
   void ensureClassIndex(EntityNode& entityNode);
   size_t allocateClassIndex(const std::string& classname);
