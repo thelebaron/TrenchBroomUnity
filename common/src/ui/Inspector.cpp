@@ -25,6 +25,7 @@
 #include "ui/FaceInspector.h"
 #include "ui/MapInspector.h"
 #include "ui/MapViewBar.h"
+#include "ui/PrefabInspector.h"
 #include "ui/QtUtils.h"
 #include "ui/TabBar.h"
 #include "ui/TabBook.h"
@@ -38,10 +39,12 @@ Inspector::Inspector(
   m_tabBook = new TabBook{};
 
   m_mapInspector = new MapInspector{document};
+  m_prefabInspector = new PrefabInspector{document};
   m_entityInspector = new EntityInspector{document, contextManager};
   m_faceInspector = new FaceInspector{document, contextManager};
 
   m_tabBook->addPage(m_mapInspector, "Map");
+  m_tabBook->addPage(m_prefabInspector, "Prefabs");
   m_tabBook->addPage(m_entityInspector, "Entity");
   m_tabBook->addPage(m_faceInspector, "Face");
 

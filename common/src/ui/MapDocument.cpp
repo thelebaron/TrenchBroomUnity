@@ -38,6 +38,7 @@
 #include "mdl/Transaction.h"
 #include "mdl/UpdateLinkedGroupsHelper.h"
 #include "ui/Actions.h"
+#include "ui/PrefabLibrary.h"
 #include "ui/ViewEffectsService.h"
 
 #include "kdl/result.h"
@@ -64,6 +65,7 @@ const std::string MapDocument::DefaultDocumentName("unnamed.map");
 
 MapDocument::MapDocument(kdl::task_manager& taskManager)
   : m_map{std::make_unique<mdl::Map>(taskManager, *this)}
+  , m_prefabLibrary{std::make_unique<PrefabLibrary>(*this)}
 {
   connectObservers();
 }
@@ -88,6 +90,16 @@ mdl::Map& MapDocument::map()
 const mdl::Map& MapDocument::map() const
 {
   return *m_map;
+}
+
+PrefabLibrary& MapDocument::prefabLibrary()
+{
+  return *m_prefabLibrary;
+}
+
+const PrefabLibrary& MapDocument::prefabLibrary() const
+{
+  return *m_prefabLibrary;
 }
 
 

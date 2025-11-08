@@ -58,6 +58,7 @@ namespace tb::ui
 {
 class ViewEffectsService;
 class AsyncTaskRunner;
+class PrefabLibrary;
 
 struct PointFile
 {
@@ -85,6 +86,7 @@ public:
 
 private:
   std::unique_ptr<mdl::Map> m_map;
+  std::unique_ptr<PrefabLibrary> m_prefabLibrary;
 
   std::optional<PointFile> m_pointFile;
   std::optional<PortalFile> m_portalFile;
@@ -103,6 +105,8 @@ public:
 public: // accessors and such
   mdl::Map& map();
   const mdl::Map& map() const;
+  PrefabLibrary& prefabLibrary();
+  const PrefabLibrary& prefabLibrary() const;
 
   Logger& logger();
 

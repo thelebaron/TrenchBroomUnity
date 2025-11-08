@@ -23,11 +23,12 @@
 
 namespace tb::ui
 {
-class FaceInspector;
 class EntityInspector;
+class FaceInspector;
 class GLContextManager;
 class MapDocument;
 class MapInspector;
+class PrefabInspector;
 class MapViewBar;
 class SyncHeightEventFilter;
 class TabBook;
@@ -35,8 +36,9 @@ class TabBook;
 enum class InspectorPage
 {
   Map = 0,
-  Entity = 1,
-  Face = 2
+  Prefab = 1,
+  Entity = 2,
+  Face = 3
 };
 
 class Inspector : public QWidget
@@ -45,6 +47,7 @@ class Inspector : public QWidget
 private:
   TabBook* m_tabBook = nullptr;
   MapInspector* m_mapInspector = nullptr;
+  PrefabInspector* m_prefabInspector = nullptr;
   EntityInspector* m_entityInspector = nullptr;
   FaceInspector* m_faceInspector = nullptr;
 

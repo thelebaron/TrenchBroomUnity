@@ -1971,6 +1971,14 @@ void ActionManager::createViewMenu()
     [](const auto& context) { return context.hasDocument(); },
   }));
   viewMenu.addItem(addAction(Action{
+    "Menu/View/Switch to Prefab Inspector",
+    QObject::tr("Show Prefab Inspector"),
+    ActionContext::Any,
+    QKeySequence{Qt::CTRL | Qt::SHIFT | Qt::Key_1},
+    [](auto& context) { context.frame().switchToInspectorPage(InspectorPage::Prefab); },
+    [](const auto& context) { return context.hasDocument(); },
+  }));
+  viewMenu.addItem(addAction(Action{
     "Menu/View/Switch to Entity Inspector",
     QObject::tr("Show Entity Inspector"),
     ActionContext::Any,

@@ -19,7 +19,6 @@
 
 #include "CreateEntityToolController.h"
 
-#include "Ensure.h"
 #include "ui/CreateEntityTool.h"
 #include "ui/DropTracker.h"
 #include "ui/InputState.h"
@@ -99,8 +98,10 @@ std::unique_ptr<DropTracker> CreateEntityToolController::acceptDrop(
   const InputState& inputState, const std::string& payload)
 {
   const auto parts = kdl::str_split(payload, ":");
-  ensure(parts.size() == 2 && parts[0] == "entity", "dropped item is an entity");
-
+  if (parts.size() != 2 || parts[0] != "entity")
+  {
+    return nullptr;
+  }
   return m_tool.createEntity(parts[1]) ? createDropTracker(inputState) : nullptr;
 }
 

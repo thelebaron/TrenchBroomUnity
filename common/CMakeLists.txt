@@ -441,6 +441,10 @@ set(COMMON_SOURCE
         ${COMMON_SOURCE_DIR}/ui/OnePaneMapView.cpp
         ${COMMON_SOURCE_DIR}/ui/PickRequest.cpp
         ${COMMON_SOURCE_DIR}/ui/PopupButton.cpp
+        ${COMMON_SOURCE_DIR}/ui/PrefabBrowser.cpp
+        ${COMMON_SOURCE_DIR}/ui/PrefabDropController.cpp
+        ${COMMON_SOURCE_DIR}/ui/PrefabInspector.cpp
+        ${COMMON_SOURCE_DIR}/ui/PrefabLibrary.cpp
         ${COMMON_SOURCE_DIR}/ui/PopupWindow.cpp
         ${COMMON_SOURCE_DIR}/ui/PreferenceDialog.cpp
         ${COMMON_SOURCE_DIR}/ui/PreferencePane.cpp
@@ -1000,6 +1004,10 @@ set(COMMON_HEADER
         ${COMMON_SOURCE_DIR}/ui/OnePaneMapView.h
         ${COMMON_SOURCE_DIR}/ui/PickRequest.h
         ${COMMON_SOURCE_DIR}/ui/PopupButton.h
+        ${COMMON_SOURCE_DIR}/ui/PrefabBrowser.h
+        ${COMMON_SOURCE_DIR}/ui/PrefabDropController.h
+        ${COMMON_SOURCE_DIR}/ui/PrefabInspector.h
+        ${COMMON_SOURCE_DIR}/ui/PrefabLibrary.h
         ${COMMON_SOURCE_DIR}/ui/PopupWindow.h
         ${COMMON_SOURCE_DIR}/ui/PreferenceDialog.h
         ${COMMON_SOURCE_DIR}/ui/PreferencePane.h
