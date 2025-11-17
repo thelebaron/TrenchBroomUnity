@@ -291,6 +291,7 @@ set(COMMON_SOURCE
         ${COMMON_SOURCE_DIR}/render/RenderService.cpp
         ${COMMON_SOURCE_DIR}/render/RenderUtils.cpp
         ${COMMON_SOURCE_DIR}/render/SelectionBoundsRenderer.cpp
+        ${COMMON_SOURCE_DIR}/render/LayerHighlightRenderer.cpp
         ${COMMON_SOURCE_DIR}/render/Shader.cpp
         ${COMMON_SOURCE_DIR}/render/ShaderManager.cpp
         ${COMMON_SOURCE_DIR}/render/ShaderProgram.cpp
@@ -851,6 +852,7 @@ set(COMMON_HEADER
         ${COMMON_SOURCE_DIR}/render/RenderService.h
         ${COMMON_SOURCE_DIR}/render/RenderUtils.h
         ${COMMON_SOURCE_DIR}/render/SelectionBoundsRenderer.h
+        ${COMMON_SOURCE_DIR}/render/LayerHighlightRenderer.h
         ${COMMON_SOURCE_DIR}/render/Shader.h
         ${COMMON_SOURCE_DIR}/render/ShaderConfig.h
         ${COMMON_SOURCE_DIR}/render/ShaderManager.h

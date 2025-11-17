@@ -22,6 +22,7 @@
 #include <QButtonGroup>
 #include <QCheckBox>
 #include <QGridLayout>
+#include <QHBoxLayout>
 #include <QLabel>
 #include <QPushButton>
 #include <QRadioButton>
@@ -39,6 +40,7 @@
 #include "mdl/TagType.h"
 #include "ui/BorderPanel.h"
 #include "ui/MapDocument.h"
+#include "ui/KeySequenceEdit.h"
 #include "ui/PopupButton.h"
 #include "ui/QtUtils.h"
 #include "ui/TitledPanel.h"
@@ -326,6 +328,12 @@ QWidget* ViewEditor::createEntitiesPanel(QWidget* parent)
   m_showPointEntitiesCheckBox = new QCheckBox{tr("Show point entities")};
   m_showPointEntityModelsCheckBox = new QCheckBox{tr("Show point entity models")};
 
+  m_showLayerHighlightCheckBox =
+    new QCheckBox{tr("Highlight layer names when holding a hotkey")};
+  m_layerHighlightKeyEditor = new KeySequenceEdit{1};
+  m_layerHighlightKeyEditor->setToolTip(
+    tr("Hold the hotkey to temporarily show which layer the selection belongs to"));
+
   connect(
     m_showEntityClassnamesCheckBox,
     &QAbstractButton::clicked,
@@ -356,6 +364,16 @@ QWidget* ViewEditor::createEntitiesPanel(QWidget* parent)
     &QAbstractButton::clicked,
     this,
     &ViewEditor::showPointEntityModelsChanged);
+  connect(
+    m_showLayerHighlightCheckBox,
+    &QAbstractButton::clicked,
+    this,
+    &ViewEditor::showLayerHighlightChanged);
+  connect(
+    m_layerHighlightKeyEditor,
+    &KeySequenceEdit::editingFinished,
+    this,
+    &ViewEditor::layerHighlightKeyChanged);
 
   auto* layout = new QVBoxLayout{};
   layout->setContentsMargins(0, 0, 0, 0);
@@ -366,6 +384,13 @@ QWidget* ViewEditor::createEntitiesPanel(QWidget* parent)
   layout->addWidget(m_showPointEntityBoundsCheckBox);
   layout->addWidget(m_showPointEntitiesCheckBox);
   layout->addWidget(m_showPointEntityModelsCheckBox);
+  layout->addWidget(m_showLayerHighlightCheckBox);
+  auto* layerHotkeyLayout = new QHBoxLayout{};
+  layerHotkeyLayout->setContentsMargins(0, 0, 0, 0);
+  auto* hotkeyLabel = new QLabel{tr("Hotkey:")};
+  layerHotkeyLayout->addWidget(hotkeyLabel);
+  layerHotkeyLayout->addWidget(m_layerHighlightKeyEditor, 1);
+  layout->addLayout(layerHotkeyLayout);
 
   panel->getPanel()->setLayout(layout);
   return panel;
@@ -574,6 +599,9 @@ void ViewEditor::refreshEntitiesPanel()
   m_showPointEntityBoundsCheckBox->setChecked(pref(Preferences::ShowPointEntityBounds));
   m_showPointEntitiesCheckBox->setChecked(pref(Preferences::ShowPointEntities));
   m_showPointEntityModelsCheckBox->setChecked(pref(Preferences::ShowPointEntityModels));
+  m_showLayerHighlightCheckBox->setChecked(pref(Preferences::ShowLayerHighlight));
+  m_layerHighlightKeyEditor->setKeySequence(pref(Preferences::LayerHighlightHotkey()));
+  m_layerHighlightKeyEditor->setEnabled(pref(Preferences::ShowLayerHighlight));
 }
 
 void ViewEditor::refreshBrushesPanel()
@@ -628,6 +656,17 @@ void ViewEditor::showPointEntitiesChanged(const bool checked)
 void ViewEditor::showPointEntityModelsChanged(const bool checked)
 {
   setPref(Preferences::ShowPointEntityModels, checked);
+}
+
+void ViewEditor::showLayerHighlightChanged(const bool checked)
+{
+  setPref(Preferences::ShowLayerHighlight, checked);
+  m_layerHighlightKeyEditor->setEnabled(checked);
+}
+
+void ViewEditor::layerHighlightKeyChanged()
+{
+  setPref(Preferences::LayerHighlightHotkey(), m_layerHighlightKeyEditor->keySequence());
 }
 
 void ViewEditor::showBrushesChanged(const bool checked)

@@ -53,7 +53,7 @@ public:
 private:
   vm::vec2f alignmentFactors(TextAlignment::Type a) const;
 
-private:
+protected:
   virtual vm::vec3f basePosition() const = 0;
   virtual TextAlignment::Type alignment() const = 0;
   virtual vm::vec2f extraOffsets(TextAlignment::Type a) const;

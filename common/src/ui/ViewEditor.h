@@ -74,6 +74,8 @@ private:
   void createGui();
 };
 
+class KeySequenceEdit;
+
 class ViewEditor : public QWidget
 {
   Q_OBJECT
@@ -92,6 +94,9 @@ private:
   QCheckBox* m_showPointEntityModelsCheckBox = nullptr;
 
   EntityDefinitionCheckBoxList* m_entityDefinitionCheckBoxList = nullptr;
+
+  QCheckBox* m_showLayerHighlightCheckBox = nullptr;
+  KeySequenceEdit* m_layerHighlightKeyEditor = nullptr;
 
   QCheckBox* m_showBrushesCheckBox = nullptr;
   std::vector<std::pair<mdl::TagType::Type, QCheckBox*>> m_tagCheckBoxes;
@@ -142,6 +147,8 @@ private:
   void showPointEntityBoundsChanged(bool checked);
   void showPointEntitiesChanged(bool checked);
   void showPointEntityModelsChanged(bool checked);
+  void showLayerHighlightChanged(bool checked);
+  void layerHighlightKeyChanged();
   void showBrushesChanged(bool checked);
   void showTagChanged(bool checked, mdl::TagType::Type tagType);
   void faceRenderModeChanged(int id);

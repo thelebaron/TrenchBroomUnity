@@ -180,6 +180,8 @@ extern Preference<bool> ShowGroupBounds;
 extern Preference<bool> ShowBrushEntityBounds;
 extern Preference<bool> ShowPointEntityBounds;
 extern Preference<bool> ShowPointEntityModels;
+extern Preference<bool> ShowLayerHighlight;
+Preference<QKeySequence>& LayerHighlightHotkey();
 
 QString faceRenderModeTextured();
 QString faceRenderModeFlat();

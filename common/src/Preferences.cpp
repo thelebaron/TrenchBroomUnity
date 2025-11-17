@@ -271,6 +271,12 @@ Preference<bool> ShowGroupBounds("Map view/Show group bounds", true);
 Preference<bool> ShowBrushEntityBounds("Map view/Show brush entity bounds", true);
 Preference<bool> ShowPointEntityBounds("Map view/Show point entity bounds", true);
 Preference<bool> ShowPointEntityModels("Map view/Show point entity models", true);
+Preference<bool> ShowLayerHighlight("Map view/Show layer highlight", true);
+Preference<QKeySequence>& LayerHighlightHotkey()
+{
+  static Preference<QKeySequence> pref("Map view/Layer highlight hotkey", QKeySequence());
+  return pref;
+}
 
 QString faceRenderModeTextured()
 {
@@ -422,6 +428,8 @@ const std::vector<PreferenceBase*>& staticPreferences()
     &ShowBrushEntityBounds,
     &ShowPointEntityBounds,
     &ShowPointEntityModels,
+    &ShowLayerHighlight,
+    &LayerHighlightHotkey(),
     &FaceRenderMode,
     &ShadeFaces,
     &ShowFog,

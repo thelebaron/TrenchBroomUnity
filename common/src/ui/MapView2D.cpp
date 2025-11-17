@@ -394,6 +394,7 @@ void MapView2D::renderMap(
     auto boundsRenderer = render::SelectionBoundsRenderer{*bounds};
     boundsRenderer.render(renderContext, renderBatch);
   }
+  renderLayerHighlight(renderContext, renderBatch);
 }
 
 void MapView2D::renderTools(

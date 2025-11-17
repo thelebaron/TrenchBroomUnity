@@ -52,6 +52,7 @@
 #include "mdl/Map_Groups.h"
 #include "mdl/Map_Layers.h"
 #include "mdl/Map_Nodes.h"
+#include "mdl/Selection.h"
 #include "mdl/Map_Selection.h"
 #include "mdl/Map_World.h"
 #include "mdl/ModelUtils.h"
@@ -67,6 +68,7 @@
 #include "render/PrimitiveRenderer.h"
 #include "render/RenderBatch.h"
 #include "render/RenderContext.h"
+#include "render/LayerHighlightRenderer.h"
 #include "render/RenderService.h"
 #include "ui/Actions.h"
 #include "ui/Animation.h"
@@ -287,6 +289,12 @@ void MapViewBase::preferenceDidChange(const std::filesystem::path& path)
   if (path == Preferences::RendererFontSize.path())
   {
     fontManager().clearCache();
+  }
+  if (
+    path == Preferences::ShowLayerHighlight.path()
+    || path == Preferences::LayerHighlightHotkey().path())
+  {
+    setLayerHighlightActive(false);
   }
 
   updateActionBindings();
@@ -915,13 +923,6 @@ void MapViewBase::focusInEvent(QFocusEvent* event)
   RenderView::focusInEvent(event);
 }
 
-void MapViewBase::focusOutEvent(QFocusEvent* event)
-{
-  clearModifierKeys();
-  update();
-  RenderView::focusOutEvent(event);
-}
-
 ActionContext::Type MapViewBase::actionContext() const
 {
   const auto& map = m_document.map();
@@ -1162,6 +1163,98 @@ void MapViewBase::renderFPS(
     auto renderService = render::RenderService{renderContext, renderBatch};
     renderService.renderHeadsUp(m_currentFPS);
   }
+}
+
+void MapViewBase::renderLayerHighlight(
+  render::RenderContext& renderContext, render::RenderBatch& renderBatch)
+{
+  if (!pref(Preferences::ShowLayerHighlight) || !m_layerHighlightActive)
+  {
+    return;
+  }
+
+  const auto& selection = m_document.map().selection();
+  if (!selection.hasAny())
+  {
+    return;
+  }
+
+  m_layerHighlightRenderer.render(
+    renderContext, renderBatch, selection, m_document.map().editorContext());
+}
+
+void MapViewBase::setLayerHighlightActive(const bool active)
+{
+  if (active == m_layerHighlightActive)
+  {
+    return;
+  }
+
+  m_layerHighlightActive = active;
+  update();
+}
+
+bool MapViewBase::layerHighlightHotkeyMatches(const QKeyEvent* event) const
+{
+  if (event == nullptr)
+  {
+    return false;
+  }
+
+  const auto keySequence = pref(Preferences::LayerHighlightHotkey());
+  if (!keySequence.isEmpty())
+  {
+    const auto eventValue = keySequenceForEvent(*event);
+    for (int i = 0; i < keySequence.count(); ++i)
+    {
+      const auto value = keySequence[i];
+      if (value != 0 && value == eventValue)
+      {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  const auto key = event->key();
+  return key == Qt::Key_Control || key == Qt::Key_Alt || key == Qt::Key_AltGr;
+}
+
+int MapViewBase::keySequenceForEvent(const QKeyEvent& event) const
+{
+  const auto modifiers = int(event.modifiers()) & int(Qt::KeyboardModifierMask);
+  return event.key() | modifiers;
+}
+
+void MapViewBase::keyPressEvent(QKeyEvent* event)
+{
+  if (
+    !event->isAutoRepeat()
+    && pref(Preferences::ShowLayerHighlight)
+    && layerHighlightHotkeyMatches(event))
+  {
+    setLayerHighlightActive(true);
+  }
+
+  RenderView::keyPressEvent(event);
+}
+
+void MapViewBase::keyReleaseEvent(QKeyEvent* event)
+{
+  if (!event->isAutoRepeat() && layerHighlightHotkeyMatches(event))
+  {
+    setLayerHighlightActive(false);
+  }
+
+  RenderView::keyReleaseEvent(event);
+}
+
+void MapViewBase::focusOutEvent(QFocusEvent* event)
+{
+  setLayerHighlightActive(false);
+  clearModifierKeys();
+  update();
+  RenderView::focusOutEvent(event);
 }
 
 void MapViewBase::processEvent(const KeyEvent& event)

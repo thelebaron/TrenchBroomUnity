@@ -25,6 +25,8 @@
 #include "ui/MapView.h"
 #include "ui/RenderView.h"
 #include "ui/ToolBoxConnector.h"
+#include "render/LayerHighlightRenderer.h"
+#include "render/LayerHighlightRenderer.h"
 
 #include <filesystem>
 #include <utility>
@@ -101,6 +103,8 @@ private:
 
 private: // shortcuts
   std::vector<std::pair<QShortcut*, const Action*>> m_shortcuts;
+  render::LayerHighlightRenderer m_layerHighlightRenderer;
+  bool m_layerHighlightActive = false;
 
 protected:
   MapViewBase(
@@ -290,7 +294,6 @@ public: // view filters
 
   bool event(QEvent* event) override;
   void focusInEvent(QFocusEvent* event) override;
-  void focusOutEvent(QFocusEvent* event) override;
 
 public:
   ActionContext::Type actionContext() const;
@@ -308,6 +311,11 @@ public: // implement MapView interface
 
 protected: // RenderView overrides
   void initializeGL() override;
+  void keyPressEvent(QKeyEvent* event) override;
+  void keyReleaseEvent(QKeyEvent* event) override;
+  void focusOutEvent(QFocusEvent* event) override;
+  void renderLayerHighlight(
+    render::RenderContext& renderContext, render::RenderBatch& renderBatch);
 
 private: // implement RenderView interface
   bool shouldRenderFocusIndicator() const override;
@@ -342,6 +350,9 @@ private: // implement RenderView interface
 
   void renderCompass(render::RenderBatch& renderBatch);
   void renderFPS(render::RenderContext& renderContext, render::RenderBatch& renderBatch);
+  void setLayerHighlightActive(bool active);
+  bool layerHighlightHotkeyMatches(const QKeyEvent* event) const;
+  int keySequenceForEvent(const QKeyEvent& event) const;
 
 public: // implement InputEventProcessor interface
   void processEvent(const KeyEvent& event) override;

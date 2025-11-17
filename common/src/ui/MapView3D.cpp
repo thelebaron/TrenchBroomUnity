@@ -558,6 +558,7 @@ void MapView3D::renderMap(
     guideRenderer->setBounds(*bounds);
     renderBatch.addOneShot(guideRenderer);
   }
+  renderLayerHighlight(renderContext, renderBatch);
 }
 
 void MapView3D::renderTools(
