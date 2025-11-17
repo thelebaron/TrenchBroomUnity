@@ -26,6 +26,8 @@
 #include <QMenu>
 #include <QPushButton>
 #include <QScrollBar>
+#include <QSize>
+#include <QStyle>
 #include <QToolButton>
 #include <QVBoxLayout>
 #include <QtGlobal>
@@ -163,8 +165,12 @@ void MaterialBrowser::createGui(GLContextManager& contextManager)
   });
 
   m_wadFilterButton = new ::QToolButton{};
-  m_wadFilterButton->setText(tr("Wads"));
+  m_wadFilterButton->setText(tr("Hide Wads"));
   m_wadFilterButton->setToolTip(tr("Toggle wad visibility"));
+  m_wadFilterButton->setIcon(style()->standardIcon(QStyle::SP_ArrowDown));
+  m_wadFilterButton->setIconSize(QSize{16, 16});
+  m_wadFilterButton->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+  m_wadFilterButton->setStyleSheet("QToolButton::menu-indicator { image: none; }");
   m_wadFilterMenu = new ::QMenu{this};
   m_wadFilterButton->setMenu(m_wadFilterMenu);
   m_wadFilterButton->setPopupMode(QToolButton::InstantPopup);
