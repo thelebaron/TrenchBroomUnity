@@ -214,6 +214,8 @@ Preference<Color> MaterialBrowserSelectedColor(
   "Texture Browser/Selected color", Color(1.0f, 0.0f, 0.0f, 1.0f));
 Preference<Color> MaterialBrowserUsedColor(
   "Texture Browser/Used color", Color(1.0f, 0.7f, 0.0f, 1.0f));
+Preference<std::vector<std::filesystem::path>> MaterialBrowserHiddenWads(
+  "Texture Browser/Hidden collections", {});
 
 Preference<float> CameraLookSpeed("Controls/Camera/Look speed", 0.5f);
 Preference<bool> CameraLookInvertH("Controls/Camera/Invert horizontal look", false);
@@ -403,6 +405,7 @@ const std::vector<PreferenceBase*>& staticPreferences()
     &MaterialBrowserDefaultColor,
     &MaterialBrowserSelectedColor,
     &MaterialBrowserUsedColor,
+    &MaterialBrowserHiddenWads,
     &CameraLookSpeed,
     &CameraLookInvertH,
     &CameraLookInvertV,

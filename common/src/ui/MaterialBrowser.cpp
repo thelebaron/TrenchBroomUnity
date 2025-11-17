@@ -19,12 +19,19 @@
 
 #include "MaterialBrowser.h"
 
+#include <QAction>
 #include <QComboBox>
+#include <QHBoxLayout>
 #include <QLineEdit>
+#include <QMenu>
 #include <QPushButton>
 #include <QScrollBar>
+#include <QToolButton>
 #include <QVBoxLayout>
 #include <QtGlobal>
+
+#include <memory>
+#include <unordered_set>
 
 #include "PreferenceManager.h"
 #include "Preferences.h"
@@ -32,8 +39,10 @@
 #include "mdl/Map.h"
 #include "mdl/Material.h"
 #include "mdl/MaterialManager.h"
+#include "io/PathQt.h"
 #include "ui/MapDocument.h"
 #include "ui/MaterialBrowserView.h"
+#include "ui/MaterialWadFilter.h"
 #include "ui/QtUtils.h"
 #include "ui/ViewConstants.h"
 
@@ -47,10 +56,12 @@ MaterialBrowser::MaterialBrowser(
   MapDocument& document, GLContextManager& contextManager, QWidget* parent)
   : QWidget{parent}
   , m_document{document}
+  , m_wadFilter{std::make_unique<MaterialWadFilter>(document, this)}
 {
   createGui(contextManager);
   bindEvents();
   connectObservers();
+  connectWadFilter();
   reload();
 }
 
@@ -151,6 +162,22 @@ void MaterialBrowser::createGui(GLContextManager& contextManager)
     m_view->setFilterText(m_filterBox->text().toStdString());
   });
 
+  m_wadFilterButton = new ::QToolButton{};
+  m_wadFilterButton->setText(tr("Wads"));
+  m_wadFilterButton->setToolTip(tr("Toggle wad visibility"));
+  m_wadFilterMenu = new ::QMenu{this};
+  m_wadFilterButton->setMenu(m_wadFilterMenu);
+  m_wadFilterButton->setPopupMode(QToolButton::InstantPopup);
+
+  auto* filterLayout = new QHBoxLayout{};
+  filterLayout->setContentsMargins(
+    LayoutConstants::NarrowHMargin,
+    LayoutConstants::NarrowVMargin,
+    LayoutConstants::NarrowHMargin,
+    0);
+  filterLayout->setSpacing(LayoutConstants::NarrowHMargin);
+  filterLayout->addWidget(m_filterBox, 1);
+
   auto* controlLayout = new QHBoxLayout{};
   controlLayout->setContentsMargins(
     LayoutConstants::NarrowHMargin,
@@ -161,11 +188,12 @@ void MaterialBrowser::createGui(GLContextManager& contextManager)
   controlLayout->addWidget(m_sortOrderChoice);
   controlLayout->addWidget(m_groupButton);
   controlLayout->addWidget(m_usedButton);
-  controlLayout->addWidget(m_filterBox, 1);
+  controlLayout->addWidget(m_wadFilterButton);
 
   auto* outerLayout = new QVBoxLayout{};
   outerLayout->setContentsMargins(0, 0, 0, 0);
   outerLayout->setSpacing(0);
+  outerLayout->addLayout(filterLayout, 0);
   outerLayout->addWidget(browserPanel, 1);
   outerLayout->addLayout(controlLayout, 0);
 
@@ -179,6 +207,70 @@ void MaterialBrowser::bindEvents()
     &MaterialBrowserView::materialSelected,
     this,
     &MaterialBrowser::materialSelected);
+}
+
+void MaterialBrowser::connectWadFilter()
+{
+  if (m_wadFilter == nullptr)
+  {
+    return;
+  }
+
+  connect(
+    m_wadFilter.get(),
+    &MaterialWadFilter::wadCollectionsChanged,
+    this,
+    &MaterialBrowser::updateWadFilterMenu);
+  connect(
+    m_wadFilter.get(),
+    &MaterialWadFilter::hiddenWadsChanged,
+    this,
+    &MaterialBrowser::applyHiddenWads);
+
+  updateWadFilterMenu();
+  applyHiddenWads();
+}
+
+void MaterialBrowser::applyHiddenWads()
+{
+  if (m_view == nullptr || m_wadFilter == nullptr)
+  {
+    return;
+  }
+
+  const auto hidden = m_wadFilter->hiddenWads();
+  const auto hiddenSet = std::unordered_set<std::filesystem::path>(hidden.begin(), hidden.end());
+  m_view->setHiddenMaterialCollections(hiddenSet);
+}
+
+void MaterialBrowser::updateWadFilterMenu()
+{
+  if (m_wadFilterMenu == nullptr || m_wadFilter == nullptr)
+  {
+    return;
+  }
+
+  m_wadFilterMenu->clear();
+  const auto wadCollections = m_wadFilter->wadCollections();
+  if (wadCollections.empty())
+  {
+    auto* action = m_wadFilterMenu->addAction(tr("No wad textures"));
+    action->setEnabled(false);
+    return;
+  }
+
+  for (const auto& wad : wadCollections)
+  {
+    auto* action = m_wadFilterMenu->addAction(io::pathAsQString(wad));
+    action->setCheckable(true);
+    action->setChecked(m_wadFilter->isWadHidden(wad));
+    connect(action, &QAction::toggled, this, [this, wad](bool hidden) {
+      if (m_wadFilter)
+      {
+        m_wadFilter->setWadHidden(wad, hidden);
+      }
+    });
+  }
 }
 
 void MaterialBrowser::connectObservers()

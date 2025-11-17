@@ -49,6 +49,7 @@
 #include "vm/mat_ext.h"
 #include "vm/vec.h"
 
+#include <filesystem>
 #include <string>
 #include <vector>
 
@@ -104,6 +105,16 @@ void MaterialBrowserView::setFilterText(const std::string& filterText)
   if (filterText != m_filterText)
   {
     m_filterText = filterText;
+    reloadMaterials();
+  }
+}
+
+void MaterialBrowserView::setHiddenMaterialCollections(
+  const std::unordered_set<std::filesystem::path>& hiddenCollections)
+{
+  if (hiddenCollections != m_hiddenCollections)
+  {
+    m_hiddenCollections = hiddenCollections;
     reloadMaterials();
   }
 }
@@ -260,6 +271,13 @@ std::vector<const mdl::Material*> MaterialBrowserView::filterMaterials(
       return !kdl::all_of(kdl::str_split(m_filterText, " "), [&](const auto& pattern) {
         return kdl::ci::str_contains(material->name(), pattern);
       });
+    });
+  }
+  if (!m_hiddenCollections.empty())
+  {
+    materials = kdl::vec_erase_if(std::move(materials), [&](const auto* material) {
+      return m_hiddenCollections.find(std::filesystem::path{material->collectionName()})
+             != m_hiddenCollections.end();
     });
   }
   return materials;

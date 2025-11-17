@@ -24,6 +24,7 @@
 #include "NotifierConnection.h"
 
 #include <filesystem>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -31,6 +32,8 @@ class QPushButton;
 class QComboBox;
 class QLineEdit;
 class QScrollBar;
+class QMenu;
+class QToolButton;
 
 namespace tb::mdl
 {
@@ -45,6 +48,7 @@ namespace tb::ui
 class GLContextManager;
 class MapDocument;
 class MaterialBrowserView;
+class MaterialWadFilter;
 enum class MaterialSortOrder;
 
 class MaterialBrowser : public QWidget
@@ -58,6 +62,9 @@ private:
   QLineEdit* m_filterBox = nullptr;
   QScrollBar* m_scrollBar = nullptr;
   MaterialBrowserView* m_view = nullptr;
+  ::QToolButton* m_wadFilterButton = nullptr;
+  ::QMenu* m_wadFilterMenu = nullptr;
+  std::unique_ptr<MaterialWadFilter> m_wadFilter;
 
   NotifierConnection m_notifierConnection;
 
@@ -94,6 +101,9 @@ private:
 
   void reload();
   void updateSelectedMaterial();
+  void connectWadFilter();
+  void applyHiddenWads();
+  void updateWadFilterMenu();
 };
 
 } // namespace tb::ui

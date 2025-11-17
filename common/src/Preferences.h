@@ -146,6 +146,7 @@ extern Preference<float> MaterialBrowserIconSize;
 extern Preference<Color> MaterialBrowserDefaultColor;
 extern Preference<Color> MaterialBrowserSelectedColor;
 extern Preference<Color> MaterialBrowserUsedColor;
+extern Preference<std::vector<std::filesystem::path>> MaterialBrowserHiddenWads;
 
 extern Preference<float> CameraLookSpeed;
 extern Preference<bool> CameraLookInvertH;

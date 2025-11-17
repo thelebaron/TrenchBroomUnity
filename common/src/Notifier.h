@@ -28,10 +28,84 @@
 #include <cassert>
 #include <functional>
 #include <memory>
+#include <tuple>
+#include <type_traits>
+#include <utility>
 #include <vector>
 
 namespace tb
 {
+namespace detail
+{
+  template <typename Receiver, typename MemberCallback, typename Tuple, size_t... Indices>
+  constexpr bool is_invocable_for_indices(std::index_sequence<Indices...>)
+  {
+    using TupleType = std::remove_reference_t<Tuple>;
+    return std::is_invocable_v<MemberCallback, Receiver*, std::tuple_element_t<Indices, TupleType>...>;
+  }
+
+  template <typename Receiver, typename MemberCallback, typename Tuple, size_t N>
+  constexpr bool is_invocable_prefix_v =
+    is_invocable_for_indices<Receiver, MemberCallback, Tuple>(std::make_index_sequence<N>{});
+
+  template <typename Receiver, typename MemberCallback, typename Tuple, size_t... Indices>
+  decltype(auto) invoke_member_callback_with_indices(
+    Receiver* receiver,
+    MemberCallback callback,
+    Tuple&& tuple,
+    std::index_sequence<Indices...>)
+  {
+    return std::invoke(
+      callback,
+      receiver,
+      std::get<Indices>(std::forward<Tuple>(tuple))...);
+  }
+
+  template <typename Receiver, typename MemberCallback, typename Tuple, size_t N>
+  decltype(auto) invoke_member_callback_with_prefix(
+    Receiver* receiver,
+    MemberCallback callback,
+    Tuple&& tuple)
+  {
+    return invoke_member_callback_with_indices(
+      receiver,
+      callback,
+      std::forward<Tuple>(tuple),
+      std::make_index_sequence<N>{});
+  }
+
+  template <typename Receiver, typename MemberCallback, typename Tuple, size_t N>
+  struct MemberInvoker
+  {
+    static decltype(auto) call(Receiver* receiver, MemberCallback callback, Tuple&& tuple)
+    {
+      if constexpr (is_invocable_prefix_v<Receiver, MemberCallback, Tuple, N>)
+      {
+        return invoke_member_callback_with_prefix<Receiver, MemberCallback, Tuple, N>(
+          receiver, callback, std::forward<Tuple>(tuple));
+      }
+      else
+      {
+        return MemberInvoker<Receiver, MemberCallback, Tuple, N - 1>::call(
+          receiver, callback, std::forward<Tuple>(tuple));
+      }
+    }
+  };
+
+  template <typename Receiver, typename MemberCallback, typename Tuple>
+  struct MemberInvoker<Receiver, MemberCallback, Tuple, 0>
+  {
+    static decltype(auto) call(Receiver* receiver, MemberCallback callback, Tuple&& tuple)
+    {
+      static_assert(
+        is_invocable_prefix_v<Receiver, MemberCallback, Tuple, 0>,
+        "Member callback cannot be invoked with the provided notifier arguments.");
+      return invoke_member_callback_with_prefix<Receiver, MemberCallback, Tuple, 0>(
+        receiver, callback, std::forward<Tuple>(tuple));
+    }
+  };
+} // namespace detail
+
 /**
  * Base class for notifier state. This is only necessary so that NotifierConnection is
  * independent of the Notifier type.
@@ -223,7 +297,9 @@ public:
   {
     return connect(
       [receiver = receiver_, callback = std::move(callback_)](auto&&... args) {
-        std::invoke(callback, receiver, std::forward<decltype(args)>(args)...);
+        auto arguments = std::forward_as_tuple(args...);
+        detail::MemberInvoker<R, MemberCallback, decltype(arguments), sizeof...(A)>::call(
+          receiver, callback, std::move(arguments));
       });
   }
 

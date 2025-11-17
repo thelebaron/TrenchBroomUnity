@@ -19,6 +19,7 @@ along with TrenchBroom. If not, see <http://www.gnu.org/licenses/>.
 
 #include "Preference.h"
 
+#include <QJsonArray>
 #include <QJsonObject>
 #include <QJsonValue>
 #include <QKeySequence>
@@ -88,6 +89,29 @@ bool PreferenceSerializer::readFromJson(
   return true;
 }
 
+bool PreferenceSerializer::readFromJson(
+  const QJsonValue& in, std::vector<std::filesystem::path>& out) const
+{
+  if (!in.isArray())
+  {
+    return false;
+  }
+
+  const auto array = in.toArray();
+  out.clear();
+  out.reserve(static_cast<size_t>(array.size()));
+  for (const auto& value : array)
+  {
+    std::filesystem::path path;
+    if (!readFromJson(value, path))
+    {
+      return false;
+    }
+    out.push_back(std::move(path));
+  }
+  return true;
+}
+
 bool PreferenceSerializer::readFromJson(const QJsonValue& in, QKeySequence& out) const
 {
   if (!in.isString())
@@ -154,6 +178,17 @@ QJsonValue PreferenceSerializer::writeToJson(const int in) const
 QJsonValue PreferenceSerializer::writeToJson(const std::filesystem::path& in) const
 {
   return toJson(in, [](auto& lhs, const auto& rhs) { lhs << io::pathAsQString(rhs); });
+}
+
+QJsonValue PreferenceSerializer::writeToJson(
+  const std::vector<std::filesystem::path>& in) const
+{
+  auto array = QJsonArray{};
+  for (const auto& path : in)
+  {
+    array.append(writeToJson(path));
+  }
+  return array;
 }
 
 QJsonValue PreferenceSerializer::writeToJson(const QKeySequence& in) const

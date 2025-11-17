@@ -24,6 +24,7 @@
 #include <QTextStream>
 
 #include <filesystem>
+#include <vector>
 
 class QKeySequence;
 
@@ -48,6 +49,9 @@ public:
   bool readFromJson(const QJsonValue& in, float& out) const;
   bool readFromJson(const QJsonValue& in, int& out) const;
   bool readFromJson(const QJsonValue& in, std::filesystem::path& out) const;
+  bool readFromJson(
+    const QJsonValue& in,
+    std::vector<std::filesystem::path>& out) const;
   bool readFromJson(const QJsonValue& in, QKeySequence& out) const;
   bool readFromJson(const QJsonValue& in, QString& out) const;
 
@@ -56,6 +60,7 @@ public:
   QJsonValue writeToJson(float in) const;
   QJsonValue writeToJson(int in) const;
   QJsonValue writeToJson(const std::filesystem::path& in) const;
+  QJsonValue writeToJson(const std::vector<std::filesystem::path>& in) const;
   QJsonValue writeToJson(const QKeySequence& in) const;
   QJsonValue writeToJson(const QString& in) const;
 };

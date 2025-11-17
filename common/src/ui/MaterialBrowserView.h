@@ -23,7 +23,9 @@
 #include "render/FontDescriptor.h"
 #include "ui/CellView.h"
 
+#include <filesystem>
 #include <string>
+#include <unordered_set>
 #include <vector>
 
 class QScrollBar;
@@ -57,6 +59,7 @@ private:
   bool m_hideUnused = false;
   MaterialSortOrder m_sortOrder = MaterialSortOrder::Name;
   std::string m_filterText;
+  std::unordered_set<std::filesystem::path> m_hiddenCollections;
 
   const mdl::Material* m_selectedMaterial = nullptr;
 
@@ -71,6 +74,8 @@ public:
   void setGroup(bool group);
   void setHideUnused(bool hideUnused);
   void setFilterText(const std::string& filterText);
+  void setHiddenMaterialCollections(
+    const std::unordered_set<std::filesystem::path>& hiddenCollections);
 
   const mdl::Material* selectedMaterial() const;
   void setSelectedMaterial(const mdl::Material* selectedMaterial);
