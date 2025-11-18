@@ -74,7 +74,7 @@ private:
     auto result = TextAnchor3D::extraOffsets(alignment);
     if (alignment & TextAlignment::Top)
     {
-      result[1] += 6.0f;
+      result[1] += -6.0f;
     }
     return result;
   }
@@ -107,7 +107,7 @@ private:
     auto result = TextAnchor3D::extraOffsets(alignment);
     if (alignment & TextAlignment::Top)
     {
-      result[1] += 6.0f;
+      result[1] += -6.0f;
     }
     return result;
   }
