@@ -20,6 +20,14 @@ git submodule update --init --recursive
 
 ## Dependencies
 
+DOWNLOAD THESE
+
+QT
+Cmake specific version https://github.com/Kitware/CMake/releases/download/v3.30.1/cmake-3.30.1-windows-i386.zip
+https://pandoc.org/installing.html
+
+Place cmake inside TrenchBroom\cmake (so cmake\bin cmake\share etc)
+
 ### VCPKG
 
 TrenchBroom uses [vcpkg](https://vcpkg.io/) to manage build dependencies except for Qt. vcpkg is integrated into TrenchBroom's build system and will download and build all dependencies once  during cmake's configure phase. This is an automatic process, but it can take a little while when it happens for the first time.
