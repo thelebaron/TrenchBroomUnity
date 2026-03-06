@@ -25,6 +25,7 @@
 #include "mdl/EntityColor.h"
 #include "mdl/EntityDefinition.h"
 #include "mdl/EntityNode.h"
+#include "mdl/EntityRotation.h"
 #include "mdl/Game.h"
 #include "mdl/LinkedGroupUtils.h"
 #include "mdl/Map.h"
@@ -33,6 +34,7 @@
 #include "mdl/Map_Nodes.h"
 #include "mdl/Map_Selection.h"
 #include "mdl/ModelUtils.h"
+#include "mdl/PropertyDefinition.h"
 #include "mdl/Transaction.h"
 #include "mdl/WorldNode.h"
 
@@ -83,6 +85,51 @@ std::optional<std::string> findUnprotectedPropertyValue(
   return std::nullopt;
 }
 
+std::string rotationPropertyDefaultValue(
+  const EntityDefinition& definition,
+  const EntityRotationInfo& info)
+{
+  if (const auto* propertyDefinition = getPropertyDefinition(definition, info.propertyKey))
+  {
+    if (const auto defaultValue = PropertyDefinition::defaultValue(*propertyDefinition))
+    {
+      if (!defaultValue->empty())
+      {
+        return *defaultValue;
+      }
+    }
+  }
+
+  if (
+    info.type == EntityRotationType::Angle
+    || info.type == EntityRotationType::AngleUpDown)
+  {
+    return "0";
+  }
+
+  return "0 0 0";
+}
+
+void ensureRotationProperty(const EntityDefinition& definition, Entity& entity)
+{
+  const auto info = entityRotationInfo(entity);
+  if (info.type == EntityRotationType::None || info.propertyKey.empty())
+  {
+    return;
+  }
+
+  if (entity.hasProperty(info.propertyKey))
+  {
+    return;
+  }
+
+  const auto value = rotationPropertyDefaultValue(definition, info);
+  if (!value.empty())
+  {
+    entity.addOrUpdateProperty(info.propertyKey, value);
+  }
+}
+
 } // namespace
 
 EntityNode* createPointEntity(
@@ -93,11 +140,14 @@ EntityNode* createPointEntity(
     "definition is a point entity definition");
 
   auto entity = Entity{{{EntityPropertyKeys::Classname, definition.name}}};
+  entity.setDefinition(&definition);
 
   if (map.world()->entityPropertyConfig().setDefaultProperties)
   {
     mdl::setDefaultProperties(definition, entity, SetDefaultPropertyMode::SetAll);
   }
+
+  ensureRotationProperty(definition, entity);
 
   auto* entityNode = new EntityNode{std::move(entity)};
 

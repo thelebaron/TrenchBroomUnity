@@ -133,7 +133,7 @@ Result<std::unique_ptr<WorldNode>> loadMap(
   const auto entityPropertyConfig = EntityPropertyConfig{
     config.entityConfig.scaleExpression,
     config.entityConfig.setDefaultProperties,
-    false,
+    true,
     false};
 
   auto parserStatus = io::SimpleParserStatus{logger};
@@ -201,7 +201,7 @@ Result<std::unique_ptr<WorldNode>> createMap(
   auto entityPropertyConfig = EntityPropertyConfig{
     config.entityConfig.scaleExpression,
     config.entityConfig.setDefaultProperties,
-    false,
+    true,
     false};
   auto worldNode = std::make_unique<WorldNode>(
     std::move(entityPropertyConfig), std::move(worldEntity), format);

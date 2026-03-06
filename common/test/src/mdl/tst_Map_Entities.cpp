@@ -29,6 +29,7 @@
 #include "mdl/EntityDefinitionManager.h"
 #include "mdl/EntityNode.h"
 #include "mdl/EntityProperties.h"
+#include "mdl/PropertyDefinition.h"
 #include "mdl/GroupNode.h"
 #include "mdl/Map.h"
 #include "mdl/Map_Entities.h"
@@ -56,7 +57,9 @@ TEST_CASE("Map_Entities")
     {"point_entity",
      Color{},
      "this is a point entity",
-     {},
+     {
+       {EntityPropertyKeys::Angles, PropertyValueTypes::String{}, "Angles", "Rotation angles"},
+     },
      PointEntityDefinition{vm::bbox3d{16.0}, {}, {}}},
     {
       "large_entity",
@@ -138,6 +141,16 @@ TEST_CASE("Map_Entities")
           {EntityPropertyKeys::Classname, "some_name"},
           {"some_default_prop", "value"},
         }));
+    }
+
+    SECTION("Rotation property is added on creation")
+    {
+      auto* entityNode =
+        createPointEntity(map, *pointEntityDefinition, vm::vec3d{0, 0, 0});
+      REQUIRE(entityNode != nullptr);
+      const auto* value = entityNode->entity().property(EntityPropertyKeys::Angles);
+      REQUIRE(value != nullptr);
+      CHECK(*value == "0 0 0");
     }
 
     SECTION("Linked group update failure")

@@ -85,6 +85,13 @@ TEST_CASE("Map")
   auto fixture = MapFixture{};
   auto& map = fixture.map();
 
+  SECTION("new map updates entity property defaults")
+  {
+    fixture.create();
+
+    CHECK(map.world()->entityPropertyConfig().updateAnglePropertyAfterTransform);
+  }
+
   SECTION("load")
   {
     SECTION("Format detection")
