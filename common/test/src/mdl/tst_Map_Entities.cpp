@@ -28,6 +28,7 @@
 #include "mdl/EntityDefinition.h"
 #include "mdl/EntityDefinitionManager.h"
 #include "mdl/EntityNode.h"
+#include "mdl/EntityNodeBase.h"
 #include "mdl/EntityProperties.h"
 #include "mdl/PropertyDefinition.h"
 #include "mdl/GroupNode.h"
@@ -1080,7 +1081,7 @@ TEST_CASE("Map_Entities")
     REQUIRE(second != nullptr);
     REQUIRE(third != nullptr);
 
-    const auto parseIndex = [](const EntityNode* node) {
+    const auto parseIndex = [](const EntityNodeBase* node) {
       const auto* value = node->entity().property(EntityPropertyKeys::ClassIndex);
       REQUIRE(value != nullptr);
       return std::stoul(*value);
