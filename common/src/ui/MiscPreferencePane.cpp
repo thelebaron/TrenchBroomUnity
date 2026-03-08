@@ -93,6 +93,22 @@ QWidget* MiscPreferencePane::createMiscPreferences()
       prefs.set(Preferences::GenerateClassIndices, value);
     });
 
+  m_autoSetDefaultEntityPropertiesCheckBox = new QCheckBox{};
+  connect(
+    m_autoSetDefaultEntityPropertiesCheckBox,
+    &QCheckBox::checkStateChanged,
+    this,
+    [&](const auto state) {
+      if (m_disableNotifiers)
+      {
+        return;
+      }
+
+      const auto value = state == Qt::Checked;
+      auto& prefs = PreferenceManager::instance();
+      prefs.set(Preferences::AutoSetDefaultEntityProperties, value);
+    });
+
   m_updateClassIndicesButton = new QPushButton{tr("Update Current Map Entities")};
   m_updateClassIndicesButton->setEnabled(m_document != nullptr);
   connect(
@@ -114,6 +130,9 @@ QWidget* MiscPreferencePane::createMiscPreferences()
   layout->addRow("Generate unique entity identifiers", m_generateEntityIdsCheckBox);
   layout->addRow(
     "Generate unique entity class indices", m_generateClassIndicesCheckBox);
+  layout->addRow(
+    "Automatically set default entity properties",
+    m_autoSetDefaultEntityPropertiesCheckBox);
   layout->addRow("", m_updateClassIndicesButton);
 
   auto* widget = new QWidget{};
@@ -131,6 +150,7 @@ void MiscPreferencePane::doResetToDefaults()
   auto& prefs = PreferenceManager::instance();
   prefs.resetToDefault(Preferences::GenerateEntityIds);
   prefs.resetToDefault(Preferences::GenerateClassIndices);
+  prefs.resetToDefault(Preferences::AutoSetDefaultEntityProperties);
 }
 
 void MiscPreferencePane::updateControls()
@@ -138,6 +158,8 @@ void MiscPreferencePane::updateControls()
   const auto disableNotifiers = kdl::set_temp{m_disableNotifiers, true};
   m_generateEntityIdsCheckBox->setChecked(pref(Preferences::GenerateEntityIds));
   m_generateClassIndicesCheckBox->setChecked(pref(Preferences::GenerateClassIndices));
+  m_autoSetDefaultEntityPropertiesCheckBox->setChecked(
+    pref(Preferences::AutoSetDefaultEntityProperties));
 }
 
 bool MiscPreferencePane::validate()

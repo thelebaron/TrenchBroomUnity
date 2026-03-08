@@ -370,6 +370,7 @@ private:
   void removeClassIndices(const std::vector<Node*>& nodes);
   void removeClassIndex(EntityNode& entityNode);
   void applyClassIndexPreference();
+  void applyDefaultPropertyPreference();
 
 public: // resource processing
   void processResourcesSync(const ProcessContext& processContext);

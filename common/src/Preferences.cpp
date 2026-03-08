@@ -323,6 +323,9 @@ Preference<QString> EntityLinkMode("Map view/Entity link mode", "direct");
 
 Preference<bool> GenerateEntityIds("Misc/Generate unique entity IDs", false);
 Preference<bool> GenerateClassIndices("Misc/Generate unique class indices", false);
+Preference<bool> AutoSetDefaultEntityProperties(
+  "Misc/Automatically set default entity properties",
+  true);
 
 const std::vector<PreferenceBase*>& staticPreferences()
 {
@@ -442,7 +445,8 @@ const std::vector<PreferenceBase*>& staticPreferences()
     &ShowBrushes,
     &EntityLinkMode,
     &GenerateEntityIds,
-    &GenerateClassIndices};
+    &GenerateClassIndices,
+    &AutoSetDefaultEntityProperties};
 
   return list;
 }

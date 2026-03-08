@@ -207,6 +207,7 @@ extern Preference<QString> EntityLinkMode;
 
 extern Preference<bool> GenerateEntityIds;
 extern Preference<bool> GenerateClassIndices;
+extern Preference<bool> AutoSetDefaultEntityProperties;
 
 /**
  * Returns all Preferences declared in this file. Needed for migrating preference formats

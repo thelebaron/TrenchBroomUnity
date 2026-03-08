@@ -36,6 +36,7 @@ private:
   MapDocument* m_document = nullptr;
   QCheckBox* m_generateEntityIdsCheckBox = nullptr;
   QCheckBox* m_generateClassIndicesCheckBox = nullptr;
+  QCheckBox* m_autoSetDefaultEntityPropertiesCheckBox = nullptr;
   QPushButton* m_updateClassIndicesButton = nullptr;
   bool m_disableNotifiers = false;
 

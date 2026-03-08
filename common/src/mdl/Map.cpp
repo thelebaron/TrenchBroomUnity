@@ -843,6 +843,7 @@ void Map::setWorld(
     auto& config = m_world->entityPropertyConfig();
     config.generateUniqueEntityIds = pref(Preferences::GenerateEntityIds);
     config.generateClassnameIndices = pref(Preferences::GenerateClassIndices);
+    config.setDefaultProperties = pref(Preferences::AutoSetDefaultEntityProperties);
   }
 
   rebuildEntityIdRegistry();
@@ -1569,6 +1570,23 @@ void Map::applyClassIndexPreference()
   rebuildClassIndexRegistry();
 }
 
+void Map::applyDefaultPropertyPreference()
+{
+  if (!m_world)
+  {
+    return;
+  }
+
+  const auto enabled = pref(Preferences::AutoSetDefaultEntityProperties);
+  auto& config = m_world->entityPropertyConfig();
+  if (config.setDefaultProperties == enabled)
+  {
+    return;
+  }
+
+  config.setDefaultProperties = enabled;
+}
+
 
 void Map::processResourcesSync(const ProcessContext& processContext)
 {
@@ -1918,6 +1936,12 @@ void Map::preferenceDidChange(const std::filesystem::path& path)
   if (path == Preferences::GenerateClassIndices.path())
   {
     applyClassIndexPreference();
+    return;
+  }
+
+  if (path == Preferences::AutoSetDefaultEntityProperties.path())
+  {
+    applyDefaultPropertyPreference();
     return;
   }
 

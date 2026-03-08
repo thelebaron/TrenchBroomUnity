@@ -1511,6 +1511,10 @@ If you open the preference dialog when a map is currently opened, the list of sh
 
 Note that if you assign a keyboard shortcut to different actions in the same context, the shortcut creates a conflict and you cannot exit the preference pane or close the dialog until you resolve the conflict. Conflicting shortcuts are highlighted in red.
 
+## Miscellaneous Preferences {#misc_preferences}
+
+The Miscellaneous preference pane contains entity-related settings such as ID and class index generation. The new "Automatically set default entity properties" checkbox controls whether TrenchBroom automatically adds every default property from the loaded entity definition when you create a brush or point entity (this is enabled by default). When it is unchecked you can still add properties manually through the "Set default properties" menu in the entity inspector.
+
 # Advanced Topics
 
 ## Automatic Updates
