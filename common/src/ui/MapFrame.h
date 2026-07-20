@@ -76,6 +76,7 @@ enum class InspectorPage;
 class MapDocument;
 class MapViewBase;
 class ObjExportDialog;
+class RoomCreatorDialog;
 class SignalDelayer;
 class SwitchableMapViewContainer;
 class Tool;
@@ -113,6 +114,7 @@ private:
 
   QPointer<QDialog> m_compilationDialog;
   QPointer<ObjExportDialog> m_objExportDialog;
+  QPointer<RoomCreatorDialog> m_roomCreatorDialog;
 
   NotifierConnection m_notifierConnection;
 
@@ -386,6 +388,9 @@ public:
 
   void toggleInspector();
   bool inspectorVisible() const;
+
+  void toggleRoomCreator();
+  bool roomCreatorVisible() const;
 
   void toggleMaximizeCurrentView();
   bool currentViewMaximized() const;

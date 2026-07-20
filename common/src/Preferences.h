@@ -209,6 +209,15 @@ extern Preference<bool> GenerateEntityIds;
 extern Preference<bool> GenerateClassIndices;
 extern Preference<bool> AutoSetDefaultEntityProperties;
 
+extern Preference<int> RoomCreatorMode;
+extern Preference<int> RoomCreatorWallThickness;
+extern Preference<int> RoomCreatorFloorHeight;
+extern Preference<bool> RoomCreatorGenerateCeiling;
+extern Preference<bool> RoomCreatorGenerateFloor;
+extern Preference<QString> RoomCreatorWallMaterial;
+extern Preference<QString> RoomCreatorCeilingMaterial;
+extern Preference<QString> RoomCreatorFloorMaterial;
+
 /**
  * Returns all Preferences declared in this file. Needed for migrating preference formats
  * or if we wanted to do a Path to Preference lookup.

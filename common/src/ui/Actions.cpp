@@ -2029,6 +2029,18 @@ void ActionManager::createViewMenu()
     },
   }));
   viewMenu.addItem(addAction(Action{
+    "Menu/View/Toggle Room Creator",
+    QObject::tr("Toggle Room Creator"),
+    ActionContext::Any,
+    QKeySequence{},
+    [](auto& context) { context.frame().toggleRoomCreator(); },
+    [](const auto& context) { return context.hasDocument(); },
+    [](const auto& context) {
+      return context.hasDocument() && context.frame().roomCreatorVisible();
+    },
+    std::filesystem::path{"RoomCreator.svg"},
+  }));
+  viewMenu.addItem(addAction(Action{
     "Menu/View/Maximize Current View",
     QObject::tr("Maximize Current View"),
     ActionContext::Any,

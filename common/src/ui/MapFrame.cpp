@@ -96,6 +96,7 @@
 #include "ui/QtUtils.h"
 #include "ui/RenderView.h"
 #include "ui/ReplaceMaterialDialog.h"
+#include "ui/RoomCreatorDialog.h"
 #include "ui/SignalDelayer.h"
 #include "ui/Splitter.h"
 #include "ui/SwitchableMapViewContainer.h"
@@ -457,6 +458,7 @@ void MapFrame::createToolBar()
   }
 
   m_toolBar->addWidget(m_gridChoice);
+  m_toolBar->addAction(findAction("Menu/View/Toggle Room Creator"));
 }
 
 void MapFrame::updateToolBarWidgets()
@@ -763,6 +765,10 @@ void MapFrame::connectObservers()
 
 void MapFrame::mapWasCreated(mdl::Map&)
 {
+  if (m_roomCreatorDialog)
+  {
+    m_roomCreatorDialog->mapDidChange();
+  }
   updateTitle();
   updateActionState();
   updateUndoRedoActions();
@@ -770,6 +776,10 @@ void MapFrame::mapWasCreated(mdl::Map&)
 
 void MapFrame::mapWasLoaded(mdl::Map&)
 {
+  if (m_roomCreatorDialog)
+  {
+    m_roomCreatorDialog->mapDidChange();
+  }
   updateTitle();
   updateActionState();
   updateUndoRedoActions();
@@ -786,6 +796,10 @@ void MapFrame::mapWasSaved(mdl::Map&)
 
 void MapFrame::mapWasCleared(mdl::Map&)
 {
+  if (m_roomCreatorDialog)
+  {
+    m_roomCreatorDialog->mapDidChange();
+  }
   updateTitle();
   updateActionState();
   updateUndoRedoActions();
@@ -831,6 +845,10 @@ void MapFrame::preferenceDidChange(const std::filesystem::path& path)
 
 void MapFrame::gridDidChange()
 {
+  if (m_roomCreatorDialog)
+  {
+    m_roomCreatorDialog->gridDidChange();
+  }
   updateActionStateDelayed();
   updateToolBarWidgets();
 }
@@ -2164,6 +2182,29 @@ void MapFrame::toggleInspector()
 bool MapFrame::inspectorVisible() const
 {
   return m_inspector->isVisible();
+}
+
+void MapFrame::toggleRoomCreator()
+{
+  if (!m_roomCreatorDialog)
+  {
+    m_roomCreatorDialog = new RoomCreatorDialog{*this, this};
+  }
+
+  if (m_roomCreatorDialog->isVisible())
+  {
+    m_roomCreatorDialog->hide();
+  }
+  else
+  {
+    showModelessDialog(m_roomCreatorDialog);
+  }
+  updateActionState();
+}
+
+bool MapFrame::roomCreatorVisible() const
+{
+  return m_roomCreatorDialog && m_roomCreatorDialog->isVisible();
 }
 
 void MapFrame::toggleMaximizeCurrentView()

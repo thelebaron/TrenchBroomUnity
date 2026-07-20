@@ -327,6 +327,15 @@ Preference<bool> AutoSetDefaultEntityProperties(
   "Misc/Automatically set default entity properties",
   true);
 
+Preference<int> RoomCreatorMode("Room Creator/Mode", 0);
+Preference<int> RoomCreatorWallThickness("Room Creator/Wall thickness", 16);
+Preference<int> RoomCreatorFloorHeight("Room Creator/Floor height", 128);
+Preference<bool> RoomCreatorGenerateCeiling("Room Creator/Generate ceiling", true);
+Preference<bool> RoomCreatorGenerateFloor("Room Creator/Generate floor", true);
+Preference<QString> RoomCreatorWallMaterial("Room Creator/Wall material", "");
+Preference<QString> RoomCreatorCeilingMaterial("Room Creator/Ceiling material", "");
+Preference<QString> RoomCreatorFloorMaterial("Room Creator/Floor material", "");
+
 const std::vector<PreferenceBase*>& staticPreferences()
 {
   static const std::vector<PreferenceBase*> list{
@@ -446,7 +455,15 @@ const std::vector<PreferenceBase*>& staticPreferences()
     &EntityLinkMode,
     &GenerateEntityIds,
     &GenerateClassIndices,
-    &AutoSetDefaultEntityProperties};
+    &AutoSetDefaultEntityProperties,
+    &RoomCreatorMode,
+    &RoomCreatorWallThickness,
+    &RoomCreatorFloorHeight,
+    &RoomCreatorGenerateCeiling,
+    &RoomCreatorGenerateFloor,
+    &RoomCreatorWallMaterial,
+    &RoomCreatorCeilingMaterial,
+    &RoomCreatorFloorMaterial};
 
   return list;
 }

@@ -126,6 +126,7 @@ set(COMMON_TEST_SOURCE
         "${COMMON_TEST_SOURCE_DIR}/mdl/tst_PortalFile.cpp"
         "${COMMON_TEST_SOURCE_DIR}/mdl/tst_Resource.cpp"
         "${COMMON_TEST_SOURCE_DIR}/mdl/tst_ResourceManager.cpp"
+        "${COMMON_TEST_SOURCE_DIR}/mdl/tst_RoomGenerator.cpp"
         "${COMMON_TEST_SOURCE_DIR}/mdl/tst_Selection.cpp"
         "${COMMON_TEST_SOURCE_DIR}/mdl/tst_Tagging.cpp"
         "${COMMON_TEST_SOURCE_DIR}/mdl/tst_Transaction.cpp"
