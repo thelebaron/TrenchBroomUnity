@@ -12,14 +12,19 @@
 #include "RoomCreatorDialog.h"
 
 #include "Preferences.h"
+#include "PreferenceManager.h"
+#include "Logger.h"
 #include "mdl/Brush.h"
+#include "mdl/BrushFace.h"
 #include "mdl/BrushNode.h"
 #include "mdl/Grid.h"
 #include "mdl/Map.h"
 #include "mdl/Map_Selection.h"
 #include "mdl/Material.h"
+#include "mdl/MaterialManager.h"
 #include "mdl/Node.h"
 #include "ui/MapFrame.h"
+#include "ui/MapDocument.h"
 
 #include <QCheckBox>
 #include <QComboBox>
@@ -256,7 +261,7 @@ bool RoomCreatorDialog::isValidBox(const mdl::BrushNode& brush) const
   {
     const auto normal = face.normal();
     const auto axisComponents = std::array<double, 3>{
-      std::abs(normal.x), std::abs(normal.y), std::abs(normal.z)};
+      std::abs(normal.x()), std::abs(normal.y()), std::abs(normal.z())};
     const auto maxComponent = std::max({axisComponents[0], axisComponents[1], axisComponents[2]});
     if (maxComponent < 0.999 || std::count_if(
                                     axisComponents.begin(),
@@ -284,7 +289,7 @@ std::vector<mdl::RoomGenerationSource> RoomCreatorDialog::collectSources() const
     }
 
     const auto bounds = brush->brush().bounds();
-    if (mode == mdl::RoomGenerationMode::Floor && bounds.size().z > maxFloorThickness)
+    if (mode == mdl::RoomGenerationMode::Floor && bounds.size().z() > maxFloorThickness)
     {
       continue;
     }
@@ -335,7 +340,7 @@ void RoomCreatorDialog::generate()
     m_frame.document().map(), currentSettings, sources, m_generatedNodes);
   if (result.is_error())
   {
-    m_frame.logger().error() << "Room creator: " << result.error().msg;
+    m_frame.logger().error() << "Room creator: " << std::get<Error>(result.error()).msg;
     return;
   }
 

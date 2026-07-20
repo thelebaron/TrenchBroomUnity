@@ -21,6 +21,7 @@
 
 #include "mdl/AddRemoveNodesCommand.h"
 #include "mdl/BrushBuilder.h"
+#include "mdl/BrushFace.h"
 #include "mdl/BrushNode.h"
 #include "mdl/Game.h"
 #include "mdl/Layer.h"
@@ -76,7 +77,7 @@ Result<BrushNode*> makeBrush(
   auto result = builder.createCuboid(bounds, material);
   if (result.is_error())
   {
-    return result.error();
+    return std::get<Error>(result.error());
   }
   return new BrushNode{std::move(result.value())};
 }
@@ -92,7 +93,7 @@ Result<void> addBrush(
   auto result = makeBrush(builder, bounds, material);
   if (result.is_error())
   {
-    return result.error();
+    return std::get<Error>(result.error());
   }
 
   auto* brushNode = result.value();
@@ -115,28 +116,28 @@ Result<void> addRoom(
   const auto min = source.bounds.min;
   const auto max = source.bounds.max;
 
-  auto floorMin = min.z;
-  auto ceilingMax = max.z;
+  auto floorMin = min.z();
+  auto ceilingMax = max.z();
   if (settings.mode == RoomGenerationMode::Floor)
   {
-    floorMin = max.z;
+    floorMin = max.z();
     ceilingMax = floorMin + static_cast<double>(settings.floorHeight);
   }
 
   const auto wallBottom = floorMin;
   const auto wallTop = ceilingMax;
-  const auto expandedMin = vm::vec3d{min.x - thickness, min.y - thickness, wallBottom};
-  const auto expandedMax = vm::vec3d{max.x + thickness, max.y + thickness, wallTop};
+  const auto expandedMin = vm::vec3d{min.x() - thickness, min.y() - thickness, wallBottom};
+  const auto expandedMax = vm::vec3d{max.x() + thickness, max.y() + thickness, wallTop};
 
   // The side walls include the corners. Front and back stop at the inner X bounds so
   // that every corner remains a simple, non-intersecting pair of brushes.
   const auto wallBounds = std::vector<vm::bbox3d>{
-    vm::bbox3d{expandedMin, vm::vec3d{min.x, expandedMax.y, wallTop}},
-    vm::bbox3d{vm::vec3d{max.x, expandedMin.y, wallBottom}, expandedMax},
-    vm::bbox3d{vm::vec3d{min.x, expandedMin.y, wallBottom},
-               vm::vec3d{max.x, min.y, wallTop}},
-    vm::bbox3d{vm::vec3d{min.x, max.y, wallBottom},
-               vm::vec3d{max.x, expandedMax.y, wallTop}}};
+    vm::bbox3d{expandedMin, vm::vec3d{min.x(), expandedMax.y(), wallTop}},
+    vm::bbox3d{vm::vec3d{max.x(), expandedMin.y(), wallBottom}, expandedMax},
+    vm::bbox3d{vm::vec3d{min.x(), expandedMin.y(), wallBottom},
+               vm::vec3d{max.x(), min.y(), wallTop}},
+    vm::bbox3d{vm::vec3d{min.x(), max.y(), wallBottom},
+               vm::vec3d{max.x(), expandedMax.y(), wallTop}}};
 
   for (const auto& bounds : wallBounds)
   {
@@ -157,8 +158,8 @@ Result<void> addRoom(
   {
     if (auto result = addBrush(
           builder,
-          vm::bbox3d{vm::vec3d{min.x, min.y, min.z - thickness},
-                     vm::vec3d{max.x, max.y, min.z}},
+          vm::bbox3d{vm::vec3d{min.x(), min.y(), min.z() - thickness},
+                     vm::vec3d{max.x(), max.y(), min.z()}},
           settings.floorMaterial,
           floorsLayer,
           nodesToAdd,
@@ -173,8 +174,8 @@ Result<void> addRoom(
   {
     if (auto result = addBrush(
           builder,
-          vm::bbox3d{vm::vec3d{min.x, min.y, ceilingMax},
-                     vm::vec3d{max.x, max.y, ceilingMax + thickness}},
+          vm::bbox3d{vm::vec3d{min.x(), min.y(), ceilingMax},
+                     vm::vec3d{max.x(), max.y(), ceilingMax + thickness}},
           settings.ceilingMaterial,
           ceilingsLayer,
           nodesToAdd,
@@ -193,7 +194,9 @@ void setFloorMaterial(Map& map, BrushNode& floorNode, const std::string& materia
   auto brush = floorNode.brush();
   for (auto& face : brush.faces())
   {
-    face.attributes().setMaterialName(material);
+    auto attributes = face.attributes();
+    attributes.setMaterialName(material);
+    face.setAttributes(attributes);
   }
   updateNodeContents(map, "Set Room Floor Material", {{&floorNode, NodeContents{std::move(brush)}}});
 }
@@ -259,7 +262,13 @@ Result<RoomGenerationResult> generateRooms(
   }
   else if (!sourceNodes.empty())
   {
-    std::map<Node*, std::vector<Node*>> nodesToAdd{{floorsLayer, sourceNodes}};
+    auto floorNodes = std::vector<Node*>{};
+    floorNodes.reserve(sourceNodes.size());
+    for (auto* sourceNode : sourceNodes)
+    {
+      floorNodes.push_back(sourceNode);
+    }
+    std::map<Node*, std::vector<Node*>> nodesToAdd{{floorsLayer, std::move(floorNodes)}};
     if (!reparentNodes(map, nodesToAdd))
     {
       transaction.cancel();
@@ -287,7 +296,7 @@ Result<RoomGenerationResult> generateRooms(
         result.is_error())
     {
       transaction.cancel();
-      return result.error();
+      return std::get<Error>(result.error());
     }
   }
 

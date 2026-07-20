@@ -26,6 +26,7 @@ class QSpinBox;
 namespace tb::mdl
 {
 class BrushNode;
+class Node;
 }
 
 namespace tb::ui

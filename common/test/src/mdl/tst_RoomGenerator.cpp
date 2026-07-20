@@ -68,7 +68,7 @@ TEST_CASE("RoomGenerator")
     CHECK(result.value().generatedNodes.size() == 5u);
     REQUIRE(dynamic_cast<const LayerNode*>(source->parent()) != nullptr);
     CHECK(dynamic_cast<const LayerNode*>(source->parent())->name() == "floors");
-    CHECK(result.value().generatedNodes.front()->brush().bounds().max.z == 128.0);
+    CHECK(result.value().generatedNodes.front()->brush().bounds().max.z() == 128.0);
   }
 }
 
