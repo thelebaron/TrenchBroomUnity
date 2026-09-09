@@ -41,7 +41,7 @@ struct RoomGenerationSettings
 {
   RoomGenerationMode mode = RoomGenerationMode::Box;
   int wallThickness = 16;
-  int floorHeight = 128;
+  int wallHeight = 128;
   bool generateCeiling = true;
   bool generateFloor = true;
   std::string wallMaterial;

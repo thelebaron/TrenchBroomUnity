@@ -327,9 +327,9 @@ Preference<bool> AutoSetDefaultEntityProperties(
   "Misc/Automatically set default entity properties",
   true);
 
-Preference<int> RoomCreatorMode("Room Creator/Mode", 0);
+Preference<int> RoomCreatorMode("Room Creator/Mode", 1);
 Preference<int> RoomCreatorWallThickness("Room Creator/Wall thickness", 16);
-Preference<int> RoomCreatorFloorHeight("Room Creator/Floor height", 128);
+Preference<int> RoomCreatorWallHeight("Room Creator/Floor height", 128);
 Preference<bool> RoomCreatorGenerateCeiling("Room Creator/Generate ceiling", true);
 Preference<bool> RoomCreatorGenerateFloor("Room Creator/Generate floor", true);
 Preference<QString> RoomCreatorWallMaterial("Room Creator/Wall material", "");
@@ -458,7 +458,7 @@ const std::vector<PreferenceBase*>& staticPreferences()
     &AutoSetDefaultEntityProperties,
     &RoomCreatorMode,
     &RoomCreatorWallThickness,
-    &RoomCreatorFloorHeight,
+    &RoomCreatorWallHeight,
     &RoomCreatorGenerateCeiling,
     &RoomCreatorGenerateFloor,
     &RoomCreatorWallMaterial,

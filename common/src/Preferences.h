@@ -211,7 +211,7 @@ extern Preference<bool> AutoSetDefaultEntityProperties;
 
 extern Preference<int> RoomCreatorMode;
 extern Preference<int> RoomCreatorWallThickness;
-extern Preference<int> RoomCreatorFloorHeight;
+extern Preference<int> RoomCreatorWallHeight;
 extern Preference<bool> RoomCreatorGenerateCeiling;
 extern Preference<bool> RoomCreatorGenerateFloor;
 extern Preference<QString> RoomCreatorWallMaterial;

@@ -33,7 +33,6 @@
 #include <QGroupBox>
 #include <QLabel>
 #include <QPushButton>
-#include <QSpinBox>
 #include <QVBoxLayout>
 
 #include <algorithm>
@@ -45,7 +44,7 @@ namespace tb::ui
 namespace
 {
 constexpr int DefaultWallThickness = 16;
-constexpr int DefaultFloorHeight = 128;
+constexpr int DefaultWallHeight = 128;
 constexpr int PlayerWidth = 32;
 
 QComboBox* createMaterialChoice(QWidget* parent)
@@ -116,13 +115,11 @@ void RoomCreatorDialog::createGui()
   m_modeChoice->addItem(tr("Floor"), static_cast<int>(mdl::RoomGenerationMode::Floor));
   form->addRow(tr("Mode"), m_modeChoice);
 
-  m_wallThickness = new QSpinBox{this};
-  m_wallThickness->setRange(1, 8192);
+  m_wallThickness = new QComboBox{this};
   form->addRow(tr("Wall thickness"), m_wallThickness);
 
-  m_floorHeight = new QSpinBox{this};
-  m_floorHeight->setRange(1, 8192);
-  form->addRow(tr("Floor height"), m_floorHeight);
+  m_wallHeight = new QComboBox{this};
+  form->addRow(tr("Wall height"), m_wallHeight);
 
   m_generateCeiling = new QCheckBox{tr("Generate ceiling"), this};
   m_generateFloor = new QCheckBox{tr("Generate floor (Box mode)"), this};
@@ -154,8 +151,16 @@ void RoomCreatorDialog::createGui()
     QOverload<int>::of(&QComboBox::currentIndexChanged),
     this,
     &RoomCreatorDialog::updateModeUi);
-  connect(m_wallThickness, &QSpinBox::valueChanged, this, &RoomCreatorDialog::saveSettings);
-  connect(m_floorHeight, &QSpinBox::valueChanged, this, &RoomCreatorDialog::saveSettings);
+  connect(
+    m_wallThickness,
+    QOverload<int>::of(&QComboBox::currentIndexChanged),
+    this,
+    &RoomCreatorDialog::saveSettings);
+  connect(
+    m_wallHeight,
+    QOverload<int>::of(&QComboBox::currentIndexChanged),
+    this,
+    &RoomCreatorDialog::saveSettings);
   connect(m_generateCeiling, &QCheckBox::toggled, this, &RoomCreatorDialog::saveSettings);
   connect(m_generateFloor, &QCheckBox::toggled, this, &RoomCreatorDialog::saveSettings);
   connect(m_wallMaterial, &QComboBox::currentTextChanged, this, &RoomCreatorDialog::saveSettings);
@@ -190,8 +195,9 @@ void RoomCreatorDialog::loadSettings()
 {
   m_updating = true;
   m_modeChoice->setCurrentIndex(m_modeChoice->findData(pref(Preferences::RoomCreatorMode)));
-  m_wallThickness->setValue(pref(Preferences::RoomCreatorWallThickness));
-  m_floorHeight->setValue(pref(Preferences::RoomCreatorFloorHeight));
+  populateDimensionChoice(
+    m_wallThickness, pref(Preferences::RoomCreatorWallThickness), true);
+  populateDimensionChoice(m_wallHeight, pref(Preferences::RoomCreatorWallHeight), false);
   m_generateCeiling->setChecked(pref(Preferences::RoomCreatorGenerateCeiling));
   m_generateFloor->setChecked(pref(Preferences::RoomCreatorGenerateFloor));
   m_wallMaterial->setCurrentText(pref(Preferences::RoomCreatorWallMaterial));
@@ -208,8 +214,8 @@ void RoomCreatorDialog::saveSettings()
   }
 
   setPref(Preferences::RoomCreatorMode, m_modeChoice->currentData().toInt());
-  setPref(Preferences::RoomCreatorWallThickness, m_wallThickness->value());
-  setPref(Preferences::RoomCreatorFloorHeight, m_floorHeight->value());
+  setPref(Preferences::RoomCreatorWallThickness, m_wallThickness->currentData().toInt());
+  setPref(Preferences::RoomCreatorWallHeight, m_wallHeight->currentData().toInt());
   setPref(Preferences::RoomCreatorGenerateCeiling, m_generateCeiling->isChecked());
   setPref(Preferences::RoomCreatorGenerateFloor, m_generateFloor->isChecked());
   setPref(Preferences::RoomCreatorWallMaterial, m_wallMaterial->currentText());
@@ -217,12 +223,28 @@ void RoomCreatorDialog::saveSettings()
   setPref(Preferences::RoomCreatorFloorMaterial, m_floorMaterial->currentText());
 }
 
-void RoomCreatorDialog::setSpinBoxToGrid(QSpinBox* spinBox, const int value)
+void RoomCreatorDialog::populateDimensionChoice(
+  QComboBox* choice, const int value, const bool thickness)
 {
   const auto gridSize = static_cast<int>(m_frame.document().map().grid().actualSize());
   const auto snapped = std::max(gridSize, (value / gridSize) * gridSize);
-  spinBox->setSingleStep(gridSize);
-  spinBox->setValue(snapped);
+  const auto maximum = thickness ? std::max(PlayerWidth, gridSize) : 512;
+  const auto choices = thickness ? std::vector<int>{8, 16, 24, 32} :
+                                   std::vector<int>{64, 96, 128, 160, 192, 256, 384, 512};
+
+  choice->clear();
+  for (const auto candidate : choices)
+  {
+    if (candidate >= gridSize && candidate <= maximum && candidate % gridSize == 0)
+    {
+      choice->addItem(QString::number(candidate), candidate);
+    }
+  }
+  if (choice->findData(snapped) < 0)
+  {
+    choice->addItem(QString::number(snapped), snapped);
+  }
+  choice->setCurrentIndex(choice->findData(snapped));
 }
 
 void RoomCreatorDialog::updateGridStep()
@@ -232,8 +254,9 @@ void RoomCreatorDialog::updateGridStep()
     return;
   }
   m_updating = true;
-  setSpinBoxToGrid(m_wallThickness, m_wallThickness->value());
-  setSpinBoxToGrid(m_floorHeight, m_floorHeight->value());
+  populateDimensionChoice(
+    m_wallThickness, m_wallThickness->currentData().toInt(), true);
+  populateDimensionChoice(m_wallHeight, m_wallHeight->currentData().toInt(), false);
   m_updating = false;
   saveSettings();
 }
@@ -241,7 +264,7 @@ void RoomCreatorDialog::updateGridStep()
 void RoomCreatorDialog::updateModeUi()
 {
   const auto mode = static_cast<mdl::RoomGenerationMode>(m_modeChoice->currentData().toInt());
-  m_floorHeight->setEnabled(mode == mdl::RoomGenerationMode::Floor);
+  m_wallHeight->setEnabled(mode == mdl::RoomGenerationMode::Floor);
   m_generateFloor->setEnabled(mode == mdl::RoomGenerationMode::Box);
   if (!m_updating)
   {
@@ -310,8 +333,8 @@ mdl::RoomGenerationSettings RoomCreatorDialog::settings() const
   };
   return {
     static_cast<mdl::RoomGenerationMode>(m_modeChoice->currentData().toInt()),
-    m_wallThickness->value(),
-    m_floorHeight->value(),
+    m_wallThickness->currentData().toInt(),
+    m_wallHeight->currentData().toInt(),
     m_generateCeiling->isChecked(),
     m_generateFloor->isChecked(),
     materialName(m_wallMaterial),
@@ -359,14 +382,11 @@ void RoomCreatorDialog::generate()
 
 void RoomCreatorDialog::reset()
 {
-  setPref(Preferences::RoomCreatorMode, 0);
+  setPref(Preferences::RoomCreatorMode, 1);
   setPref(Preferences::RoomCreatorWallThickness, DefaultWallThickness);
-  setPref(Preferences::RoomCreatorFloorHeight, DefaultFloorHeight);
+  setPref(Preferences::RoomCreatorWallHeight, DefaultWallHeight);
   setPref(Preferences::RoomCreatorGenerateCeiling, true);
   setPref(Preferences::RoomCreatorGenerateFloor, true);
-  setPref(Preferences::RoomCreatorWallMaterial, QString{});
-  setPref(Preferences::RoomCreatorCeilingMaterial, QString{});
-  setPref(Preferences::RoomCreatorFloorMaterial, QString{});
   loadSettings();
   updateGridStep();
   updateModeUi();

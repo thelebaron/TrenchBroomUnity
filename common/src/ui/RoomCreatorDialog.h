@@ -21,7 +21,6 @@
 class QCheckBox;
 class QComboBox;
 class QGroupBox;
-class QSpinBox;
 
 namespace tb::mdl
 {
@@ -40,8 +39,8 @@ class RoomCreatorDialog : public QDialog
 private:
   MapFrame& m_frame;
   QComboBox* m_modeChoice = nullptr;
-  QSpinBox* m_wallThickness = nullptr;
-  QSpinBox* m_floorHeight = nullptr;
+  QComboBox* m_wallThickness = nullptr;
+  QComboBox* m_wallHeight = nullptr;
   QCheckBox* m_generateCeiling = nullptr;
   QCheckBox* m_generateFloor = nullptr;
   QGroupBox* m_materials = nullptr;
@@ -76,7 +75,7 @@ private:
   std::vector<mdl::RoomGenerationSource> collectSources() const;
   bool isValidBox(const mdl::BrushNode& brush) const;
   mdl::RoomGenerationSettings settings() const;
-  void setSpinBoxToGrid(QSpinBox* spinBox, int value);
+  void populateDimensionChoice(QComboBox* choice, int value, bool thickness);
 };
 
 } // namespace tb::ui

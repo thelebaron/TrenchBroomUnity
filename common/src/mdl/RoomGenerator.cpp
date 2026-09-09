@@ -121,7 +121,7 @@ Result<void> addRoom(
   if (settings.mode == RoomGenerationMode::Floor)
   {
     floorMin = max.z();
-    ceilingMax = floorMin + static_cast<double>(settings.floorHeight);
+    ceilingMax = floorMin + static_cast<double>(settings.wallHeight);
   }
 
   const auto wallBottom = floorMin;
@@ -214,7 +214,7 @@ Result<RoomGenerationResult> generateRooms(
     return Error{"No valid room sources selected"};
   }
 
-  if (settings.wallThickness <= 0 || settings.floorHeight <= 0)
+  if (settings.wallThickness <= 0 || settings.wallHeight <= 0)
   {
     return Error{"Room dimensions must be positive"};
   }
