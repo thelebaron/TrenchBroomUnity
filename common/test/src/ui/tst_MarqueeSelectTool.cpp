@@ -143,7 +143,7 @@ TEST_CASE("MarqueeSelectTool")
   {
     tool.setSelectionMode(MarqueeSelectTool::SelectionMode::Enclosed);
     tool.select(camera, rectangle(leftCenter, 8.0, 24.0), false);
-    CHECK(map.selection().empty());
+    CHECK(map.selection() == mdl::Selection{});
 
     tool.select(camera, rectangle(leftCenter, 24.0, 24.0), false);
     CHECK(map.selection() == mdl::makeSelection({leftBrush}));
