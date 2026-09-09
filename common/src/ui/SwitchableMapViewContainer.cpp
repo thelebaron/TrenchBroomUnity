@@ -151,6 +151,22 @@ void SwitchableMapViewContainer::toggleAssembleBrushTool()
   m_toolBox->toggleAssembleBrushTool();
 }
 
+bool SwitchableMapViewContainer::marqueeSelectToolActive() const
+{
+  return m_toolBox->marqueeSelectToolActive();
+}
+
+bool SwitchableMapViewContainer::canToggleMarqueeSelectTool() const
+{
+  return true;
+}
+
+void SwitchableMapViewContainer::toggleMarqueeSelectTool()
+{
+  assert(canToggleMarqueeSelectTool());
+  m_toolBox->toggleMarqueeSelectTool();
+}
+
 bool SwitchableMapViewContainer::clipToolActive() const
 {
   return m_toolBox->clipToolActive();

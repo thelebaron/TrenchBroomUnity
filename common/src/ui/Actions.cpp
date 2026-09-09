@@ -1483,6 +1483,20 @@ void ActionManager::createEditMenu()
 
   auto& toolMenu = editMenu.addMenu("Tools");
   toolMenu.addItem(addAction(Action{
+    "Menu/Edit/Tools/Marquee Select Tool",
+    QObject::tr("Marquee Select Tool"),
+    ActionContext::Any,
+    QKeySequence{Qt::Key_M},
+    [](auto& context) { context.frame().toggleMarqueeSelectTool(); },
+    [](const auto& context) {
+      return context.hasDocument() && context.frame().canToggleMarqueeSelectTool();
+    },
+    [](const auto& context) {
+      return context.hasDocument() && context.frame().marqueeSelectToolActive();
+    },
+    std::filesystem::path{"MarqueeSelectTool.svg"},
+  }));
+  toolMenu.addItem(addAction(Action{
     "Menu/Edit/Tools/Brush Tool",
     QObject::tr("Brush Tool"),
     ActionContext::Any,
@@ -2208,6 +2222,7 @@ Menu& ActionManager::createMainMenu(std::string name)
 void ActionManager::createToolbar()
 {
   m_toolBar.addItem(existingAction("Controls/Map view/Deactivate current tool"));
+  m_toolBar.addItem(existingAction("Menu/Edit/Tools/Marquee Select Tool"));
   m_toolBar.addItem(existingAction("Menu/Edit/Tools/Brush Tool"));
   m_toolBar.addItem(existingAction("Menu/Edit/Tools/Clip Tool"));
   m_toolBar.addItem(existingAction("Menu/Edit/Tools/Vertex Tool"));

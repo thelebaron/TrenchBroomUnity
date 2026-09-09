@@ -49,6 +49,7 @@ class ShearTool;
 class VertexTool;
 class EdgeTool;
 class FaceTool;
+class MarqueeSelectTool;
 
 class MapViewToolBox : public ToolBox
 {
@@ -67,6 +68,7 @@ private:
   std::unique_ptr<VertexTool> m_vertexTool;
   std::unique_ptr<EdgeTool> m_edgeTool;
   std::unique_ptr<FaceTool> m_faceTool;
+  std::unique_ptr<MarqueeSelectTool> m_marqueeSelectTool;
 
   NotifierConnection m_notifierConnection;
 
@@ -87,6 +89,7 @@ public: // tools
   VertexTool& vertexTool();
   EdgeTool& edgeTool();
   FaceTool& faceTool();
+  MarqueeSelectTool& marqueeSelectTool();
 
   void toggleAssembleBrushTool();
   bool assembleBrushToolActive() const;
@@ -120,6 +123,9 @@ public: // tools
 
   void toggleFaceTool();
   bool faceToolActive() const;
+
+  void toggleMarqueeSelectTool();
+  bool marqueeSelectToolActive() const;
 
   bool anyModalToolActive() const;
 

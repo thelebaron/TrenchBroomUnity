@@ -295,6 +295,10 @@ public:
   bool canToggleAssembleBrushTool() const;
   bool assembleBrushToolActive() const;
 
+  void toggleMarqueeSelectTool();
+  bool canToggleMarqueeSelectTool() const;
+  bool marqueeSelectToolActive() const;
+
   void toggleClipTool();
   bool canToggleClipTool() const;
   bool clipToolActive() const;

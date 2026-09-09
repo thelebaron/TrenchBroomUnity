@@ -429,6 +429,7 @@ set(COMMON_SOURCE
         ${COMMON_SOURCE_DIR}/ui/MapViewBase.cpp
         ${COMMON_SOURCE_DIR}/ui/MapViewContainer.cpp
         ${COMMON_SOURCE_DIR}/ui/MapViewToolBox.cpp
+        ${COMMON_SOURCE_DIR}/ui/MarqueeSelectTool.cpp
         ${COMMON_SOURCE_DIR}/ui/MaterialBrowser.cpp
         ${COMMON_SOURCE_DIR}/ui/MaterialBrowserView.cpp
         ${COMMON_SOURCE_DIR}/ui/MaterialWadFilter.cpp
@@ -996,6 +997,7 @@ set(COMMON_HEADER
         ${COMMON_SOURCE_DIR}/ui/MapViewContainer.h
         ${COMMON_SOURCE_DIR}/ui/MapViewLayout.h
         ${COMMON_SOURCE_DIR}/ui/MapViewToolBox.h
+        ${COMMON_SOURCE_DIR}/ui/MarqueeSelectTool.h
         ${COMMON_SOURCE_DIR}/ui/MaterialBrowser.h
         ${COMMON_SOURCE_DIR}/ui/MaterialBrowserView.h
         ${COMMON_SOURCE_DIR}/ui/MaterialWadFilter.h

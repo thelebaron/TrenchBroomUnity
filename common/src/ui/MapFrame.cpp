@@ -1755,6 +1755,24 @@ bool MapFrame::assembleBrushToolActive() const
   return m_mapView->assembleBrushToolActive();
 }
 
+void MapFrame::toggleMarqueeSelectTool()
+{
+  if (canToggleMarqueeSelectTool())
+  {
+    m_mapView->toggleMarqueeSelectTool();
+  }
+}
+
+bool MapFrame::canToggleMarqueeSelectTool() const
+{
+  return m_mapView->canToggleMarqueeSelectTool();
+}
+
+bool MapFrame::marqueeSelectToolActive() const
+{
+  return m_mapView->marqueeSelectToolActive();
+}
+
 void MapFrame::toggleClipTool()
 {
   if (canToggleClipTool())

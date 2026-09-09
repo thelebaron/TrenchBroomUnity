@@ -16,6 +16,7 @@
 #include "mdl/Map.h"
 #include "mdl/Map_Nodes.h"
 #include "mdl/RoomGenerator.h"
+#include "mdl/WorldNode.h"
 
 #include <catch2/catch_test_macros.hpp>
 

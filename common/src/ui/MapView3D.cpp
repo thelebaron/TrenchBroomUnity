@@ -56,6 +56,7 @@
 #include "ui/GLContextManager.h"
 #include "ui/MapDocument.h"
 #include "ui/MapViewToolBox.h"
+#include "ui/MarqueeSelectTool.h"
 #include "ui/MoveObjectsToolController.h"
 #include "ui/PrefabDropController.h"
 #include "ui/RotateToolController.h"
@@ -121,6 +122,8 @@ void MapView3D::initializeToolChain(MapViewToolBox& toolBox)
     std::make_unique<CreateEntityToolController3D>(toolBox.createEntityTool()));
   addToolController(std::make_unique<PrefabDropController>(m_document, *this));
   addToolController(std::make_unique<SetBrushFaceAttributesTool>(map));
+  addToolController(
+    std::make_unique<MarqueeSelectToolController>(toolBox.marqueeSelectTool()));
   addToolController(std::make_unique<SelectionTool>(map));
   addToolController(
     std::make_unique<DrawShapeToolController3D>(toolBox.drawShapeTool(), map));

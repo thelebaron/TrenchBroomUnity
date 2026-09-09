@@ -27,6 +27,7 @@
 #include "ui/EdgeTool.h"
 #include "ui/ExtrudeTool.h"
 #include "ui/FaceTool.h"
+#include "ui/MarqueeSelectTool.h"
 #include "ui/MoveObjectsTool.h"
 #include "ui/RotateTool.h"
 #include "ui/ScaleTool.h"
@@ -103,6 +104,11 @@ EdgeTool& MapViewToolBox::edgeTool()
 FaceTool& MapViewToolBox::faceTool()
 {
   return *m_faceTool;
+}
+
+MarqueeSelectTool& MapViewToolBox::marqueeSelectTool()
+{
+  return *m_marqueeSelectTool;
 }
 
 void MapViewToolBox::toggleAssembleBrushTool()
@@ -232,10 +238,20 @@ bool MapViewToolBox::faceToolActive() const
   return m_faceTool->active();
 }
 
+void MapViewToolBox::toggleMarqueeSelectTool()
+{
+  toggleTool(marqueeSelectTool());
+}
+
+bool MapViewToolBox::marqueeSelectToolActive() const
+{
+  return m_marqueeSelectTool->active();
+}
+
 bool MapViewToolBox::anyModalToolActive() const
 {
   return rotateToolActive() || scaleToolActive() || shearToolActive()
-         || anyVertexToolActive();
+         || anyVertexToolActive() || marqueeSelectToolActive();
 }
 
 void MapViewToolBox::moveVertices(const vm::vec3d& delta)
@@ -269,6 +285,7 @@ void MapViewToolBox::createTools(QStackedLayout* bookCtrl)
   m_vertexTool = std::make_unique<VertexTool>(m_map);
   m_edgeTool = std::make_unique<EdgeTool>(m_map);
   m_faceTool = std::make_unique<FaceTool>(m_map);
+  m_marqueeSelectTool = std::make_unique<MarqueeSelectTool>(m_map);
 
   addExclusiveToolGroup(
     assembleBrushTool(),
@@ -277,10 +294,11 @@ void MapViewToolBox::createTools(QStackedLayout* bookCtrl)
     shearTool(),
     edgeTool(),
     faceTool(),
-    clipTool());
+    clipTool(),
+    marqueeSelectTool());
 
   addExclusiveToolGroup(
-    assembleBrushTool(), vertexTool(), edgeTool(), faceTool(), clipTool());
+    assembleBrushTool(), vertexTool(), edgeTool(), faceTool(), clipTool(), marqueeSelectTool());
 
   suppressWhileActive(
     assembleBrushTool(), moveObjectsTool(), extrudeTool(), drawShapeTool());
@@ -291,7 +309,10 @@ void MapViewToolBox::createTools(QStackedLayout* bookCtrl)
   suppressWhileActive(edgeTool(), moveObjectsTool(), extrudeTool(), drawShapeTool());
   suppressWhileActive(faceTool(), moveObjectsTool(), extrudeTool(), drawShapeTool());
   suppressWhileActive(clipTool(), moveObjectsTool(), extrudeTool(), drawShapeTool());
+  suppressWhileActive(
+    marqueeSelectTool(), moveObjectsTool(), extrudeTool(), drawShapeTool());
 
+  registerTool(marqueeSelectTool(), bookCtrl);
   registerTool(moveObjectsTool(), bookCtrl);
   registerTool(rotateTool(), bookCtrl);
   registerTool(scaleTool(), bookCtrl);
@@ -364,7 +385,11 @@ void MapViewToolBox::selectionDidChange(const mdl::SelectionChange&)
 
 void MapViewToolBox::updateToolPage()
 {
-  if (rotateToolActive())
+  if (marqueeSelectToolActive())
+  {
+    marqueeSelectTool().showPage();
+  }
+  else if (rotateToolActive())
   {
     rotateTool().showPage();
   }
