@@ -48,6 +48,13 @@ class MarqueeSelectTool : public Tool
 public:
   enum class SelectionMode
   {
+    Center,
+    Enclosed,
+    Intersecting,
+  };
+
+  enum class ShapeMode
+  {
     Marquee,
     Freeform,
   };
@@ -55,7 +62,8 @@ public:
 private:
   mdl::Map& m_map;
   bool m_selectThrough = false;
-  SelectionMode m_selectionMode = SelectionMode::Marquee;
+  SelectionMode m_selectionMode = SelectionMode::Center;
+  ShapeMode m_shapeMode = ShapeMode::Marquee;
 
 public:
   explicit MarqueeSelectTool(mdl::Map& map);
@@ -65,6 +73,9 @@ public:
 
   SelectionMode selectionMode() const;
   void setSelectionMode(SelectionMode selectionMode);
+
+  ShapeMode shapeMode() const;
+  void setShapeMode(ShapeMode shapeMode);
 
   void select(
     const render::Camera& camera,

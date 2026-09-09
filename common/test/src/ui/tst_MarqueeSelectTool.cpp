@@ -73,6 +73,17 @@ vm::vec2f projectToInput(const render::Camera& camera, const vm::vec3f& point)
   };
 }
 
+std::vector<vm::vec2d> rectangle(
+  const vm::vec2d& center, const double halfWidth, const double halfHeight)
+{
+  return {
+    {center.x() - halfWidth, center.y() - halfHeight},
+    {center.x() - halfWidth, center.y() + halfHeight},
+    {center.x() + halfWidth, center.y() + halfHeight},
+    {center.x() + halfWidth, center.y() - halfHeight},
+  };
+}
+
 void drag(
   MarqueeSelectToolController& controller,
   const render::Camera& camera,
@@ -117,6 +128,34 @@ TEST_CASE("MarqueeSelectTool")
   tool.setSelectThrough(true);
 
   const auto left = projectToInput(camera, vm::vec3f{-64, 0, 0});
+  const auto leftScreen = camera.project(vm::vec3f{-64, 0, 0});
+  const auto leftCenter = vm::vec2d{leftScreen.x(), leftScreen.y()};
+
+  SECTION("center selects a partial bounds")
+  {
+    tool.setSelectionMode(MarqueeSelectTool::SelectionMode::Center);
+    tool.select(camera, rectangle(leftCenter, 8.0, 24.0), false);
+
+    CHECK(map.selection() == mdl::makeSelection({leftBrush}));
+  }
+
+  SECTION("enclosed requires the complete bounds")
+  {
+    tool.setSelectionMode(MarqueeSelectTool::SelectionMode::Enclosed);
+    tool.select(camera, rectangle(leftCenter, 8.0, 24.0), false);
+    CHECK(map.selection().empty());
+
+    tool.select(camera, rectangle(leftCenter, 24.0, 24.0), false);
+    CHECK(map.selection() == mdl::makeSelection({leftBrush}));
+  }
+
+  SECTION("intersecting selects a partial bounds")
+  {
+    tool.setSelectionMode(MarqueeSelectTool::SelectionMode::Intersecting);
+    tool.select(camera, rectangle(leftCenter + vm::vec2d{12.0, 0.0}, 4.0, 24.0), false);
+
+    CHECK(map.selection() == mdl::makeSelection({leftBrush}));
+  }
 
   SECTION("marquee")
   {
@@ -133,7 +172,7 @@ TEST_CASE("MarqueeSelectTool")
 
   SECTION("freeform")
   {
-    tool.setSelectionMode(MarqueeSelectTool::SelectionMode::Freeform);
+    tool.setShapeMode(MarqueeSelectTool::ShapeMode::Freeform);
     drag(
       controller,
       camera,

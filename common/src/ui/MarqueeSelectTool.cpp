@@ -50,6 +50,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <optional>
 #include <vector>
 
 namespace tb::ui
@@ -167,23 +168,34 @@ private:
   }
 };
 
+constexpr double GeometryEpsilon = 1e-6;
+
+double cross(const vm::vec2d& origin, const vm::vec2d& first, const vm::vec2d& second)
+{
+  return (first.x() - origin.x()) * (second.y() - origin.y())
+         - (first.y() - origin.y()) * (second.x() - origin.x());
+}
+
 bool pointOnSegment(const vm::vec2d& point, const vm::vec2d& start, const vm::vec2d& end)
 {
-  const auto cross = (point.x() - start.x()) * (end.y() - start.y())
-                     - (point.y() - start.y()) * (end.x() - start.x());
-  if (std::abs(cross) > 1e-6)
+  if (std::abs(cross(start, point, end)) > GeometryEpsilon)
   {
     return false;
   }
 
-  return point.x() >= std::min(start.x(), end.x()) - 1e-6
-         && point.x() <= std::max(start.x(), end.x()) + 1e-6
-         && point.y() >= std::min(start.y(), end.y()) - 1e-6
-         && point.y() <= std::max(start.y(), end.y()) + 1e-6;
+  return point.x() >= std::min(start.x(), end.x()) - GeometryEpsilon
+         && point.x() <= std::max(start.x(), end.x()) + GeometryEpsilon
+         && point.y() >= std::min(start.y(), end.y()) - GeometryEpsilon
+         && point.y() <= std::max(start.y(), end.y()) + GeometryEpsilon;
 }
 
 bool pointInPolygon(const vm::vec2d& point, const std::vector<vm::vec2d>& polygon)
 {
+  if (polygon.size() < 3)
+  {
+    return false;
+  }
+
   auto inside = false;
   for (size_t i = 0, j = polygon.size() - 1; i < polygon.size(); j = i++)
   {
@@ -206,6 +218,212 @@ bool pointInPolygon(const vm::vec2d& point, const std::vector<vm::vec2d>& polygo
     }
   }
   return inside;
+}
+
+bool segmentsProperlyIntersect(
+  const vm::vec2d& firstStart,
+  const vm::vec2d& firstEnd,
+  const vm::vec2d& secondStart,
+  const vm::vec2d& secondEnd)
+{
+  const auto firstStartSide = cross(secondStart, secondEnd, firstStart);
+  const auto firstEndSide = cross(secondStart, secondEnd, firstEnd);
+  const auto secondStartSide = cross(firstStart, firstEnd, secondStart);
+  const auto secondEndSide = cross(firstStart, firstEnd, secondEnd);
+
+  const auto opposite = [](const double first, const double second) {
+    return (first > GeometryEpsilon && second < -GeometryEpsilon)
+           || (first < -GeometryEpsilon && second > GeometryEpsilon);
+  };
+  return opposite(firstStartSide, firstEndSide)
+         && opposite(secondStartSide, secondEndSide);
+}
+
+std::optional<vm::vec2d> segmentIntersectionPoint(
+  const vm::vec2d& firstStart,
+  const vm::vec2d& firstEnd,
+  const vm::vec2d& secondStart,
+  const vm::vec2d& secondEnd)
+{
+  const auto firstDirection = firstEnd - firstStart;
+  const auto secondDirection = secondEnd - secondStart;
+  const auto denominator =
+    firstDirection.x() * secondDirection.y() - firstDirection.y() * secondDirection.x();
+
+  if (std::abs(denominator) <= GeometryEpsilon)
+  {
+    if (pointOnSegment(firstStart, secondStart, secondEnd))
+    {
+      return firstStart;
+    }
+    if (pointOnSegment(firstEnd, secondStart, secondEnd))
+    {
+      return firstEnd;
+    }
+    if (pointOnSegment(secondStart, firstStart, firstEnd))
+    {
+      return secondStart;
+    }
+    return std::nullopt;
+  }
+
+  const auto offset = secondStart - firstStart;
+  const auto firstFactor =
+    (offset.x() * secondDirection.y() - offset.y() * secondDirection.x()) / denominator;
+  const auto secondFactor =
+    (offset.x() * firstDirection.y() - offset.y() * firstDirection.x()) / denominator;
+  if (
+    firstFactor < -GeometryEpsilon || firstFactor > 1.0 + GeometryEpsilon
+    || secondFactor < -GeometryEpsilon || secondFactor > 1.0 + GeometryEpsilon)
+  {
+    return std::nullopt;
+  }
+
+  return firstStart + firstFactor * firstDirection;
+}
+
+template <typename F>
+void forEachPolygonEdge(const std::vector<vm::vec2d>& polygon, F&& f)
+{
+  if (polygon.size() < 2)
+  {
+    return;
+  }
+
+  const auto edgeCount = polygon.size() == 2 ? 1u : polygon.size();
+  for (size_t i = 0; i < edgeCount; ++i)
+  {
+    f(polygon[i], polygon[(i + 1) % polygon.size()]);
+  }
+}
+
+std::vector<vm::vec2d> convexHull(std::vector<vm::vec2d> points)
+{
+  std::sort(points.begin(), points.end(), [](const auto& lhs, const auto& rhs) {
+    return lhs.x() < rhs.x() || (lhs.x() == rhs.x() && lhs.y() < rhs.y());
+  });
+  points.erase(std::unique(points.begin(), points.end()), points.end());
+  if (points.size() <= 2)
+  {
+    return points;
+  }
+
+  auto lower = std::vector<vm::vec2d>{};
+  for (const auto& point : points)
+  {
+    while (lower.size() >= 2
+           && cross(lower[lower.size() - 2], lower.back(), point) <= 0.0)
+    {
+      lower.pop_back();
+    }
+    lower.push_back(point);
+  }
+
+  auto upper = std::vector<vm::vec2d>{};
+  for (auto it = points.rbegin(); it != points.rend(); ++it)
+  {
+    while (upper.size() >= 2 && cross(upper[upper.size() - 2], upper.back(), *it) <= 0.0)
+    {
+      upper.pop_back();
+    }
+    upper.push_back(*it);
+  }
+
+  lower.pop_back();
+  upper.pop_back();
+  lower.insert(lower.end(), upper.begin(), upper.end());
+  return lower;
+}
+
+struct ProjectedBounds
+{
+  std::vector<vm::vec2d> points;
+  std::vector<vm::vec2d> hull;
+  bool allPointsInDepth = true;
+};
+
+ProjectedBounds projectBounds(const render::Camera& camera, const vm::bbox3d& bounds)
+{
+  auto result = ProjectedBounds{};
+  for (const auto x : {vm::bbox3d::corner::min, vm::bbox3d::corner::max})
+  {
+    for (const auto y : {vm::bbox3d::corner::min, vm::bbox3d::corner::max})
+    {
+      for (const auto z : {vm::bbox3d::corner::min, vm::bbox3d::corner::max})
+      {
+        const auto projected = camera.project(vm::vec3f{bounds.corner_position(x, y, z)});
+        const auto point = vm::vec2d{projected.x(), projected.y()};
+        if (projected.z() >= 0.0f && projected.z() <= 1.0f)
+        {
+          result.points.push_back(point);
+        }
+        else
+        {
+          result.allPointsInDepth = false;
+        }
+      }
+    }
+  }
+  result.hull = convexHull(result.points);
+  return result;
+}
+
+bool containsPolygon(
+  const std::vector<vm::vec2d>& container, const std::vector<vm::vec2d>& polygon)
+{
+  if (
+    polygon.empty()
+    || !std::all_of(polygon.begin(), polygon.end(), [&](const auto& point) {
+         return pointInPolygon(point, container);
+       }))
+  {
+    return false;
+  }
+
+  auto intersectsBoundary = false;
+  forEachPolygonEdge(polygon, [&](const auto& firstStart, const auto& firstEnd) {
+    forEachPolygonEdge(container, [&](const auto& secondStart, const auto& secondEnd) {
+      intersectsBoundary =
+        intersectsBoundary
+        || segmentsProperlyIntersect(firstStart, firstEnd, secondStart, secondEnd);
+    });
+  });
+  return !intersectsBoundary;
+}
+
+std::optional<vm::vec2d> intersectionPoint(
+  const std::vector<vm::vec2d>& first, const std::vector<vm::vec2d>& second)
+{
+  for (const auto& point : first)
+  {
+    if (pointInPolygon(point, second))
+    {
+      return point;
+    }
+  }
+  for (const auto& point : second)
+  {
+    if (pointInPolygon(point, first))
+    {
+      return point;
+    }
+  }
+
+  std::optional<vm::vec2d> result;
+  forEachPolygonEdge(first, [&](const auto& firstStart, const auto& firstEnd) {
+    forEachPolygonEdge(second, [&](const auto& secondStart, const auto& secondEnd) {
+      if (!result)
+      {
+        result = segmentIntersectionPoint(firstStart, firstEnd, secondStart, secondEnd);
+      }
+    });
+  });
+  return result;
+}
+
+bool isInDepth(const vm::vec3f& projected)
+{
+  return projected.z() >= 0.0f && projected.z() <= 1.0f;
 }
 
 mdl::HitFilter isNodeSelectable(const mdl::EditorContext& editorContext)
@@ -294,26 +512,40 @@ public:
       m_tool.setSelectThrough(checked);
     });
 
+    auto* selectionLabel = new QLabel{tr("Selection")};
+    auto* selection = new QComboBox{};
+    selection->addItem(tr("Center"));
+    selection->addItem(tr("Enclosed"));
+    selection->addItem(tr("Intersecting"));
+    selection->setCurrentIndex(static_cast<int>(m_tool.selectionMode()));
+    connect(
+      selection,
+      QOverload<int>::of(&QComboBox::currentIndexChanged),
+      this,
+      [this](const int index) {
+        m_tool.setSelectionMode(static_cast<MarqueeSelectTool::SelectionMode>(index));
+      });
+
     auto* shapeLabel = new QLabel{tr("Shape")};
     auto* shape = new QComboBox{};
     shape->addItem(tr("Marquee"));
     shape->addItem(tr("Freeform"));
-    shape->setCurrentIndex(
-      m_tool.selectionMode() == MarqueeSelectTool::SelectionMode::Marquee ? 0 : 1);
+    shape->setCurrentIndex(static_cast<int>(m_tool.shapeMode()));
     connect(
       shape,
       QOverload<int>::of(&QComboBox::currentIndexChanged),
       this,
       [this](const int index) {
-        m_tool.setSelectionMode(
-          index == 0 ? MarqueeSelectTool::SelectionMode::Marquee
-                     : MarqueeSelectTool::SelectionMode::Freeform);
+        m_tool.setShapeMode(static_cast<MarqueeSelectTool::ShapeMode>(index));
       });
 
     auto* layout = new QHBoxLayout{};
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(LayoutConstants::MediumHMargin);
     layout->addWidget(selectThrough, 0, Qt::AlignVCenter);
+    layout->addSpacing(LayoutConstants::WideHMargin);
+    layout->addWidget(selectionLabel, 0, Qt::AlignVCenter);
+    layout->addWidget(selection, 0, Qt::AlignVCenter);
     layout->addSpacing(LayoutConstants::WideHMargin);
     layout->addWidget(shapeLabel, 0, Qt::AlignVCenter);
     layout->addWidget(shape, 0, Qt::AlignVCenter);
@@ -350,6 +582,16 @@ void MarqueeSelectTool::setSelectionMode(const SelectionMode selectionMode)
   m_selectionMode = selectionMode;
 }
 
+MarqueeSelectTool::ShapeMode MarqueeSelectTool::shapeMode() const
+{
+  return m_shapeMode;
+}
+
+void MarqueeSelectTool::setShapeMode(const ShapeMode shapeMode)
+{
+  m_shapeMode = shapeMode;
+}
+
 void MarqueeSelectTool::select(
   const render::Camera& camera,
   const std::vector<vm::vec2d>& polygon,
@@ -383,10 +625,38 @@ void MarqueeSelectTool::select(
   for (auto* node : selectableNodes)
   {
     const auto projected = camera.project(vm::vec3f{node->logicalBounds().center()});
-    const auto point = vm::vec2d{projected.x(), projected.y()};
+    auto selectionPoint = std::optional<vm::vec2d>{};
+    switch (m_selectionMode)
+    {
+    case SelectionMode::Center: {
+      const auto point = vm::vec2d{projected.x(), projected.y()};
+      if (isInDepth(projected) && pointInPolygon(point, polygon))
+      {
+        selectionPoint = point;
+      }
+      break;
+    }
+    case SelectionMode::Enclosed: {
+      const auto bounds = projectBounds(camera, node->logicalBounds());
+      if (bounds.allPointsInDepth && containsPolygon(polygon, bounds.hull))
+      {
+        selectionPoint = vm::vec2d{projected.x(), projected.y()};
+      }
+      break;
+    }
+    case SelectionMode::Intersecting: {
+      const auto bounds = projectBounds(camera, node->logicalBounds());
+      if (isInDepth(projected))
+      {
+        selectionPoint = intersectionPoint(polygon, bounds.hull);
+      }
+      break;
+    }
+    }
+
     if (
-      projected.z() >= 0.0f && projected.z() <= 1.0f && pointInPolygon(point, polygon)
-      && (m_selectThrough || isVisibleAtPoint(m_map, *node, camera, point, editorContext)))
+      selectionPoint
+      && (m_selectThrough || isVisibleAtPoint(m_map, *node, camera, *selectionPoint, editorContext)))
     {
       nodesToSelect.push_back(node);
     }
@@ -449,9 +719,7 @@ std::unique_ptr<GestureTracker> MarqueeSelectToolController::acceptMouseDrag(
   }
 
   return std::make_unique<MarqueeSelectionDragTracker>(
-    m_tool,
-    inputState,
-    m_tool.selectionMode() == MarqueeSelectTool::SelectionMode::Freeform);
+    m_tool, inputState, m_tool.shapeMode() == MarqueeSelectTool::ShapeMode::Freeform);
 }
 
 } // namespace tb::ui
