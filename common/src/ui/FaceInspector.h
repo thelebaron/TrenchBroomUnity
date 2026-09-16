@@ -48,6 +48,7 @@ private:
   FaceAttribsEditor* m_faceAttribsEditor = nullptr;
   MaterialBrowser* m_materialBrowser = nullptr;
   QWidget* m_materialBrowserInfo = nullptr;
+  bool m_materialSelectionOnly = false;
 
   NotifierConnection m_notifierConnection;
 
@@ -58,6 +59,7 @@ public:
 
   bool cancelMouseDrag();
   void revealMaterial(const mdl::Material* material);
+  void setMaterialSelectionOnly(bool materialSelectionOnly);
 
 private:
   void createGui(GLContextManager& contextManager);

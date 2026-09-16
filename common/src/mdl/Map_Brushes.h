@@ -28,6 +28,7 @@
 namespace tb::mdl
 {
 class BrushFaceAttributes;
+class BrushFaceHandle;
 class ChangeBrushFaceAttributesRequest;
 class Map;
 class UVCoordSystemSnapshot;
@@ -40,6 +41,10 @@ bool setBrushFaceAttributes(Map& map, const BrushFaceAttributes& attributes);
 bool setBrushFaceAttributesExceptContentFlags(
   Map& map, const BrushFaceAttributes& attributes);
 bool setBrushFaceAttributes(Map& map, const ChangeBrushFaceAttributesRequest& request);
+bool setBrushFaceAttributes(
+  Map& map,
+  const std::vector<BrushFaceHandle>& faces,
+  const ChangeBrushFaceAttributesRequest& request);
 
 bool copyUV(
   Map& map,

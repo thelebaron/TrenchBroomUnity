@@ -1609,6 +1609,20 @@ void ActionManager::createEditMenu()
     std::filesystem::path{"FaceTool.svg"},
   }));
   toolMenu.addItem(addAction(Action{
+    "Menu/Edit/Tools/Paint Roller Tool",
+    QObject::tr("Paint Roller Tool"),
+    ActionContext::Any,
+    QKeySequence{Qt::Key_P},
+    [](auto& context) { context.frame().togglePaintRollerTool(); },
+    [](const auto& context) {
+      return context.hasDocument() && context.frame().canTogglePaintRollerTool();
+    },
+    [](const auto& context) {
+      return context.hasDocument() && context.frame().paintRollerToolActive();
+    },
+    std::filesystem::path{"PaintRollerTool.svg"},
+  }));
+  toolMenu.addItem(addAction(Action{
     "Controls/Map view/Deactivate current tool",
     QObject::tr("Deactivate Current Tool"),
     ActionContext::Any,
@@ -2228,6 +2242,7 @@ void ActionManager::createToolbar()
   m_toolBar.addItem(existingAction("Menu/Edit/Tools/Vertex Tool"));
   m_toolBar.addItem(existingAction("Menu/Edit/Tools/Edge Tool"));
   m_toolBar.addItem(existingAction("Menu/Edit/Tools/Face Tool"));
+  m_toolBar.addItem(existingAction("Menu/Edit/Tools/Paint Roller Tool"));
   m_toolBar.addItem(existingAction("Menu/Edit/Tools/Rotate Tool"));
   m_toolBar.addItem(existingAction("Menu/Edit/Tools/Scale Tool"));
   m_toolBar.addItem(existingAction("Menu/Edit/Tools/Shear Tool"));

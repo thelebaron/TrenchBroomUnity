@@ -123,6 +123,10 @@ std::string actionContextName(const ActionContext::Type actionContext)
     {
       actionContexts.emplace_back("marquee select tool");
     }
+    if (actionContext & ActionContext::PaintRollerTool)
+    {
+      actionContexts.emplace_back("paint roller tool");
+    }
   }
 
   return kdl::str_join(actionContexts, ", ");

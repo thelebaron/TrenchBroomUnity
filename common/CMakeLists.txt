@@ -443,6 +443,7 @@ set(COMMON_SOURCE
         ${COMMON_SOURCE_DIR}/ui/MultiPaneMapView.cpp
         ${COMMON_SOURCE_DIR}/ui/ObjExportDialog.cpp
         ${COMMON_SOURCE_DIR}/ui/OnePaneMapView.cpp
+        ${COMMON_SOURCE_DIR}/ui/PaintRollerTool.cpp
         ${COMMON_SOURCE_DIR}/ui/PickRequest.cpp
         ${COMMON_SOURCE_DIR}/ui/PopupButton.cpp
         ${COMMON_SOURCE_DIR}/ui/PrefabBrowser.cpp

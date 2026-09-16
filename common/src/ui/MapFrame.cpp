@@ -1780,6 +1780,24 @@ bool MapFrame::marqueeSelectToolActive() const
   return m_mapView->marqueeSelectToolActive();
 }
 
+void MapFrame::togglePaintRollerTool()
+{
+  if (canTogglePaintRollerTool())
+  {
+    m_mapView->togglePaintRollerTool();
+  }
+}
+
+bool MapFrame::canTogglePaintRollerTool() const
+{
+  return m_mapView->canTogglePaintRollerTool();
+}
+
+bool MapFrame::paintRollerToolActive() const
+{
+  return m_mapView->paintRollerToolActive();
+}
+
 void MapFrame::toggleClipTool()
 {
   if (canToggleClipTool())

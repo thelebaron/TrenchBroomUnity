@@ -26,6 +26,7 @@
 #include "mdl/Map.h"
 #include "mdl/PointTrace.h"
 #include "render/MapRenderer.h"
+#include "ui/FaceInspector.h"
 #include "ui/FourPaneMapView.h"
 #include "ui/GLContextManager.h"
 #include "ui/Inspector.h"
@@ -38,6 +39,7 @@
 #include "ui/OnePaneMapView.h"
 #include "ui/QtUtils.h"
 #include "ui/ThreePaneMapView.h"
+#include "ui/Tool.h"
 #include "ui/TwoPaneMapView.h"
 
 namespace tb::ui
@@ -69,6 +71,15 @@ SwitchableMapViewContainer::~SwitchableMapViewContainer()
 void SwitchableMapViewContainer::connectTopWidgets(Inspector* inspector)
 {
   inspector->connectTopWidgets(m_mapViewBar);
+
+  const auto updateMaterialSelectionMode = [this, inspector](Tool&) {
+    inspector->faceInspector()->setMaterialSelectionOnly(paintRollerToolActive());
+  };
+  m_notifierConnection +=
+    m_toolBox->toolActivatedNotifier.connect(updateMaterialSelectionMode);
+  m_notifierConnection +=
+    m_toolBox->toolDeactivatedNotifier.connect(updateMaterialSelectionMode);
+  inspector->faceInspector()->setMaterialSelectionOnly(paintRollerToolActive());
 }
 
 void SwitchableMapViewContainer::windowActivationStateChanged(const bool active)
@@ -165,6 +176,22 @@ void SwitchableMapViewContainer::toggleMarqueeSelectTool()
 {
   assert(canToggleMarqueeSelectTool());
   m_toolBox->toggleMarqueeSelectTool();
+}
+
+bool SwitchableMapViewContainer::paintRollerToolActive() const
+{
+  return m_toolBox->paintRollerToolActive();
+}
+
+bool SwitchableMapViewContainer::canTogglePaintRollerTool() const
+{
+  return true;
+}
+
+void SwitchableMapViewContainer::togglePaintRollerTool()
+{
+  assert(canTogglePaintRollerTool());
+  m_toolBox->togglePaintRollerTool();
 }
 
 bool SwitchableMapViewContainer::clipToolActive() const

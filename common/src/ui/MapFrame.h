@@ -329,6 +329,10 @@ public:
   bool canToggleFaceTool() const;
   bool faceToolActive() const;
 
+  void togglePaintRollerTool();
+  bool canTogglePaintRollerTool() const;
+  bool paintRollerToolActive() const;
+
   void csgConvexMerge();
   bool canDoCsgConvexMerge() const;
 

@@ -83,11 +83,18 @@ bool setBrushFaceAttributesExceptContentFlags(
 
 bool setBrushFaceAttributes(Map& map, const ChangeBrushFaceAttributesRequest& request)
 {
-  return applyAndSwap(
-    map, request.name(), map.selection().allBrushFaces(), [&](BrushFace& brushFace) {
-      request.evaluate(brushFace);
-      return true;
-    });
+  return setBrushFaceAttributes(map, map.selection().allBrushFaces(), request);
+}
+
+bool setBrushFaceAttributes(
+  Map& map,
+  const std::vector<BrushFaceHandle>& faces,
+  const ChangeBrushFaceAttributesRequest& request)
+{
+  return applyAndSwap(map, request.name(), faces, [&](BrushFace& brushFace) {
+    request.evaluate(brushFace);
+    return true;
+  });
 }
 
 bool copyUV(

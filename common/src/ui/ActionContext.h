@@ -38,8 +38,9 @@ constexpr Type ScaleTool = 1u << 6u;
 constexpr Type ShearTool = 1u << 7u;
 constexpr Type AnyVertexTool = 1u << 8u;
 constexpr Type MarqueeSelectTool = 1u << 12u;
+constexpr Type PaintRollerTool = 1u << 13u;
 constexpr Type AnyTool = AnyVertexTool | AssembleBrushTool | ClipTool | RotateTool
-                         | ScaleTool | ShearTool | MarqueeSelectTool;
+                         | ScaleTool | ShearTool | MarqueeSelectTool | PaintRollerTool;
 constexpr Type AnyOrNoTool = AnyTool | NoTool;
 constexpr Type NoSelection = 1u << 9u;
 constexpr Type NodeSelection = 1u << 10u;

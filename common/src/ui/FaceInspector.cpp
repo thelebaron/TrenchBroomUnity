@@ -80,6 +80,11 @@ void FaceInspector::revealMaterial(const mdl::Material* material)
   m_materialBrowser->setSelectedMaterial(material);
 }
 
+void FaceInspector::setMaterialSelectionOnly(const bool materialSelectionOnly)
+{
+  m_materialSelectionOnly = materialSelectionOnly;
+}
+
 void FaceInspector::createGui(GLContextManager& contextManager)
 {
   m_splitter = new Splitter{Qt::Vertical};
@@ -169,6 +174,16 @@ QWidget* FaceInspector::createMaterialBrowserInfo()
 void FaceInspector::materialSelected(const mdl::Material* material)
 {
   auto& map = m_document.map();
+
+  if (m_materialSelectionOnly)
+  {
+    if (material)
+    {
+      map.setCurrentMaterialName(material->name());
+    }
+    return;
+  }
+
   const auto faces = map.selection().allBrushFaces();
 
   if (material)

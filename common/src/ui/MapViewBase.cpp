@@ -936,6 +936,7 @@ ActionContext::Type MapViewBase::actionContext() const
     : m_toolBox.scaleToolActive()       ? ActionContext::ScaleTool
     : m_toolBox.shearToolActive()       ? ActionContext::ShearTool
     : m_toolBox.marqueeSelectToolActive() ? ActionContext::MarqueeSelectTool
+    : m_toolBox.paintRollerToolActive() ? ActionContext::PaintRollerTool
                                         : ActionContext::NoTool;
   const auto selectionContext = map.selection().hasNodes() ? ActionContext::NodeSelection
                                 : map.selection().hasBrushFaces()
