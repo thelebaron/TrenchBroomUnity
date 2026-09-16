@@ -324,8 +324,10 @@ Preference<QString> EntityLinkMode("Map view/Entity link mode", "direct");
 Preference<bool> GenerateEntityIds("Misc/Generate unique entity IDs", false);
 Preference<bool> GenerateClassIndices("Misc/Generate unique class indices", false);
 Preference<bool> AutoSetDefaultEntityProperties(
-  "Misc/Automatically set default entity properties",
-  true);
+  "Misc/Automatically set default entity properties", true);
+
+Preference<bool> UnityReimportOnSave("Misc/Unity reimport on save", false);
+Preference<std::filesystem::path> UnityProjectPath("Misc/Unity project path", {});
 
 Preference<int> RoomCreatorMode("Room Creator/Mode", 1);
 Preference<int> RoomCreatorWallThickness("Room Creator/Wall thickness", 16);
@@ -456,6 +458,8 @@ const std::vector<PreferenceBase*>& staticPreferences()
     &GenerateEntityIds,
     &GenerateClassIndices,
     &AutoSetDefaultEntityProperties,
+    &UnityReimportOnSave,
+    &UnityProjectPath,
     &RoomCreatorMode,
     &RoomCreatorWallThickness,
     &RoomCreatorWallHeight,

@@ -209,6 +209,9 @@ extern Preference<bool> GenerateEntityIds;
 extern Preference<bool> GenerateClassIndices;
 extern Preference<bool> AutoSetDefaultEntityProperties;
 
+extern Preference<bool> UnityReimportOnSave;
+extern Preference<std::filesystem::path> UnityProjectPath;
+
 extern Preference<int> RoomCreatorMode;
 extern Preference<int> RoomCreatorWallThickness;
 extern Preference<int> RoomCreatorWallHeight;

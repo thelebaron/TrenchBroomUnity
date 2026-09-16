@@ -90,7 +90,8 @@ enum class FileDialogDir
   CompileTool,
   Engine,
   EntityDefinition,
-  GamePath
+  GamePath,
+  UnityProjectPath
 };
 
 QString fromStdStringView(std::string_view sv);

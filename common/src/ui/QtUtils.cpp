@@ -93,6 +93,8 @@ QString fileDialogDirToString(const FileDialogDir dir)
     return "EntityDefinition";
   case FileDialogDir::GamePath:
     return "GamePath";
+  case FileDialogDir::UnityProjectPath:
+    return "UnityProjectPath";
     switchDefault();
   }
 }
@@ -235,8 +237,9 @@ void centerOnScreen(QWidget* window)
     return;
   }
   const auto screenGeometry = screen->availableGeometry();
-  window->setGeometry(QStyle::alignedRect(
-    Qt::LeftToRight, Qt::AlignCenter, window->size(), screenGeometry));
+  window->setGeometry(
+    QStyle::alignedRect(
+      Qt::LeftToRight, Qt::AlignCenter, window->size(), screenGeometry));
 }
 
 QWidget* makeDefault(QWidget* widget)

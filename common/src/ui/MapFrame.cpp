@@ -100,6 +100,7 @@
 #include "ui/SignalDelayer.h"
 #include "ui/Splitter.h"
 #include "ui/SwitchableMapViewContainer.h"
+#include "ui/UnityIntegration.h"
 #include "ui/VertexTool.h"
 #include "ui/ViewUtils.h"
 #include "upd/Updater.h"
@@ -244,8 +245,8 @@ QAction* MapFrame::findAction(const std::filesystem::path& path)
   if (const auto iAction = actionsMap.find(path); iAction != std::end(actionsMap))
   {
     const auto& action = iAction->second;
-    if (const auto iQAction = m_actionMap.find(&action);
-        iQAction != std::end(m_actionMap))
+    if (
+      const auto iQAction = m_actionMap.find(&action); iQAction != std::end(m_actionMap))
     {
       return iQAction->second;
     }
@@ -621,10 +622,10 @@ QString describeSelection(const mdl::Map& map)
   // now, turn `tokens` into a comma-separated string
   if (!tokens.empty())
   {
-    pipeSeparatedSections << QObject::tr("%1%2 selected")
-                               .arg(QString::fromStdString(
-                                 kdl::str_join(tokens, ", ", ", and ", " and ")))
-                               .arg(layersDescription);
+    pipeSeparatedSections
+      << QObject::tr("%1%2 selected")
+           .arg(QString::fromStdString(kdl::str_join(tokens, ", ", ", and ", " and ")))
+           .arg(layersDescription);
   }
 
   // count hidden objects
@@ -633,39 +634,40 @@ QString describeSelection(const mdl::Map& map)
   size_t hiddenBrushes = 0u;
   size_t hiddenPatches = 0u;
 
-  map.world()->accept(kdl::overload(
-    [](auto&& thisLambda, const mdl::WorldNode* worldNode) {
-      worldNode->visitChildren(thisLambda);
-    },
-    [](auto&& thisLambda, const mdl::LayerNode* layerNode) {
-      layerNode->visitChildren(thisLambda);
-    },
-    [&](auto&& thisLambda, const mdl::GroupNode* groupNode) {
-      if (!editorContext.visible(*groupNode))
-      {
-        ++hiddenGroups;
-      }
-      groupNode->visitChildren(thisLambda);
-    },
-    [&](auto&& thisLambda, const mdl::EntityNode* entityNode) {
-      if (!editorContext.visible(*entityNode))
-      {
-        ++hiddenEntities;
-      }
-      entityNode->visitChildren(thisLambda);
-    },
-    [&](const mdl::BrushNode* brushNode) {
-      if (!editorContext.visible(*brushNode))
-      {
-        ++hiddenBrushes;
-      }
-    },
-    [&](const mdl::PatchNode* patchNode) {
-      if (!editorContext.visible(*patchNode))
-      {
-        ++hiddenPatches;
-      }
-    }));
+  map.world()->accept(
+    kdl::overload(
+      [](auto&& thisLambda, const mdl::WorldNode* worldNode) {
+        worldNode->visitChildren(thisLambda);
+      },
+      [](auto&& thisLambda, const mdl::LayerNode* layerNode) {
+        layerNode->visitChildren(thisLambda);
+      },
+      [&](auto&& thisLambda, const mdl::GroupNode* groupNode) {
+        if (!editorContext.visible(*groupNode))
+        {
+          ++hiddenGroups;
+        }
+        groupNode->visitChildren(thisLambda);
+      },
+      [&](auto&& thisLambda, const mdl::EntityNode* entityNode) {
+        if (!editorContext.visible(*entityNode))
+        {
+          ++hiddenEntities;
+        }
+        entityNode->visitChildren(thisLambda);
+      },
+      [&](const mdl::BrushNode* brushNode) {
+        if (!editorContext.visible(*brushNode))
+        {
+          ++hiddenBrushes;
+        }
+      },
+      [&](const mdl::PatchNode* patchNode) {
+        if (!editorContext.visible(*patchNode))
+        {
+          ++hiddenPatches;
+        }
+      }));
 
   // print hidden objects
   if (hiddenGroups > 0 || hiddenEntities > 0 || hiddenBrushes > 0)
@@ -690,8 +692,10 @@ QString describeSelection(const mdl::Map& map)
     }
 
     pipeSeparatedSections << QObject::tr("%1 hidden")
-                               .arg(QString::fromStdString(kdl::str_join(
-                                 hiddenDescriptors, ", ", ", and ", " and ")));
+                               .arg(
+                                 QString::fromStdString(
+                                   kdl::str_join(
+                                     hiddenDescriptors, ", ", ", and ", " and ")));
   }
 
   return QString::fromLatin1("   ")
@@ -1005,6 +1009,7 @@ bool MapFrame::saveDocument()
                            endTime - startTime)
                            .count()
                       << "ms";
+      unity::triggerUnityReimport(map.path(), this);
       return true;
     }
     return saveDocumentAs();
@@ -1048,6 +1053,7 @@ bool MapFrame::saveDocumentAs()
                          endTime - startTime)
                          .count()
                     << "ms";
+    unity::triggerUnityReimport(map.path(), this);
     return true;
   }
   catch (...)
@@ -1110,9 +1116,10 @@ bool MapFrame::exportDocument(const io::ExportOptions& options)
     QMessageBox::critical(
       this,
       "",
-      tr("You can't overwrite the current document.\nPlease choose a different file name "
-         "to export "
-         "to."));
+      tr(
+        "You can't overwrite the current document.\nPlease choose a different file name "
+        "to export "
+        "to."));
     return false;
   }
 
@@ -2650,8 +2657,9 @@ void MapFrame::triggerAutosave()
 void MapFrame::triggerProcessResources()
 {
   auto& map = m_document->map();
-  map.processResourcesAsync(mdl::ProcessContext{
-    true, [&](const auto&, const auto& error) { logger().error() << error; }});
+  map.processResourcesAsync(
+    mdl::ProcessContext{
+      true, [&](const auto&, const auto& error) { logger().error() << error; }});
 }
 
 // DebugPaletteWindow
