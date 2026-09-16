@@ -56,33 +56,29 @@ std::optional<mdl::BrushFaceHandle> findPaintFace(
   return std::nullopt;
 }
 
+} // namespace
+
 class PaintRollerDragTracker : public GestureTracker
 {
 private:
-  PaintRollerTool& m_tool;
-  mdl::Map& m_map;
-  std::optional<mdl::BrushFaceHandle> m_lastFace;
-  std::string m_lastMaterialName;
+  PaintRollerToolController& m_controller;
 
 public:
-  PaintRollerDragTracker(PaintRollerTool& tool, mdl::Map& map)
-    : m_tool{tool}
-    , m_map{map}
+  explicit PaintRollerDragTracker(PaintRollerToolController& controller)
+    : m_controller{controller}
   {
   }
 
   bool update(const InputState& inputState) override
   {
-    m_tool.paint(inputState, m_lastFace, m_lastMaterialName);
+    m_controller.paint(inputState);
     return true;
   }
 
-  void end(const InputState&) override { m_map.commitTransaction(); }
+  void end(const InputState&) override { m_controller.finishDrag(); }
 
-  void cancel() override { m_map.cancelTransaction(); }
+  void cancel() override { m_controller.cancelPaint(); }
 };
-
-} // namespace
 
 PaintRollerTool::PaintRollerTool(mdl::Map& map)
   : Tool{false}
@@ -142,22 +138,112 @@ const Tool& PaintRollerToolController::tool() const
   return m_tool;
 }
 
+void PaintRollerToolController::beginPaint(const InputState& inputState)
+{
+  if (!m_transactionActive)
+  {
+    m_tool.m_map.startTransaction("Paint Faces", mdl::TransactionScope::LongRunning);
+    m_transactionActive = true;
+    m_lastFace = std::nullopt;
+    m_lastMaterialName.clear();
+  }
+
+  paint(inputState);
+}
+
+void PaintRollerToolController::commitPaint()
+{
+  if (m_transactionActive)
+  {
+    m_tool.m_map.commitTransaction();
+    m_transactionActive = false;
+  }
+}
+
+void PaintRollerToolController::cancelPaint()
+{
+  if (m_transactionActive)
+  {
+    m_tool.m_map.cancelTransaction();
+    m_transactionActive = false;
+  }
+
+  m_leftClickPending = false;
+}
+
+void PaintRollerToolController::finishDrag()
+{
+  commitPaint();
+  m_leftClickPending = false;
+}
+
+void PaintRollerToolController::paint(const InputState& inputState)
+{
+  m_tool.paint(inputState, m_lastFace, m_lastMaterialName);
+}
+
+void PaintRollerToolController::mouseDown(const InputState& inputState)
+{
+  m_leftClickPending = false;
+  if (inputState.mouseButtonsPressed(MouseButtons::Left))
+  {
+    m_leftClickPending = true;
+    beginPaint(inputState);
+  }
+}
+
+void PaintRollerToolController::mouseUp(const InputState& inputState)
+{
+  if (inputState.mouseButtonsPressed(MouseButtons::Left))
+  {
+    commitPaint();
+  }
+}
+
 bool PaintRollerToolController::mouseClick(const InputState& inputState)
+{
+  if (inputState.mouseButtonsPressed(MouseButtons::Left))
+  {
+    // Support callers that invoke mouseClick directly instead of sending the preceding
+    // mouseDown event through the controller.
+    if (m_leftClickPending)
+    {
+      commitPaint();
+      m_leftClickPending = false;
+    }
+    else
+    {
+      auto lastFace = std::optional<mdl::BrushFaceHandle>{};
+      auto lastMaterialName = std::string{};
+      m_tool.paint(inputState, lastFace, lastMaterialName);
+    }
+    return true;
+  }
+
+  if (m_leftClickPending)
+  {
+    commitPaint();
+    m_leftClickPending = false;
+    return true;
+  }
+
+  return false;
+}
+
+bool PaintRollerToolController::mouseDoubleClick(const InputState& inputState)
 {
   if (!inputState.mouseButtonsPressed(MouseButtons::Left))
   {
     return false;
   }
 
-  auto lastFace = std::optional<mdl::BrushFaceHandle>{};
-  auto lastMaterialName = std::string{};
-  m_tool.paint(inputState, lastFace, lastMaterialName);
+  if (!m_leftClickPending)
+  {
+    beginPaint(inputState);
+  }
+  commitPaint();
+  m_leftClickPending = false;
   return true;
-}
-
-bool PaintRollerToolController::mouseDoubleClick(const InputState& inputState)
-{
-  return mouseClick(inputState);
 }
 
 std::unique_ptr<GestureTracker> PaintRollerToolController::acceptMouseDrag(
@@ -168,12 +254,26 @@ std::unique_ptr<GestureTracker> PaintRollerToolController::acceptMouseDrag(
     return nullptr;
   }
 
-  auto& map = m_tool.m_map;
-  map.startTransaction("Paint Faces", mdl::TransactionScope::LongRunning);
+  if (!m_leftClickPending)
+  {
+    m_leftClickPending = true;
+    beginPaint(inputState);
+  }
 
-  auto tracker = std::make_unique<PaintRollerDragTracker>(m_tool, map);
+  auto tracker = std::make_unique<PaintRollerDragTracker>(*this);
   tracker->update(inputState);
   return tracker;
+}
+
+bool PaintRollerToolController::cancel()
+{
+  if (m_transactionActive)
+  {
+    cancelPaint();
+    return true;
+  }
+
+  return false;
 }
 
 } // namespace tb::ui

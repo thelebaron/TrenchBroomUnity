@@ -115,7 +115,12 @@ TEST_CASE("PaintRollerTool")
     auto inputState = InputState{leftPoint.x(), leftPoint.y()};
     updatePickState(inputState, camera, map);
     inputState.mouseDown(MouseButtons::Left);
+    controller.mouseDown(inputState);
+
+    CHECK(faceHasMaterial(*leftBrush, {0, 0, 1}, "painted"));
+
     CHECK(controller.mouseClick(inputState));
+    controller.mouseUp(inputState);
     inputState.mouseUp(MouseButtons::Left);
 
     CHECK(faceHasMaterial(*leftBrush, {0, 0, 1}, "painted"));
@@ -131,6 +136,7 @@ TEST_CASE("PaintRollerTool")
     auto inputState = InputState{leftPoint.x(), leftPoint.y()};
     updatePickState(inputState, camera, map);
     inputState.mouseDown(MouseButtons::Left);
+    controller.mouseDown(inputState);
 
     auto tracker = controller.acceptMouseDrag(inputState);
     REQUIRE(tracker != nullptr);

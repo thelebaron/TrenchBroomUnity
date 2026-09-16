@@ -36,6 +36,7 @@ namespace tb::ui
 {
 class GestureTracker;
 class InputState;
+class PaintRollerDragTracker;
 
 /**
  * Paints the currently selected material onto brush faces under the mouse cursor.
@@ -63,6 +64,18 @@ class PaintRollerToolController : public ToolController
 {
 private:
   PaintRollerTool& m_tool;
+  bool m_leftClickPending = false;
+  bool m_transactionActive = false;
+  std::optional<mdl::BrushFaceHandle> m_lastFace;
+  std::string m_lastMaterialName;
+
+  friend class PaintRollerDragTracker;
+
+  void beginPaint(const InputState& inputState);
+  void commitPaint();
+  void cancelPaint();
+  void finishDrag();
+  void paint(const InputState& inputState);
 
 public:
   explicit PaintRollerToolController(PaintRollerTool& tool);
@@ -70,9 +83,13 @@ public:
   Tool& tool() override;
   const Tool& tool() const override;
 
+  void mouseDown(const InputState& inputState) override;
+  void mouseUp(const InputState& inputState) override;
   bool mouseClick(const InputState& inputState) override;
   bool mouseDoubleClick(const InputState& inputState) override;
   std::unique_ptr<GestureTracker> acceptMouseDrag(const InputState& inputState) override;
+
+  bool cancel() override;
 };
 
 } // namespace tb::ui

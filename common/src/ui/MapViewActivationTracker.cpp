@@ -136,7 +136,7 @@ void MapViewActivationTracker::killFocusEvent(QFocusEvent*, QWidget*)
   }
 }
 
-bool MapViewActivationTracker::mouseDownEvent(QMouseEvent* event, QWidget*)
+bool MapViewActivationTracker::mouseDownEvent(QMouseEvent* event, QWidget* widget)
 {
   if (m_active)
   {
@@ -146,6 +146,18 @@ bool MapViewActivationTracker::mouseDownEvent(QMouseEvent* event, QWidget*)
 
   if (event->button() != Qt::LeftButton)
   {
+    activate();
+    return false;
+  }
+
+  if (
+    const auto* mapView = dynamic_cast<const MapViewBase*>(widget);
+    mapView != nullptr
+    && (mapView->actionContext() & ActionContext::PaintRollerTool) != 0)
+  {
+    // The paint roller must receive the first click after focus leaves the map view.
+    // Otherwise the activation tracker consumes the press and painting is delayed until
+    // the next mouse event.
     activate();
     return false;
   }
