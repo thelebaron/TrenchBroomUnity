@@ -69,5 +69,13 @@ void testUnityConnection(
  */
 void triggerUnityReimport(const std::filesystem::path& mapPath, MapFrame* frame);
 
+/**
+ * Triggers rebaking of the Unity Entity SubScene corresponding to mapPath
+ * (or fallback to active MainScene) via the Unity CLI 'rebake_subscene' command.
+ * Runs asynchronously via QProcess and logs to the given MapFrame's logger if still
+ * valid.
+ */
+void triggerUnitySubsceneRebake(const std::filesystem::path& mapPath, MapFrame* frame);
+
 } // namespace unity
 } // namespace tb::ui

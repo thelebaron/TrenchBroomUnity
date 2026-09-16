@@ -327,6 +327,7 @@ Preference<bool> AutoSetDefaultEntityProperties(
   "Misc/Automatically set default entity properties", true);
 
 Preference<bool> UnityReimportOnSave("Misc/Unity reimport on save", false);
+Preference<bool> UnityRebakeSubsceneOnSave("Misc/Unity rebake subscene on save", true);
 Preference<std::filesystem::path> UnityProjectPath("Misc/Unity project path", {});
 
 Preference<int> RoomCreatorMode("Room Creator/Mode", 1);
@@ -459,6 +460,7 @@ const std::vector<PreferenceBase*>& staticPreferences()
     &GenerateClassIndices,
     &AutoSetDefaultEntityProperties,
     &UnityReimportOnSave,
+    &UnityRebakeSubsceneOnSave,
     &UnityProjectPath,
     &RoomCreatorMode,
     &RoomCreatorWallThickness,

@@ -42,6 +42,7 @@ private:
   QPushButton* m_updateClassIndicesButton = nullptr;
 
   QCheckBox* m_unityReimportOnSaveCheckBox = nullptr;
+  QCheckBox* m_unityRebakeSubsceneOnSaveCheckBox = nullptr;
   QLineEdit* m_unityProjectPathEdit = nullptr;
   QPushButton* m_unityProjectBrowseButton = nullptr;
   QPushButton* m_unityTestConnectionButton = nullptr;

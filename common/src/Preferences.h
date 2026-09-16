@@ -210,6 +210,7 @@ extern Preference<bool> GenerateClassIndices;
 extern Preference<bool> AutoSetDefaultEntityProperties;
 
 extern Preference<bool> UnityReimportOnSave;
+extern Preference<bool> UnityRebakeSubsceneOnSave;
 extern Preference<std::filesystem::path> UnityProjectPath;
 
 extern Preference<int> RoomCreatorMode;

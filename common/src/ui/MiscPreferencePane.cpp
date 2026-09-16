@@ -138,6 +138,23 @@ QWidget* MiscPreferencePane::createMiscPreferences()
       const auto value = state == Qt::Checked;
       auto& prefs = PreferenceManager::instance();
       prefs.set(Preferences::UnityReimportOnSave, value);
+      m_unityRebakeSubsceneOnSaveCheckBox->setEnabled(value);
+    });
+
+  m_unityRebakeSubsceneOnSaveCheckBox = new QCheckBox{};
+  connect(
+    m_unityRebakeSubsceneOnSaveCheckBox,
+    &QCheckBox::checkStateChanged,
+    this,
+    [&](const auto state) {
+      if (m_disableNotifiers)
+      {
+        return;
+      }
+
+      const auto value = state == Qt::Checked;
+      auto& prefs = PreferenceManager::instance();
+      prefs.set(Preferences::UnityRebakeSubsceneOnSave, value);
     });
 
   m_unityProjectPathEdit = new QLineEdit{};
@@ -205,6 +222,8 @@ QWidget* MiscPreferencePane::createMiscPreferences()
   unityDescription->setWordWrap(true);
   layout->addRow(unityDescription);
   layout->addRow(tr("Trigger Unity reimport on save"), m_unityReimportOnSaveCheckBox);
+  layout->addRow(
+    tr("Trigger SubScene rebake on save"), m_unityRebakeSubsceneOnSaveCheckBox);
   layout->addRow(tr("Unity project directory"), unityPathLayout);
   layout->addRow("", unityTestLayout);
 
@@ -225,6 +244,7 @@ void MiscPreferencePane::doResetToDefaults()
   prefs.resetToDefault(Preferences::GenerateClassIndices);
   prefs.resetToDefault(Preferences::AutoSetDefaultEntityProperties);
   prefs.resetToDefault(Preferences::UnityReimportOnSave);
+  prefs.resetToDefault(Preferences::UnityRebakeSubsceneOnSave);
   prefs.resetToDefault(Preferences::UnityProjectPath);
 }
 
@@ -236,6 +256,10 @@ void MiscPreferencePane::updateControls()
   m_autoSetDefaultEntityPropertiesCheckBox->setChecked(
     pref(Preferences::AutoSetDefaultEntityProperties));
   m_unityReimportOnSaveCheckBox->setChecked(pref(Preferences::UnityReimportOnSave));
+  m_unityRebakeSubsceneOnSaveCheckBox->setChecked(
+    pref(Preferences::UnityRebakeSubsceneOnSave));
+  m_unityRebakeSubsceneOnSaveCheckBox->setEnabled(
+    m_unityReimportOnSaveCheckBox->isChecked());
   m_unityProjectPathEdit->setText(io::pathAsQString(pref(Preferences::UnityProjectPath)));
   m_unityStatusLabel->clear();
 }

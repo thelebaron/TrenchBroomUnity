@@ -280,7 +280,7 @@ void triggerUnityReimport(const std::filesystem::path& mapPath, MapFrame* frame)
   QObject::connect(
     process,
     QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
-    [process, relativeAssetPath, framePtr](
+    [process, mapPath, relativeAssetPath, framePtr](
       int exitCode, QProcess::ExitStatus exitStatus) {
       const auto stdoutData =
         QString::fromUtf8(process->readAllStandardOutput()).trimmed();
@@ -297,6 +297,11 @@ void triggerUnityReimport(const std::filesystem::path& mapPath, MapFrame* frame)
       {
         framePtr->logger().info()
           << "Unity reimport finished for " << relativeAssetPath.toStdString();
+
+        if (pref(Preferences::UnityRebakeSubsceneOnSave))
+        {
+          triggerUnitySubsceneRebake(mapPath, framePtr.data());
+        }
       }
       else
       {
@@ -318,6 +323,79 @@ void triggerUnityReimport(const std::filesystem::path& mapPath, MapFrame* frame)
         framePtr->logger().warn()
           << "Failed to launch Unity CLI for " << relativeAssetPath.toStdString() << ": "
           << errStr.toStdString();
+      }
+    });
+
+  process->start(unityExe, args);
+}
+
+void triggerUnitySubsceneRebake(const std::filesystem::path& mapPath, MapFrame* frame)
+{
+  const auto projectPath = pref(Preferences::UnityProjectPath);
+  if (projectPath.empty())
+  {
+    return;
+  }
+
+  QPointer<MapFrame> framePtr{frame};
+
+  const auto mapStem = QString::fromStdString(mapPath.stem().string());
+
+  const auto unityExe = findUnityExecutable();
+  auto* process = new QProcess{};
+  QStringList args;
+  args << "command"
+       << "--project-path" << io::pathAsQString(projectPath) << "rebake_subscene";
+  if (!mapStem.isEmpty())
+  {
+    args << "--map" << mapStem;
+  }
+
+  if (framePtr)
+  {
+    framePtr->logger().info() << "Triggering Unity SubScene rebake for map '"
+                              << mapStem.toStdString() << "'...";
+  }
+
+  QObject::connect(
+    process,
+    QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
+    [process, mapStem, framePtr](int exitCode, QProcess::ExitStatus exitStatus) {
+      const auto stdoutData =
+        QString::fromUtf8(process->readAllStandardOutput()).trimmed();
+      const auto stderrData =
+        QString::fromUtf8(process->readAllStandardError()).trimmed();
+      process->deleteLater();
+
+      if (!framePtr)
+      {
+        return;
+      }
+
+      if (exitStatus == QProcess::NormalExit && exitCode == 0)
+      {
+        framePtr->logger().info()
+          << "Unity SubScene rebake finished: " << stdoutData.toStdString();
+      }
+      else
+      {
+        framePtr->logger().warn()
+          << "Unity SubScene rebake failed (exit code " << exitCode << "): "
+          << (stderrData.isEmpty() ? stdoutData.toStdString() : stderrData.toStdString());
+      }
+    });
+
+  QObject::connect(
+    process,
+    &QProcess::errorOccurred,
+    [process, mapStem, framePtr](QProcess::ProcessError /*error*/) {
+      const auto errStr = process->errorString();
+      process->deleteLater();
+      if (framePtr)
+      {
+        framePtr->logger().warn()
+          << "Failed to launch Unity CLI for SubScene rebake ('" << mapStem.toStdString()
+          << "'): " << errStr.toStdString();
       }
     });
 
