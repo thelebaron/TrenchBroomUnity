@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created for a 24px TrenchBroom-style tool icon -->
+<svg
+   xmlns:svg="http://www.w3.org/2000/svg"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   width="24"
+   height="24"
+   viewBox="0 0 24.000001 24"
+   id="svg2"
+   version="1.1"
+   inkscape:version="1.4"
+   sodipodi:docname="PaintBrushTool.svg">
+  <g
+     inkscape:label="Ebene 1"
+     inkscape:groupmode="layer"
+     id="layer1">
+    <g>
+      <path
+         id="handle"
+         style="fill:#ff8000;fill-opacity:0.25;stroke:#ff8000;stroke-width:1;stroke-linecap:round;stroke-linejoin:round;stroke-opacity:1"
+         d="m 9.5,8.5 0.8,-2.2 V 3.6 C 10.3,2.15 11.05,1.5 12,1.5 c 0.95,0 1.7,0.65 1.7,2.1 v 2.7 l 0.8,2.2 z" />
+      <circle
+         id="handle-hole"
+         cx="12"
+         cy="3.6"
+         r="0.75"
+         style="fill:none;stroke:#ff8000;stroke-width:0.8;stroke-opacity:1" />
+      <rect
+         id="ferrule"
+         x="6.5"
+         y="9"
+         width="11"
+         height="4"
+         rx="1.0"
+         style="fill:#7f7f7f;fill-opacity:0.24705882;stroke:#7f7f7f;stroke-width:1;stroke-linejoin:round;stroke-opacity:1" />
+      <path
+         id="bristles"
+         style="fill:#ff8000;fill-opacity:0.25;stroke:#ff8000;stroke-width:1;stroke-linejoin:round;stroke-opacity:1"
+         d="M 6.5,12.5 H 17.5 L 18.3,22 H 5.7 Z" />
+      <path
+         id="bristle-line-left"
+         style="fill:none;stroke:#ff8000;stroke-width:0.8;stroke-linecap:round;stroke-opacity:1"
+         d="m 10.1,14 -0.4,6.3" />
+      <path
+         id="bristle-line-right"
+         style="fill:none;stroke:#ff8000;stroke-width:0.8;stroke-linecap:round;stroke-opacity:1"
+         d="m 13.9,14 0.4,6.3" />
+    </g>
+  </g>
+</svg>
