@@ -27,8 +27,9 @@
 namespace tb::ui
 {
 class MapFrame;
+} // namespace tb::ui
 
-namespace unity
+namespace tb::unity
 {
 
 /**
@@ -67,7 +68,7 @@ void testUnityConnection(
  * Runs asynchronously via QProcess and logs to the given MapFrame's logger if still
  * valid.
  */
-void triggerUnityReimport(const std::filesystem::path& mapPath, MapFrame* frame);
+void triggerUnityReimport(const std::filesystem::path& mapPath, ui::MapFrame* frame);
 
 /**
  * Triggers rebaking of the Unity Entity SubScene corresponding to mapPath
@@ -75,7 +76,7 @@ void triggerUnityReimport(const std::filesystem::path& mapPath, MapFrame* frame)
  * Runs asynchronously via QProcess and logs to the given MapFrame's logger if still
  * valid.
  */
-void triggerUnitySubsceneRebake(const std::filesystem::path& mapPath, MapFrame* frame);
+void triggerUnitySubsceneRebake(
+  const std::filesystem::path& mapPath, ui::MapFrame* frame);
 
-} // namespace unity
-} // namespace tb::ui
+} // namespace tb::unity

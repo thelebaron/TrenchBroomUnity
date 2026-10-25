@@ -100,9 +100,9 @@
 #include "ui/SignalDelayer.h"
 #include "ui/Splitter.h"
 #include "ui/SwitchableMapViewContainer.h"
-#include "ui/UnityIntegration.h"
 #include "ui/VertexTool.h"
 #include "ui/ViewUtils.h"
+#include "unity/UnityIntegration.h"
 #include "upd/Updater.h"
 
 #include "kdl/const_overload.h"

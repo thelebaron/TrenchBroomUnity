@@ -41,6 +41,7 @@
 #include "ui/PreferencePane.h"
 #include "ui/QtUtils.h"
 #include "ui/ViewPreferencePane.h"
+#include "unity/UnityPreferencePane.h"
 
 #include <filesystem>
 
@@ -55,8 +56,9 @@ enum class PreferenceDialog::PrefPane
   Mouse = 3,
   Keyboard = 4,
   Misc = 5,
-  Update = 6,
-  Last = 6
+  Unity = 6,
+  Update = 7,
+  Last = 7
 } PrefPane;
 
 
@@ -110,6 +112,7 @@ void PreferenceDialog::createGui()
   m_toolBar->addAction(
     keyboardImage, "Keyboard", [&]() { switchToPane(PrefPane::Keyboard); });
   m_toolBar->addAction(miscImage, "Misc", [&]() { switchToPane(PrefPane::Misc); });
+  m_toolBar->addAction(gamesImage, "Unity", [&]() { switchToPane(PrefPane::Unity); });
   m_toolBar->addAction(updateImage, "Update", [&]() { switchToPane(PrefPane::Update); });
 
   // Don't display tooltips for pane switcher buttons...
@@ -124,7 +127,8 @@ void PreferenceDialog::createGui()
   m_stackedWidget->addWidget(new ColorsPreferencePane{});
   m_stackedWidget->addWidget(new MousePreferencePane{});
   m_stackedWidget->addWidget(new KeyboardPreferencePane{m_document});
-  m_stackedWidget->addWidget(new MiscPreferencePane{m_document});
+  m_stackedWidget->addWidget(new MiscPreferencePane{});
+  m_stackedWidget->addWidget(new unity::UnityPreferencePane{m_document});
   m_stackedWidget->addWidget(new UpdatePreferencePane{});
 
   m_buttonBox = new QDialogButtonBox{

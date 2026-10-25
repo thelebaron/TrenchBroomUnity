@@ -14,8 +14,8 @@ have been removed. Feature implementations remain in place.
 **Purpose:** Give downstream importers a persistent way to recognize an entity across
 map edits and reimports.
 
-**Use:** Enable **Generate unique entity IDs** in the Misc preferences pane. It is off
-by default. Entities receive a nonempty `_tb_unique_id` string, generated as a UUID
+**Use:** Enable **Generate unique entity identifiers** in the Unity preferences pane.
+It is off by default. Entities receive a nonempty `_tb_unique_id` string, generated as a UUID
 when no usable unique value is present. Existing nonempty IDs are preserved when they
 do not collide with another entity registered in the map. Duplicated or pasted entities
 receive a replacement when their copied ID collides.
@@ -27,7 +27,7 @@ existing properties from the map. Worldspawn is not assigned an entity ID.
 
 **Main files:** `common/src/mdl/Map.cpp`, `Map.h`, `EntityProperties.cpp`,
 `EntityProperties.h`, `common/src/Preferences.cpp`, and
-`common/src/ui/MiscPreferencePane.cpp`.
+`common/src/unity/UnityPreferencePane.*`.
 
 **Rebase considerations:** Preserve the exact `_tb_unique_id` property name and saved
 values. Reconnect identity registration to the new upstream map lifecycle and node
@@ -44,8 +44,8 @@ checks also remain in `common/test/src/mdl/tst_Map_Entities.cpp`.
 **Purpose:** Provide an additional numeric identifier within each entity classname for
 downstream workflows.
 
-**Use:** Enable **Generate unique class indices** in Misc preferences. It is off by
-default. The saved property is `classindex`, a positive integer string. Classnames have
+**Use:** Enable **Generate unique entity class indices** in Unity preferences. It is off
+by default. The saved property is `classindex`, a positive integer string. Classnames have
 independent number spaces: a `light` and an `info_player_start` may both have index 1.
 Valid unclaimed indices are preserved; missing, invalid or conflicting values are
 assigned an available index. The allocator searches from 1, so indices are not a
@@ -56,7 +56,7 @@ containers are excluded.
 Disabling generation leaves existing values in place.
 
 **Main files:** `common/src/mdl/Map.cpp`, `Map.h`, `EntityProperties.cpp`,
-`EntityProperties.h`, and `common/src/ui/MiscPreferencePane.cpp`.
+`EntityProperties.h`, and `common/src/unity/UnityPreferencePane.*`.
 
 **Rebase considerations:** Preserve `classindex`, classname-specific ownership,
 collision repair and existing saved indices. Pay attention to entity removal,
@@ -185,7 +185,7 @@ selection, non-material face attributes, and one-stroke undo/cancellation behavi
 rebaking in an external Unity project.
 
 **Use:** Configure **Unity project directory** and **Trigger Unity reimport on save**
-in Misc preferences. Reimport is off by default. **Trigger SubScene rebake on save**
+in Unity preferences. Reimport is off by default. **Trigger SubScene rebake on save**
 defaults to on, but its control depends on reimport being enabled. **Test Connection**
 queries the Unity CLI for a running editor instance.
 
@@ -196,8 +196,17 @@ configured project and have an `Assets/` or `Packages/` relative path. It launch
 a live map frame and the rebake preference allow `rebake_subscene --map <map-stem>`.
 These operations run asynchronously through `QProcess` and report results to the editor.
 
-**Main files:** `common/src/ui/UnityIntegration.*`, `MiscPreferencePane.*`,
-`MapFrame.cpp`, and `common/src/Preferences.cpp`.
+**Main files:** `common/src/unity/UnityIntegration.*`, `UnityPreferencePane.*`,
+`common/src/ui/PreferenceDialog.cpp`, `MapFrame.cpp`, `common/CMakeLists.txt`, and
+`common/src/Preferences.cpp`.
+
+Unity integration and its preferences pane live in `common/src/unity/` under the
+`tb::unity` namespace. `UnityIntegration.*` moved from `common/src/ui/`; the Unity
+controls, entity ID and class-index controls moved out of `MiscPreferencePane.*`.
+The Misc pane retains automatic entity defaults. All five moved preferences keep
+their original `Misc/` storage keys and defaults so existing settings are preserved.
+Restore Defaults affects only the settings on the selected pane. The map frame keeps
+the small reimport calls in its save and save-as paths.
 
 **Rebase considerations:** Preserve save-hook placement, path conversion, frame
 lifetime guards, process completion handling and the success-only rebake sequence.

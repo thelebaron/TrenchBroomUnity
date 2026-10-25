@@ -21,19 +21,10 @@
 
 #include <QBoxLayout>
 #include <QCheckBox>
-#include <QFileDialog>
-#include <QLabel>
-#include <QLineEdit>
-#include <QPointer>
-#include <QPushButton>
 
 #include "PreferenceManager.h"
 #include "Preferences.h"
-#include "io/PathQt.h"
 #include "ui/FormWithSectionsLayout.h"
-#include "ui/MapDocument.h"
-#include "ui/QtUtils.h"
-#include "ui/UnityIntegration.h"
 #include "ui/ViewConstants.h"
 
 #include "kdl/set_temp.h"
@@ -41,9 +32,8 @@
 namespace tb::ui
 {
 
-MiscPreferencePane::MiscPreferencePane(MapDocument* document, QWidget* parent)
+MiscPreferencePane::MiscPreferencePane(QWidget* parent)
   : PreferencePane{parent}
-  , m_document{document}
 {
   createGui();
 }
@@ -63,43 +53,6 @@ void MiscPreferencePane::createGui()
 
 QWidget* MiscPreferencePane::createMiscPreferences()
 {
-  auto* description = new QLabel{tr(
-    "Assign a stable, non-empty identifier to every entity. Helpful when exporting maps "
-    "to downstream tools that rely on consistent IDs (for example Unity).")};
-  description->setWordWrap(true);
-
-  m_generateEntityIdsCheckBox = new QCheckBox{};
-  connect(
-    m_generateEntityIdsCheckBox,
-    &QCheckBox::checkStateChanged,
-    this,
-    [&](const auto state) {
-      if (m_disableNotifiers)
-      {
-        return;
-      }
-
-      const auto value = state == Qt::Checked;
-      auto& prefs = PreferenceManager::instance();
-      prefs.set(Preferences::GenerateEntityIds, value);
-    });
-
-  m_generateClassIndicesCheckBox = new QCheckBox{};
-  connect(
-    m_generateClassIndicesCheckBox,
-    &QCheckBox::checkStateChanged,
-    this,
-    [&](const auto state) {
-      if (m_disableNotifiers)
-      {
-        return;
-      }
-
-      const auto value = state == Qt::Checked;
-      auto& prefs = PreferenceManager::instance();
-      prefs.set(Preferences::GenerateClassIndices, value);
-    });
-
   m_autoSetDefaultEntityPropertiesCheckBox = new QCheckBox{};
   connect(
     m_autoSetDefaultEntityPropertiesCheckBox,
@@ -116,88 +69,6 @@ QWidget* MiscPreferencePane::createMiscPreferences()
       prefs.set(Preferences::AutoSetDefaultEntityProperties, value);
     });
 
-  m_updateClassIndicesButton = new QPushButton{tr("Update Current Map Entities")};
-  m_updateClassIndicesButton->setEnabled(m_document != nullptr);
-  connect(
-    m_updateClassIndicesButton,
-    &QPushButton::clicked,
-    this,
-    &MiscPreferencePane::updateClassIndicesClicked);
-
-  m_unityReimportOnSaveCheckBox = new QCheckBox{};
-  connect(
-    m_unityReimportOnSaveCheckBox,
-    &QCheckBox::checkStateChanged,
-    this,
-    [&](const auto state) {
-      if (m_disableNotifiers)
-      {
-        return;
-      }
-
-      const auto value = state == Qt::Checked;
-      auto& prefs = PreferenceManager::instance();
-      prefs.set(Preferences::UnityReimportOnSave, value);
-      m_unityRebakeSubsceneOnSaveCheckBox->setEnabled(value);
-    });
-
-  m_unityRebakeSubsceneOnSaveCheckBox = new QCheckBox{};
-  connect(
-    m_unityRebakeSubsceneOnSaveCheckBox,
-    &QCheckBox::checkStateChanged,
-    this,
-    [&](const auto state) {
-      if (m_disableNotifiers)
-      {
-        return;
-      }
-
-      const auto value = state == Qt::Checked;
-      auto& prefs = PreferenceManager::instance();
-      prefs.set(Preferences::UnityRebakeSubsceneOnSave, value);
-    });
-
-  m_unityProjectPathEdit = new QLineEdit{};
-  connect(m_unityProjectPathEdit, &QLineEdit::editingFinished, this, [&]() {
-    if (m_disableNotifiers)
-    {
-      return;
-    }
-
-    const auto pathStr = m_unityProjectPathEdit->text().trimmed();
-    auto& prefs = PreferenceManager::instance();
-    prefs.set(Preferences::UnityProjectPath, io::pathFromQString(pathStr));
-  });
-
-  m_unityProjectBrowseButton = new QPushButton{tr("...")};
-  connect(
-    m_unityProjectBrowseButton,
-    &QPushButton::clicked,
-    this,
-    &MiscPreferencePane::chooseUnityProjectPathClicked);
-
-  m_unityTestConnectionButton = new QPushButton{tr("Test Connection")};
-  connect(
-    m_unityTestConnectionButton,
-    &QPushButton::clicked,
-    this,
-    &MiscPreferencePane::testUnityConnectionClicked);
-
-  m_unityStatusLabel = new QLabel{};
-  m_unityStatusLabel->setWordWrap(true);
-
-  auto* unityPathLayout = new QHBoxLayout{};
-  unityPathLayout->setContentsMargins(QMargins{});
-  unityPathLayout->setSpacing(LayoutConstants::MediumHMargin);
-  unityPathLayout->addWidget(m_unityProjectPathEdit, 1);
-  unityPathLayout->addWidget(m_unityProjectBrowseButton);
-
-  auto* unityTestLayout = new QHBoxLayout{};
-  unityTestLayout->setContentsMargins(QMargins{});
-  unityTestLayout->setSpacing(LayoutConstants::MediumHMargin);
-  unityTestLayout->addWidget(m_unityTestConnectionButton);
-  unityTestLayout->addWidget(m_unityStatusLabel, 1);
-
   auto* layout = new FormWithSectionsLayout{};
   layout->setContentsMargins(
     LayoutConstants::DialogOuterMargin,
@@ -207,25 +78,9 @@ QWidget* MiscPreferencePane::createMiscPreferences()
   layout->setVerticalSpacing(LayoutConstants::WideVMargin);
 
   layout->addSection("Entities");
-  layout->addRow(description);
-  layout->addRow("Generate unique entity identifiers", m_generateEntityIdsCheckBox);
-  layout->addRow("Generate unique entity class indices", m_generateClassIndicesCheckBox);
   layout->addRow(
     "Automatically set default entity properties",
     m_autoSetDefaultEntityPropertiesCheckBox);
-  layout->addRow("", m_updateClassIndicesButton);
-
-  layout->addSection(tr("Unity Integration"));
-  auto* unityDescription = new QLabel{tr(
-    "Automatically trigger reimport in the Unity Editor when saving a map located inside "
-    "the project.")};
-  unityDescription->setWordWrap(true);
-  layout->addRow(unityDescription);
-  layout->addRow(tr("Trigger Unity reimport on save"), m_unityReimportOnSaveCheckBox);
-  layout->addRow(
-    tr("Trigger SubScene rebake on save"), m_unityRebakeSubsceneOnSaveCheckBox);
-  layout->addRow(tr("Unity project directory"), unityPathLayout);
-  layout->addRow("", unityTestLayout);
 
   auto* widget = new QWidget{};
   widget->setLayout(layout);
@@ -240,86 +95,19 @@ bool MiscPreferencePane::canResetToDefaults()
 void MiscPreferencePane::doResetToDefaults()
 {
   auto& prefs = PreferenceManager::instance();
-  prefs.resetToDefault(Preferences::GenerateEntityIds);
-  prefs.resetToDefault(Preferences::GenerateClassIndices);
   prefs.resetToDefault(Preferences::AutoSetDefaultEntityProperties);
-  prefs.resetToDefault(Preferences::UnityReimportOnSave);
-  prefs.resetToDefault(Preferences::UnityRebakeSubsceneOnSave);
-  prefs.resetToDefault(Preferences::UnityProjectPath);
 }
 
 void MiscPreferencePane::updateControls()
 {
   const auto disableNotifiers = kdl::set_temp{m_disableNotifiers, true};
-  m_generateEntityIdsCheckBox->setChecked(pref(Preferences::GenerateEntityIds));
-  m_generateClassIndicesCheckBox->setChecked(pref(Preferences::GenerateClassIndices));
   m_autoSetDefaultEntityPropertiesCheckBox->setChecked(
     pref(Preferences::AutoSetDefaultEntityProperties));
-  m_unityReimportOnSaveCheckBox->setChecked(pref(Preferences::UnityReimportOnSave));
-  m_unityRebakeSubsceneOnSaveCheckBox->setChecked(
-    pref(Preferences::UnityRebakeSubsceneOnSave));
-  m_unityRebakeSubsceneOnSaveCheckBox->setEnabled(
-    m_unityReimportOnSaveCheckBox->isChecked());
-  m_unityProjectPathEdit->setText(io::pathAsQString(pref(Preferences::UnityProjectPath)));
-  m_unityStatusLabel->clear();
 }
 
 bool MiscPreferencePane::validate()
 {
   return true;
-}
-
-void MiscPreferencePane::updateClassIndicesClicked()
-{
-  if (!m_document)
-  {
-    return;
-  }
-
-  m_document->rebuildClassIndexRegistry();
-}
-
-void MiscPreferencePane::chooseUnityProjectPathClicked()
-{
-  const auto currentPath = io::pathAsQString(pref(Preferences::UnityProjectPath));
-  const auto startDir = !currentPath.isEmpty()
-                          ? currentPath
-                          : fileDialogDefaultDirectory(FileDialogDir::UnityProjectPath);
-  const auto pathStr =
-    QFileDialog::getExistingDirectory(this, tr("Unity Project Directory"), startDir);
-  if (!pathStr.isEmpty())
-  {
-    updateFileDialogDefaultDirectoryWithDirectory(
-      FileDialogDir::UnityProjectPath, pathStr);
-    m_unityProjectPathEdit->setText(pathStr);
-    auto& prefs = PreferenceManager::instance();
-    prefs.set(Preferences::UnityProjectPath, io::pathFromQString(pathStr));
-  }
-}
-
-void MiscPreferencePane::testUnityConnectionClicked()
-{
-  const auto pathStr = m_unityProjectPathEdit->text().trimmed();
-  const auto projectPath = io::pathFromQString(pathStr);
-  if (projectPath.empty())
-  {
-    m_unityStatusLabel->setText(tr("Please select a Unity project directory."));
-    return;
-  }
-
-  m_unityTestConnectionButton->setEnabled(false);
-  m_unityStatusLabel->setText(tr("Testing connection..."));
-
-  QPointer<MiscPreferencePane> weakThis{this};
-  unity::testUnityConnection(
-    projectPath, [weakThis](bool /*success*/, const QString& message) {
-      if (!weakThis)
-      {
-        return;
-      }
-      weakThis->m_unityTestConnectionButton->setEnabled(true);
-      weakThis->m_unityStatusLabel->setText(message);
-    });
 }
 
 } // namespace tb::ui

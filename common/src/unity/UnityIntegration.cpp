@@ -38,7 +38,7 @@
 
 #include <system_error>
 
-namespace tb::ui::unity
+namespace tb::unity
 {
 
 QString findUnityExecutable()
@@ -220,7 +220,7 @@ void testUnityConnection(
   process->start(unityExe, args);
 }
 
-void triggerUnityReimport(const std::filesystem::path& mapPath, MapFrame* frame)
+void triggerUnityReimport(const std::filesystem::path& mapPath, ui::MapFrame* frame)
 {
   if (!pref(Preferences::UnityReimportOnSave))
   {
@@ -233,7 +233,7 @@ void triggerUnityReimport(const std::filesystem::path& mapPath, MapFrame* frame)
     return;
   }
 
-  QPointer<MapFrame> framePtr{frame};
+  QPointer<ui::MapFrame> framePtr{frame};
 
   if (!isPathInsideProject(mapPath, projectPath))
   {
@@ -329,7 +329,7 @@ void triggerUnityReimport(const std::filesystem::path& mapPath, MapFrame* frame)
   process->start(unityExe, args);
 }
 
-void triggerUnitySubsceneRebake(const std::filesystem::path& mapPath, MapFrame* frame)
+void triggerUnitySubsceneRebake(const std::filesystem::path& mapPath, ui::MapFrame* frame)
 {
   const auto projectPath = pref(Preferences::UnityProjectPath);
   if (projectPath.empty())
@@ -337,7 +337,7 @@ void triggerUnitySubsceneRebake(const std::filesystem::path& mapPath, MapFrame* 
     return;
   }
 
-  QPointer<MapFrame> framePtr{frame};
+  QPointer<ui::MapFrame> framePtr{frame};
 
   const auto mapStem = QString::fromStdString(mapPath.stem().string());
 
@@ -402,4 +402,4 @@ void triggerUnitySubsceneRebake(const std::filesystem::path& mapPath, MapFrame* 
   process->start(unityExe, args);
 }
 
-} // namespace tb::ui::unity
+} // namespace tb::unity

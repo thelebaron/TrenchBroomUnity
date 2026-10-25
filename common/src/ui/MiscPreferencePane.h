@@ -22,43 +22,25 @@
 #include "ui/PreferencePane.h"
 
 class QCheckBox;
-class QLabel;
-class QLineEdit;
-class QPushButton;
 
 namespace tb::ui
 {
-class MapDocument;
 
 class MiscPreferencePane : public PreferencePane
 {
   Q_OBJECT
 
 private:
-  MapDocument* m_document = nullptr;
-  QCheckBox* m_generateEntityIdsCheckBox = nullptr;
-  QCheckBox* m_generateClassIndicesCheckBox = nullptr;
   QCheckBox* m_autoSetDefaultEntityPropertiesCheckBox = nullptr;
-  QPushButton* m_updateClassIndicesButton = nullptr;
-
-  QCheckBox* m_unityReimportOnSaveCheckBox = nullptr;
-  QCheckBox* m_unityRebakeSubsceneOnSaveCheckBox = nullptr;
-  QLineEdit* m_unityProjectPathEdit = nullptr;
-  QPushButton* m_unityProjectBrowseButton = nullptr;
-  QPushButton* m_unityTestConnectionButton = nullptr;
-  QLabel* m_unityStatusLabel = nullptr;
 
   bool m_disableNotifiers = false;
 
 public:
-  explicit MiscPreferencePane(MapDocument* document = nullptr, QWidget* parent = nullptr);
+  explicit MiscPreferencePane(QWidget* parent = nullptr);
 
 private:
   void createGui();
   QWidget* createMiscPreferences();
-  void updateClassIndicesClicked();
-  void chooseUnityProjectPathClicked();
-  void testUnityConnectionClicked();
 
   bool canResetToDefaults() override;
   void doResetToDefaults() override;

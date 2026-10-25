@@ -500,7 +500,6 @@ set(COMMON_SOURCE
         ${COMMON_SOURCE_DIR}/ui/UpdateConfig.cpp
         ${COMMON_SOURCE_DIR}/ui/UpdatePreferencePane.cpp
         ${COMMON_SOURCE_DIR}/ui/MiscPreferencePane.cpp
-        ${COMMON_SOURCE_DIR}/ui/UnityIntegration.cpp
         ${COMMON_SOURCE_DIR}/ui/UpdateVersion.cpp
         ${COMMON_SOURCE_DIR}/ui/UVCameraTool.cpp
         ${COMMON_SOURCE_DIR}/ui/UVEditor.cpp
@@ -520,6 +519,8 @@ set(COMMON_SOURCE
         ${COMMON_SOURCE_DIR}/ui/ViewPreferencePane.cpp
         ${COMMON_SOURCE_DIR}/ui/ViewUtils.cpp
         ${COMMON_SOURCE_DIR}/ui/WelcomeWindow.cpp
+        ${COMMON_SOURCE_DIR}/unity/UnityIntegration.cpp
+        ${COMMON_SOURCE_DIR}/unity/UnityPreferencePane.cpp
         ${COMMON_SOURCE_DIR}/Uuid.cpp
 )
 
@@ -1071,7 +1072,6 @@ set(COMMON_HEADER
         ${COMMON_SOURCE_DIR}/ui/UpdateConfig.h
         ${COMMON_SOURCE_DIR}/ui/UpdatePreferencePane.h
         ${COMMON_SOURCE_DIR}/ui/MiscPreferencePane.h
-        ${COMMON_SOURCE_DIR}/ui/UnityIntegration.h
         ${COMMON_SOURCE_DIR}/ui/UpdateVersion.h
         ${COMMON_SOURCE_DIR}/ui/UVCameraTool.h
         ${COMMON_SOURCE_DIR}/ui/UVEditor.h
@@ -1093,6 +1093,8 @@ set(COMMON_HEADER
         ${COMMON_SOURCE_DIR}/ui/ViewPreferencePane.h
         ${COMMON_SOURCE_DIR}/ui/ViewUtils.h
         ${COMMON_SOURCE_DIR}/ui/WelcomeWindow.h
+        ${COMMON_SOURCE_DIR}/unity/UnityIntegration.h
+        ${COMMON_SOURCE_DIR}/unity/UnityPreferencePane.h
         ${COMMON_SOURCE_DIR}/Uuid.h
 )
 

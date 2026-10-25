@@ -321,6 +321,7 @@ QString entityLinkModeNone()
 }
 Preference<QString> EntityLinkMode("Map view/Entity link mode", "direct");
 
+// Keep the legacy Misc keys so existing settings survive moving controls to Unity.
 Preference<bool> GenerateEntityIds("Misc/Generate unique entity IDs", false);
 Preference<bool> GenerateClassIndices("Misc/Generate unique class indices", false);
 Preference<bool> AutoSetDefaultEntityProperties(
