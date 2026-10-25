@@ -1001,7 +1001,15 @@ bool MapFrame::saveDocument()
     if (map.persistent())
     {
       const auto startTime = std::chrono::high_resolution_clock::now();
-      map.save();
+      if (const auto result = map.save(); result.is_error())
+      {
+        QMessageBox::critical(
+          this,
+          "",
+          QString::fromStdString(std::get<Error>(result.error()).msg),
+          QMessageBox::Ok);
+        return false;
+      }
       const auto endTime = std::chrono::high_resolution_clock::now();
 
       logger().info() << "Saved " << map.path() << " in "
@@ -1045,7 +1053,15 @@ bool MapFrame::saveDocumentAs()
     const auto path = io::pathFromQString(newFileName);
 
     const auto startTime = std::chrono::high_resolution_clock::now();
-    map.saveAs(path);
+    if (const auto result = map.saveAs(path); result.is_error())
+    {
+      QMessageBox::critical(
+        this,
+        "",
+        QString::fromStdString(std::get<Error>(result.error()).msg),
+        QMessageBox::Ok);
+      return false;
+    }
     const auto endTime = std::chrono::high_resolution_clock::now();
 
     logger().info() << "Saved " << map.path() << " in "

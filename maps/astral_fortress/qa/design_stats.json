@@ -1,0 +1,26 @@
+{
+  "world_brushes": 761,
+  "brush_entities": 16,
+  "point_entities": 144,
+  "secrets": 4,
+  "textures_used": 29,
+  "missing_textures": [],
+  "monsters_easy": 23,
+  "monsters_normal": 30,
+  "monsters_hard": 36,
+  "keys": {
+    "item_key1": 1,
+    "item_key2": 1
+  },
+  "targetnames": [
+    "rune_cache",
+    "star_shutter",
+    "star_shutter",
+    "vault_cache"
+  ],
+  "targets": [
+    "rune_cache",
+    "star_shutter",
+    "vault_cache"
+  ]
+}

@@ -115,6 +115,7 @@
 #include <string>
 #include <string_view>
 #include <vector>
+#include <variant>
 
 
 namespace tb::mdl
@@ -650,10 +651,9 @@ Result<void> Map::create(
 {
   m_logger.info() << "Creating new document";
 
-  clear();
-
-  return createMap(game->config(), mapFormat, m_worldBounds, m_taskManager, m_logger)
+  return createMap(game->config(), mapFormat, worldBounds, m_taskManager, m_logger)
          | kdl::transform([&](auto worldNode) {
+             clear();
              setWorld(
                worldBounds, std::move(worldNode), std::move(game), DefaultDocumentName);
              setWorldDefaultProperties(*m_world, *m_entityDefinitionManager);
@@ -670,10 +670,9 @@ Result<void> Map::load(
 {
   m_logger.info() << fmt::format("Loading document from {}", path);
 
-  clear();
-
   return loadMap(game->config(), mapFormat, worldBounds, path, m_taskManager, m_logger)
          | kdl::transform([&](auto worldNode) {
+             clear();
              setWorld(worldBounds, std::move(worldNode), std::move(game), path);
              mapWasLoadedNotifier(*this);
            });
@@ -695,33 +694,41 @@ Result<void> Map::reload()
   return load(mapFormat, worldBounds, std::move(game), path);
 }
 
-void Map::save()
+Result<void> Map::save()
 {
-  saveAs(m_path);
+  return saveAs(m_path);
 }
 
-void Map::saveAs(const std::filesystem::path& path)
+Result<void> Map::saveAs(const std::filesystem::path& path)
 {
-  saveTo(path);
-  setLastSaveModificationCount();
-  setPath(path);
-  mapWasSavedNotifier(*this);
+  return saveTo(path) | kdl::transform([&]() {
+           setLastSaveModificationCount();
+           setPath(path);
+           mapWasSavedNotifier(*this);
+         });
 }
 
-void Map::saveTo(const std::filesystem::path& path)
+Result<void> Map::saveTo(const std::filesystem::path& path)
 {
-  ensure(m_game.get() != nullptr, "game is null");
-  ensure(m_world, "world is null");
+  if (!m_game || !m_world)
+  {
+    return Error{"Cannot save document without a loaded map"};
+  }
 
-  io::Disk::withOutputStream(path, [&](auto& stream) {
+  auto result = io::Disk::withOutputStream(path, [&](auto& stream) {
     io::writeMapHeader(stream, m_game->config().name, m_world->mapFormat());
 
     auto writer = io::NodeWriter{*m_world, stream};
     writer.setExporting(false);
     writer.writeMap(m_taskManager);
-  }) | kdl::transform_error([&](const auto& e) {
-    m_logger.error() << "Could not save document: " << e.msg;
   });
+
+  if (result.is_error())
+  {
+    m_logger.error() << "Could not save document: "
+                     << std::get<Error>(result.error()).msg;
+  }
+  return result;
 }
 
 Result<void> Map::exportAs(const io::ExportOptions& options) const

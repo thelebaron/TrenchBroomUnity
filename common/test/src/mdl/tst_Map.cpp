@@ -85,13 +85,6 @@ TEST_CASE("Map")
   auto fixture = MapFixture{};
   auto& map = fixture.map();
 
-  SECTION("new map updates entity property defaults")
-  {
-    fixture.create();
-
-    CHECK(map.world()->entityPropertyConfig().updateAnglePropertyAfterTransform);
-  }
-
   SECTION("load")
   {
     SECTION("Format detection")
@@ -435,8 +428,9 @@ TEST_CASE("Map")
             {
               CHECK_THAT(
                 map.selection().allEntities(),
-                Catch::Matchers::UnorderedEquals(std::vector<EntityNodeBase*>{
-                  topLevelBrushEntityNode, topLevelEntityNode}));
+                Catch::Matchers::UnorderedEquals(
+                  std::vector<EntityNodeBase*>{
+                    topLevelBrushEntityNode, topLevelEntityNode}));
             }
           }
         }

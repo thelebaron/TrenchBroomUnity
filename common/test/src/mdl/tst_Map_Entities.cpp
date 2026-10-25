@@ -18,10 +18,10 @@
  */
 
 #include "MapFixture.h"
-#include "TestFactory.h"
-#include "TestUtils.h"
 #include "PreferenceManager.h"
 #include "Preferences.h"
+#include "TestFactory.h"
+#include "TestUtils.h"
 #include "mdl/BrushBuilder.h"
 #include "mdl/BrushNode.h"
 #include "mdl/Entity.h"
@@ -30,7 +30,6 @@
 #include "mdl/EntityNode.h"
 #include "mdl/EntityNodeBase.h"
 #include "mdl/EntityProperties.h"
-#include "mdl/PropertyDefinition.h"
 #include "mdl/GroupNode.h"
 #include "mdl/Map.h"
 #include "mdl/Map_Entities.h"
@@ -38,12 +37,14 @@
 #include "mdl/Map_Groups.h"
 #include "mdl/Map_Nodes.h"
 #include "mdl/Map_Selection.h"
+#include "mdl/PropertyDefinition.h"
 #include "mdl/Transaction.h"
 #include "mdl/WorldNode.h"
 
+#include <string>
+
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_vector.hpp>
-#include <string>
 
 namespace tb::mdl
 {
@@ -59,7 +60,10 @@ TEST_CASE("Map_Entities")
      Color{},
      "this is a point entity",
      {
-       {EntityPropertyKeys::Angles, PropertyValueTypes::String{}, "Angles", "Rotation angles"},
+       {EntityPropertyKeys::Angles,
+        PropertyValueTypes::String{},
+        "Angles",
+        "Rotation angles"},
      },
      PointEntityDefinition{vm::bbox3d{16.0}, {}, {}}},
     {
@@ -138,20 +142,12 @@ TEST_CASE("Map_Entities")
       REQUIRE(entityNode != nullptr);
       CHECK_THAT(
         entityNode->entity().properties(),
-        Catch::Matchers::UnorderedEquals(std::vector<EntityProperty>{
-          {EntityPropertyKeys::Classname, "some_name"},
-          {"some_default_prop", "value"},
-        }));
-    }
-
-    SECTION("Rotation property is added on creation")
-    {
-      auto* entityNode =
-        createPointEntity(map, *pointEntityDefinition, vm::vec3d{0, 0, 0});
-      REQUIRE(entityNode != nullptr);
-      const auto* value = entityNode->entity().property(EntityPropertyKeys::Angles);
-      REQUIRE(value != nullptr);
-      CHECK(*value == "0 0 0");
+        Catch::Matchers::UnorderedEquals(
+          std::vector<EntityProperty>{
+            {EntityPropertyKeys::Classname, "some_name"},
+            {"some_default_prop", "value"},
+            {EntityPropertyKeys::Angle, "0"},
+          }));
     }
 
     SECTION("Linked group update failure")
@@ -253,10 +249,11 @@ TEST_CASE("Map_Entities")
       REQUIRE(entityNode != nullptr);
       CHECK_THAT(
         entityNode->entity().properties(),
-        Catch::Matchers::UnorderedEquals(std::vector<EntityProperty>{
-          {EntityPropertyKeys::Classname, "some_name"},
-          {"some_default_prop", "value"},
-        }));
+        Catch::Matchers::UnorderedEquals(
+          std::vector<EntityProperty>{
+            {EntityPropertyKeys::Classname, "some_name"},
+            {"some_default_prop", "value"},
+          }));
     }
 
     SECTION("Linked group update failure")
@@ -627,26 +624,29 @@ TEST_CASE("Map_Entities")
             std::vector<EntityProperty>{{"some_key", "some_value"}}));
         REQUIRE_THAT(
           linkedEntityNode->entity().properties(),
-          Catch::Matchers::UnorderedEquals(std::vector<EntityProperty>{
-            {"some_key", "another_value"},
-            {"yet_another_key", "yet_another_value"},
-          }));
+          Catch::Matchers::UnorderedEquals(
+            std::vector<EntityProperty>{
+              {"some_key", "another_value"},
+              {"yet_another_key", "yet_another_value"},
+            }));
 
         setProtectedEntityProperty(map, "yet_another_key", false);
 
         entityNode = dynamic_cast<EntityNode*>(groupNode->children().front());
         CHECK_THAT(
           entityNode->entity().properties(),
-          Catch::Matchers::UnorderedEquals(std::vector<EntityProperty>{
-            {"some_key", "some_value"},
-            {"yet_another_key", "yet_another_value"},
-          }));
+          Catch::Matchers::UnorderedEquals(
+            std::vector<EntityProperty>{
+              {"some_key", "some_value"},
+              {"yet_another_key", "yet_another_value"},
+            }));
         CHECK_THAT(
           linkedEntityNode->entity().properties(),
-          Catch::Matchers::UnorderedEquals(std::vector<EntityProperty>{
-            {"some_key", "another_value"},
-            {"yet_another_key", "yet_another_value"},
-          }));
+          Catch::Matchers::UnorderedEquals(
+            std::vector<EntityProperty>{
+              {"some_key", "another_value"},
+              {"yet_another_key", "yet_another_value"},
+            }));
       }
     }
   }
@@ -709,8 +709,9 @@ TEST_CASE("Map_Entities")
       Catch::Matchers::UnorderedEquals(std::vector<std::string>{"some_key"}));
     REQUIRE_THAT(
       entityNode->entity().properties(),
-      Catch::Matchers::UnorderedEquals(std::vector<EntityProperty>{
-        {"some_key", "some_other_value"}, {"another_key", "another_value"}}));
+      Catch::Matchers::UnorderedEquals(
+        std::vector<EntityProperty>{
+          {"some_key", "some_other_value"}, {"another_key", "another_value"}}));
 
     REQUIRE_THAT(
       linkedEntityNode->entity().protectedProperties(),
@@ -718,10 +719,11 @@ TEST_CASE("Map_Entities")
         std::vector<std::string>{"another_key", "yet_another_key"}));
     REQUIRE_THAT(
       linkedEntityNode->entity().properties(),
-      Catch::Matchers::UnorderedEquals(std::vector<EntityProperty>{
-        {"some_key", "some_value"},
-        {"another_key", "yet_another_value"},
-        {"yet_another_key", "and_yet_another_value"}}));
+      Catch::Matchers::UnorderedEquals(
+        std::vector<EntityProperty>{
+          {"some_key", "some_value"},
+          {"another_key", "yet_another_value"},
+          {"yet_another_key", "and_yet_another_value"}}));
 
     deselectAll(map);
     selectNodes(map, {groupNode});
@@ -742,20 +744,22 @@ TEST_CASE("Map_Entities")
       Catch::Matchers::UnorderedEquals(std::vector<std::string>{"some_key"}));
     CHECK_THAT(
       entityNode->entity().properties(),
-      Catch::Matchers::UnorderedEquals(std::vector<EntityProperty>{
-        {"some_key", "some_other_value"},
-        {"another_key", "another_value"},
-        {"yet_another_key", "and_yet_another_value"}}));
+      Catch::Matchers::UnorderedEquals(
+        std::vector<EntityProperty>{
+          {"some_key", "some_other_value"},
+          {"another_key", "another_value"},
+          {"yet_another_key", "and_yet_another_value"}}));
 
     CHECK_THAT(
       linkedEntityNode->entity().protectedProperties(),
       Catch::Matchers::UnorderedEquals(std::vector<std::string>{}));
     CHECK_THAT(
       linkedEntityNode->entity().properties(),
-      Catch::Matchers::UnorderedEquals(std::vector<EntityProperty>{
-        {"some_key", "some_value"},
-        {"another_key", "another_value"},
-        {"yet_another_key", "and_yet_another_value"}}));
+      Catch::Matchers::UnorderedEquals(
+        std::vector<EntityProperty>{
+          {"some_key", "some_value"},
+          {"another_key", "another_value"},
+          {"yet_another_key", "and_yet_another_value"}}));
 
     map.undoCommand();
 
@@ -767,8 +771,9 @@ TEST_CASE("Map_Entities")
       Catch::Matchers::UnorderedEquals(std::vector<std::string>{"some_key"}));
     CHECK_THAT(
       entityNode->entity().properties(),
-      Catch::Matchers::UnorderedEquals(std::vector<EntityProperty>{
-        {"some_key", "some_other_value"}, {"another_key", "another_value"}}));
+      Catch::Matchers::UnorderedEquals(
+        std::vector<EntityProperty>{
+          {"some_key", "some_other_value"}, {"another_key", "another_value"}}));
 
     CHECK_THAT(
       linkedEntityNode->entity().protectedProperties(),
@@ -776,14 +781,22 @@ TEST_CASE("Map_Entities")
         std::vector<std::string>{"another_key", "yet_another_key"}));
     CHECK_THAT(
       linkedEntityNode->entity().properties(),
-      Catch::Matchers::UnorderedEquals(std::vector<EntityProperty>{
-        {"some_key", "some_value"},
-        {"another_key", "yet_another_value"},
-        {"yet_another_key", "and_yet_another_value"}}));
+      Catch::Matchers::UnorderedEquals(
+        std::vector<EntityProperty>{
+          {"some_key", "some_value"},
+          {"another_key", "yet_another_value"},
+          {"yet_another_key", "and_yet_another_value"}}));
   }
 
   SECTION("setDefaultEntityProperties")
   {
+    // Start with bare entities: createPointEntity now applies defaults and rotation
+    // properties before the command under test gets a chance to run.
+    const auto createBareEntity = [&]() {
+      auto* node = new EntityNode{Entity{{{"classname", "some_name"}}}};
+      addNodes(map, {{parentForNodes(map), {node}}});
+      return node;
+    };
     map.entityDefinitionManager().setDefinitions({
       EntityDefinition{
         "some_name",
@@ -814,15 +827,14 @@ TEST_CASE("Map_Entities")
     setEntityProperty(map, "some_prop", "some_value");
     deselectAll(map);
 
-    auto* entityNodeWithProp = createPointEntity(map, *definitionWithDefaults, {0, 0, 0});
+    auto* entityNodeWithProp = createBareEntity();
     REQUIRE(entityNodeWithProp != nullptr);
     REQUIRE(entityNodeWithProp->entity().definition() == definitionWithDefaults);
     selectNodes(map, {entityNodeWithProp});
     setEntityProperty(map, "some_prop", "some_value");
     deselectAll(map);
 
-    auto* entityNodeWithPropA =
-      createPointEntity(map, *definitionWithDefaults, {0, 0, 0});
+    auto* entityNodeWithPropA = createBareEntity();
     REQUIRE(entityNodeWithPropA != nullptr);
     REQUIRE(entityNodeWithPropA->entity().definition() == definitionWithDefaults);
     selectNodes(map, {entityNodeWithPropA});
@@ -830,8 +842,7 @@ TEST_CASE("Map_Entities")
     setEntityProperty(map, "default_prop_a", "default_value_a");
     deselectAll(map);
 
-    auto* entityNodeWithPropAWithValueChanged =
-      createPointEntity(map, *definitionWithDefaults, {0, 0, 0});
+    auto* entityNodeWithPropAWithValueChanged = createBareEntity();
     REQUIRE(entityNodeWithPropAWithValueChanged != nullptr);
     REQUIRE(
       entityNodeWithPropAWithValueChanged->entity().definition()
@@ -840,8 +851,7 @@ TEST_CASE("Map_Entities")
     setEntityProperty(map, "default_prop_a", "some_other_value");
     deselectAll(map);
 
-    auto* entityNodeWithPropsAB =
-      createPointEntity(map, *definitionWithDefaults, {0, 0, 0});
+    auto* entityNodeWithPropsAB = createBareEntity();
     REQUIRE(entityNodeWithPropsAB != nullptr);
     REQUIRE(entityNodeWithPropsAB->entity().definition() == definitionWithDefaults);
     selectNodes(map, {entityNodeWithPropsAB});
@@ -852,37 +862,42 @@ TEST_CASE("Map_Entities")
 
     REQUIRE_THAT(
       entityNodeWithoutDefinition->entity().properties(),
-      Catch::Matchers::UnorderedEquals(std::vector<EntityProperty>{
-        {"classname", "some_class"},
-        {"some_prop", "some_value"},
-      }));
+      Catch::Matchers::UnorderedEquals(
+        std::vector<EntityProperty>{
+          {"classname", "some_class"},
+          {"some_prop", "some_value"},
+        }));
     REQUIRE_THAT(
       entityNodeWithProp->entity().properties(),
-      Catch::Matchers::UnorderedEquals(std::vector<EntityProperty>{
-        {"classname", "some_name"},
-        {"some_prop", "some_value"},
-      }));
+      Catch::Matchers::UnorderedEquals(
+        std::vector<EntityProperty>{
+          {"classname", "some_name"},
+          {"some_prop", "some_value"},
+        }));
     REQUIRE_THAT(
       entityNodeWithPropA->entity().properties(),
-      Catch::Matchers::UnorderedEquals(std::vector<EntityProperty>{
-        {"classname", "some_name"},
-        {"some_prop", "some_value"},
-        {"default_prop_a", "default_value_a"},
-      }));
+      Catch::Matchers::UnorderedEquals(
+        std::vector<EntityProperty>{
+          {"classname", "some_name"},
+          {"some_prop", "some_value"},
+          {"default_prop_a", "default_value_a"},
+        }));
     REQUIRE_THAT(
       entityNodeWithPropAWithValueChanged->entity().properties(),
-      Catch::Matchers::UnorderedEquals(std::vector<EntityProperty>{
-        {"classname", "some_name"},
-        {"default_prop_a", "some_other_value"},
-      }));
+      Catch::Matchers::UnorderedEquals(
+        std::vector<EntityProperty>{
+          {"classname", "some_name"},
+          {"default_prop_a", "some_other_value"},
+        }));
     REQUIRE_THAT(
       entityNodeWithPropsAB->entity().properties(),
-      Catch::Matchers::UnorderedEquals(std::vector<EntityProperty>{
-        {"classname", "some_name"},
-        {"some_prop", "some_value"},
-        {"default_prop_a", "default_value_a"},
-        {"default_prop_b", "yet_another_value"},
-      }));
+      Catch::Matchers::UnorderedEquals(
+        std::vector<EntityProperty>{
+          {"classname", "some_name"},
+          {"some_prop", "some_value"},
+          {"default_prop_a", "default_value_a"},
+          {"default_prop_b", "yet_another_value"},
+        }));
 
     selectNodes(
       map,
@@ -898,37 +913,42 @@ TEST_CASE("Map_Entities")
 
       CHECK_THAT(
         entityNodeWithoutDefinition->entity().properties(),
-        Catch::Matchers::UnorderedEquals(std::vector<EntityProperty>{
-          {"classname", "some_class"},
-          {"some_prop", "some_value"},
-        }));
+        Catch::Matchers::UnorderedEquals(
+          std::vector<EntityProperty>{
+            {"classname", "some_class"},
+            {"some_prop", "some_value"},
+          }));
       CHECK_THAT(
         entityNodeWithProp->entity().properties(),
-        Catch::Matchers::UnorderedEquals(std::vector<EntityProperty>{
-          {"classname", "some_name"},
-          {"some_prop", "some_value"},
-        }));
+        Catch::Matchers::UnorderedEquals(
+          std::vector<EntityProperty>{
+            {"classname", "some_name"},
+            {"some_prop", "some_value"},
+          }));
       CHECK_THAT(
         entityNodeWithPropA->entity().properties(),
-        Catch::Matchers::UnorderedEquals(std::vector<EntityProperty>{
-          {"classname", "some_name"},
-          {"some_prop", "some_value"},
-          {"default_prop_a", "default_value_a"},
-        }));
+        Catch::Matchers::UnorderedEquals(
+          std::vector<EntityProperty>{
+            {"classname", "some_name"},
+            {"some_prop", "some_value"},
+            {"default_prop_a", "default_value_a"},
+          }));
       CHECK_THAT(
         entityNodeWithPropAWithValueChanged->entity().properties(),
-        Catch::Matchers::UnorderedEquals(std::vector<EntityProperty>{
-          {"classname", "some_name"},
-          {"default_prop_a", "default_value_a"},
-        }));
+        Catch::Matchers::UnorderedEquals(
+          std::vector<EntityProperty>{
+            {"classname", "some_name"},
+            {"default_prop_a", "default_value_a"},
+          }));
       CHECK_THAT(
         entityNodeWithPropsAB->entity().properties(),
-        Catch::Matchers::UnorderedEquals(std::vector<EntityProperty>{
-          {"classname", "some_name"},
-          {"some_prop", "some_value"},
-          {"default_prop_a", "default_value_a"},
-          {"default_prop_b", "default_value_b"},
-        }));
+        Catch::Matchers::UnorderedEquals(
+          std::vector<EntityProperty>{
+            {"classname", "some_name"},
+            {"some_prop", "some_value"},
+            {"default_prop_a", "default_value_a"},
+            {"default_prop_b", "default_value_b"},
+          }));
     }
 
     SECTION("Set Missing Default Properties")
@@ -937,41 +957,46 @@ TEST_CASE("Map_Entities")
 
       CHECK_THAT(
         entityNodeWithoutDefinition->entity().properties(),
-        Catch::Matchers::UnorderedEquals(std::vector<EntityProperty>{
-          {"classname", "some_class"},
-          {"some_prop", "some_value"},
-        }));
+        Catch::Matchers::UnorderedEquals(
+          std::vector<EntityProperty>{
+            {"classname", "some_class"},
+            {"some_prop", "some_value"},
+          }));
       CHECK_THAT(
         entityNodeWithProp->entity().properties(),
-        Catch::Matchers::UnorderedEquals(std::vector<EntityProperty>{
-          {"classname", "some_name"},
-          {"some_prop", "some_value"},
-          {"default_prop_a", "default_value_a"},
-          {"default_prop_b", "default_value_b"},
-        }));
+        Catch::Matchers::UnorderedEquals(
+          std::vector<EntityProperty>{
+            {"classname", "some_name"},
+            {"some_prop", "some_value"},
+            {"default_prop_a", "default_value_a"},
+            {"default_prop_b", "default_value_b"},
+          }));
       CHECK_THAT(
         entityNodeWithPropA->entity().properties(),
-        Catch::Matchers::UnorderedEquals(std::vector<EntityProperty>{
-          {"classname", "some_name"},
-          {"some_prop", "some_value"},
-          {"default_prop_a", "default_value_a"},
-          {"default_prop_b", "default_value_b"},
-        }));
+        Catch::Matchers::UnorderedEquals(
+          std::vector<EntityProperty>{
+            {"classname", "some_name"},
+            {"some_prop", "some_value"},
+            {"default_prop_a", "default_value_a"},
+            {"default_prop_b", "default_value_b"},
+          }));
       CHECK_THAT(
         entityNodeWithPropAWithValueChanged->entity().properties(),
-        Catch::Matchers::UnorderedEquals(std::vector<EntityProperty>{
-          {"classname", "some_name"},
-          {"default_prop_a", "some_other_value"},
-          {"default_prop_b", "default_value_b"},
-        }));
+        Catch::Matchers::UnorderedEquals(
+          std::vector<EntityProperty>{
+            {"classname", "some_name"},
+            {"default_prop_a", "some_other_value"},
+            {"default_prop_b", "default_value_b"},
+          }));
       CHECK_THAT(
         entityNodeWithPropsAB->entity().properties(),
-        Catch::Matchers::UnorderedEquals(std::vector<EntityProperty>{
-          {"classname", "some_name"},
-          {"some_prop", "some_value"},
-          {"default_prop_a", "default_value_a"},
-          {"default_prop_b", "yet_another_value"},
-        }));
+        Catch::Matchers::UnorderedEquals(
+          std::vector<EntityProperty>{
+            {"classname", "some_name"},
+            {"some_prop", "some_value"},
+            {"default_prop_a", "default_value_a"},
+            {"default_prop_b", "yet_another_value"},
+          }));
     }
 
     SECTION("Set All Default Properties")
@@ -980,41 +1005,46 @@ TEST_CASE("Map_Entities")
 
       CHECK_THAT(
         entityNodeWithoutDefinition->entity().properties(),
-        Catch::Matchers::UnorderedEquals(std::vector<EntityProperty>{
-          {"classname", "some_class"},
-          {"some_prop", "some_value"},
-        }));
+        Catch::Matchers::UnorderedEquals(
+          std::vector<EntityProperty>{
+            {"classname", "some_class"},
+            {"some_prop", "some_value"},
+          }));
       CHECK_THAT(
         entityNodeWithProp->entity().properties(),
-        Catch::Matchers::UnorderedEquals(std::vector<EntityProperty>{
-          {"classname", "some_name"},
-          {"some_prop", "some_value"},
-          {"default_prop_a", "default_value_a"},
-          {"default_prop_b", "default_value_b"},
-        }));
+        Catch::Matchers::UnorderedEquals(
+          std::vector<EntityProperty>{
+            {"classname", "some_name"},
+            {"some_prop", "some_value"},
+            {"default_prop_a", "default_value_a"},
+            {"default_prop_b", "default_value_b"},
+          }));
       CHECK_THAT(
         entityNodeWithPropA->entity().properties(),
-        Catch::Matchers::UnorderedEquals(std::vector<EntityProperty>{
-          {"classname", "some_name"},
-          {"some_prop", "some_value"},
-          {"default_prop_a", "default_value_a"},
-          {"default_prop_b", "default_value_b"},
-        }));
+        Catch::Matchers::UnorderedEquals(
+          std::vector<EntityProperty>{
+            {"classname", "some_name"},
+            {"some_prop", "some_value"},
+            {"default_prop_a", "default_value_a"},
+            {"default_prop_b", "default_value_b"},
+          }));
       CHECK_THAT(
         entityNodeWithPropAWithValueChanged->entity().properties(),
-        Catch::Matchers::UnorderedEquals(std::vector<EntityProperty>{
-          {"classname", "some_name"},
-          {"default_prop_a", "default_value_a"},
-          {"default_prop_b", "default_value_b"},
-        }));
+        Catch::Matchers::UnorderedEquals(
+          std::vector<EntityProperty>{
+            {"classname", "some_name"},
+            {"default_prop_a", "default_value_a"},
+            {"default_prop_b", "default_value_b"},
+          }));
       CHECK_THAT(
         entityNodeWithPropsAB->entity().properties(),
-        Catch::Matchers::UnorderedEquals(std::vector<EntityProperty>{
-          {"classname", "some_name"},
-          {"some_prop", "some_value"},
-          {"default_prop_a", "default_value_a"},
-          {"default_prop_b", "default_value_b"},
-        }));
+        Catch::Matchers::UnorderedEquals(
+          std::vector<EntityProperty>{
+            {"classname", "some_name"},
+            {"some_prop", "some_value"},
+            {"default_prop_a", "default_value_a"},
+            {"default_prop_b", "default_value_b"},
+          }));
     }
   }
 
@@ -1044,21 +1074,24 @@ TEST_CASE("Map_Entities")
     REQUIRE(secondId != nullptr);
     CHECK(*firstId != *secondId);
 
+    deselectAll(uniqueMap);
     selectNodes(uniqueMap, {first});
     duplicateSelectedNodes(uniqueMap);
 
     const auto duplicates = uniqueMap.selection().allEntities();
     REQUIRE(duplicates.size() == 1);
     const auto* duplicateNode = duplicates.front();
-    const auto* duplicateId = duplicateNode->entity().property(EntityPropertyKeys::UniqueId);
+    const auto* duplicateId =
+      duplicateNode->entity().property(EntityPropertyKeys::UniqueId);
     REQUIRE(duplicateId != nullptr);
     CHECK(*duplicateId != *firstId);
-   CHECK(*duplicateId != *secondId);
+    CHECK(*duplicateId != *secondId);
   }
 
   SECTION("generate class indices when preference enabled")
   {
-    auto preferenceGuard = tb::TemporarilySetPref{Preferences::GenerateClassIndices, true};
+    auto preferenceGuard =
+      tb::TemporarilySetPref{Preferences::GenerateClassIndices, true};
 
     auto classFixture = MapFixture{};
     auto& classMap = classFixture.map();
@@ -1094,6 +1127,7 @@ TEST_CASE("Map_Entities")
     const auto thirdIndex = parseIndex(third);
     CHECK(thirdIndex == 1);
 
+    deselectAll(classMap);
     selectNodes(classMap, {first});
     duplicateSelectedNodes(classMap);
 
@@ -1107,7 +1141,8 @@ TEST_CASE("Map_Entities")
 
   SECTION("enabling class indices resolves duplicate values")
   {
-    auto preferenceGuard = tb::TemporarilySetPref{Preferences::GenerateClassIndices, false};
+    auto preferenceGuard =
+      tb::TemporarilySetPref{Preferences::GenerateClassIndices, false};
 
     auto classFixture = MapFixture{};
     auto& classMap = classFixture.map();
@@ -1135,6 +1170,9 @@ TEST_CASE("Map_Entities")
     assignDuplicateIndex(*second);
 
     PreferenceManager::instance().set(Preferences::GenerateClassIndices, true);
+    // TestPreferenceManager does not emit notifications from saveChanges().
+    PreferenceManager::instance().preferenceDidChangeNotifier(
+      Preferences::GenerateClassIndices.path());
 
     const auto* firstIndex = first->entity().property(EntityPropertyKeys::ClassIndex);
     const auto* secondIndex = second->entity().property(EntityPropertyKeys::ClassIndex);
@@ -1145,7 +1183,8 @@ TEST_CASE("Map_Entities")
 
   SECTION("transformations preserve class indices")
   {
-    auto preferenceGuard = tb::TemporarilySetPref{Preferences::GenerateClassIndices, true};
+    auto preferenceGuard =
+      tb::TemporarilySetPref{Preferences::GenerateClassIndices, true};
 
     auto classFixture = MapFixture{};
     auto& classMap = classFixture.map();

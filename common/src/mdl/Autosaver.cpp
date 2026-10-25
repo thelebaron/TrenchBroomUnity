@@ -170,9 +170,13 @@ void Autosaver::autosave()
                         });
              });
   }) | kdl::transform([&](const auto& backupFilePath) {
+    if (m_map.saveTo(backupFilePath).is_error())
+    {
+      return;
+    }
+
     m_lastSaveTime = Clock::now();
     m_lastModificationCount = m_map.modificationCount();
-    m_map.saveTo(backupFilePath);
 
     m_map.logger().info() << "Created autosave backup at " << backupFilePath;
   }) | kdl::transform_error([&](auto e) {

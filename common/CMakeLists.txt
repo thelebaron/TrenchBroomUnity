@@ -337,6 +337,8 @@ set(COMMON_SOURCE
         ${COMMON_SOURCE_DIR}/ui/ColorModel.cpp
         ${COMMON_SOURCE_DIR}/ui/ColorsPreferencePane.cpp
         ${COMMON_SOURCE_DIR}/ui/ColorTable.cpp
+        ${COMMON_SOURCE_DIR}/ui/CommandLineControlServer.cpp
+        ${COMMON_SOURCE_DIR}/ui/CommandLineControlService.cpp
         ${COMMON_SOURCE_DIR}/ui/CompilationContext.cpp
         ${COMMON_SOURCE_DIR}/ui/CompilationDialog.cpp
         ${COMMON_SOURCE_DIR}/ui/CompilationProfileEditor.cpp
@@ -907,6 +909,8 @@ set(COMMON_HEADER
         ${COMMON_SOURCE_DIR}/ui/ColorModel.h
         ${COMMON_SOURCE_DIR}/ui/ColorsPreferencePane.h
         ${COMMON_SOURCE_DIR}/ui/ColorTable.h
+        ${COMMON_SOURCE_DIR}/ui/CommandLineControlServer.h
+        ${COMMON_SOURCE_DIR}/ui/CommandLineControlService.h
         ${COMMON_SOURCE_DIR}/ui/CompilationContext.h
         ${COMMON_SOURCE_DIR}/ui/CompilationDialog.h
         ${COMMON_SOURCE_DIR}/ui/CompilationProfileEditor.h
@@ -1097,7 +1101,7 @@ set_target_properties(common PROPERTIES AUTOMOC TRUE)
 target_include_directories(common PUBLIC ${COMMON_SOURCE_DIR})
 target_link_libraries(common 
   PUBLIC kdl vm Qt6::Widgets Qt6::OpenGL Qt6::OpenGLWidgets Qt6::Svg
-  PRIVATE GLEW::GLEW OpenGL::GL upd tinyxml2::tinyxml2 miniz::miniz freeimage::FreeImage freetype assimp::assimp fmt::fmt-header-only)
+  PRIVATE Qt6::Network GLEW::GLEW OpenGL::GL upd tinyxml2::tinyxml2 miniz::miniz freeimage::FreeImage freetype assimp::assimp fmt::fmt-header-only)
 
 # use precompiled headers on CMake 3.16 or later
 if (TB_ENABLE_PCH AND ${CMAKE_VERSION} VERSION_GREATER_EQUAL "3.16.0")

@@ -34,6 +34,8 @@
 #include "mdl/MapFormat.h"
 #include "ui/AboutDialog.h"
 #include "ui/Actions.h"
+#include "ui/CommandLineControlServer.h"
+#include "ui/CommandLineControlService.h"
 #include "ui/CrashDialog.h"
 #include "ui/FrameManager.h"
 #include "ui/GLContextManager.h"
@@ -86,6 +88,7 @@
 #include <sstream>
 #include <string>
 #include <unordered_map>
+#include <variant>
 #include <vector>
 
 #if defined(_WIN32) && defined(_MSC_VER)
@@ -194,6 +197,7 @@ TrenchBroomApp::TrenchBroomApp(int& argc, char** argv)
 
   // these must be initialized here and not earlier
   m_frameManager = std::make_unique<FrameManager>(useSDI());
+  m_commandLineControlService = std::make_unique<CommandLineControlService>(*this);
 
   m_recentDocuments = std::make_unique<RecentDocuments>(
     10, [](const auto& path) { return std::filesystem::exists(path); });
@@ -281,8 +285,38 @@ void TrenchBroomApp::parseCommandLineAndShowFrame()
 {
   auto parser = QCommandLineParser{};
   parser.addOption(QCommandLineOption("portable"));
+  const auto commandLineControlSocketOption = QCommandLineOption{
+    "command-line-control-socket",
+    "Enable local command-line control using the given socket name.",
+    "name"};
+  parser.addOption(commandLineControlSocketOption);
   parser.process(*this);
+
+  if (parser.isSet(commandLineControlSocketOption))
+  {
+    auto server = std::make_unique<CommandLineControlServer>(*m_commandLineControlService);
+    if (
+      const auto result =
+        server->listen(parser.value(commandLineControlSocketOption).toStdString());
+      result.is_error())
+    {
+      QMessageBox::critical(
+        nullptr,
+        "TrenchBroom",
+        QString::fromStdString(std::get<Error>(result.error()).msg),
+        QMessageBox::Ok);
+      QCoreApplication::exit(1);
+      return;
+    }
+    m_commandLineControlServer = std::move(server);
+  }
+
   openFilesOrWelcomeFrame(parser.positionalArguments());
+}
+
+CommandLineControlService& TrenchBroomApp::commandLineControlService()
+{
+  return *m_commandLineControlService;
 }
 
 upd::Updater& TrenchBroomApp::updater()
@@ -805,8 +839,10 @@ void reportCrashAndExit(const std::string& stacktrace, const std::string& reason
     // save the map
     if (const auto document = topDocument(); document && document->map().game())
     {
-      document->map().saveTo(mapPath);
-      std::cerr << "wrote map to " << mapPath.string() << std::endl;
+      if (const auto result = document->map().saveTo(mapPath); !result.is_error())
+      {
+        std::cerr << "wrote map to " << mapPath.string() << std::endl;
+      }
     }
     else
     {

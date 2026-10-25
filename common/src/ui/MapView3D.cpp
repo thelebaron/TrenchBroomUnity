@@ -34,6 +34,7 @@
 #include "mdl/PatchNode.h"
 #include "mdl/PickResult.h"
 #include "mdl/PointTrace.h"
+#include "mdl/WorldNode.h"
 #include "render/BoundsGuideRenderer.h"
 #include "render/Compass3D.h"
 #include "render/MapRenderer.h"
@@ -71,6 +72,8 @@
 #include "kdl/set_temp.h"
 
 #include "vm/util.h"
+
+#include <algorithm>
 
 namespace tb::ui
 {
@@ -417,6 +420,29 @@ vm::vec3f MapView3D::focusCameraOnObjectsPosition(const std::vector<mdl::Node*>&
   // jump back
   m_camera->moveTo(oldPosition);
   return newPosition - m_camera->direction() * offset;
+}
+
+bool MapView3D::frameMapGeometry()
+{
+  auto* world = m_document.map().world();
+  if (!world)
+  {
+    return false;
+  }
+
+  const auto layers = world->allLayers();
+  if (!std::any_of(layers.begin(), layers.end(), [](const auto* layer) {
+        return layer->hasChildren();
+      }))
+  {
+    return false;
+  }
+
+  const auto nodes = std::vector<mdl::Node*>{world};
+  const auto defaultDirection = vm::normalize(vm::vec3f{80.0f, 128.0f, -96.0f});
+  m_camera->setDirection(defaultDirection, vm::vec3f{0, 0, 1});
+  moveCameraToPosition(focusCameraOnObjectsPosition(nodes), false);
+  return true;
 }
 
 void MapView3D::moveCameraToPosition(const vm::vec3f& position, const bool animate)

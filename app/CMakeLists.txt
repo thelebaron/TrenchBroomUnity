@@ -120,6 +120,10 @@ target_link_libraries(TrenchBroom PRIVATE common fmt::fmt-header-only)
 add_dependencies(TrenchBroom GenerateManual)
 set_compiler_config(TrenchBroom)
 
+add_executable(TrenchBroomCommandLineClient src/CommandLineClient.cpp)
+target_link_libraries(TrenchBroomCommandLineClient PRIVATE Qt6::Core Qt6::Network)
+set_compiler_config(TrenchBroomCommandLineClient)
+
 set_target_properties(TrenchBroom PROPERTIES AUTORCC TRUE)
 
 if(APPLE)

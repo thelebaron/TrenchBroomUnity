@@ -54,6 +54,8 @@ public:
     GLContextManager& contextManager);
   ~MapView3D() override;
 
+  bool frameMapGeometry();
+
 private:
   void initializeCamera();
   void initializeToolChain(MapViewToolBox& toolBox);

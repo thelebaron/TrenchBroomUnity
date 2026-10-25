@@ -1,0 +1,11 @@
+{
+  "source_map_exists": true,
+  "map_format": "Valve",
+  "positive_world_brush_bounds": true,
+  "all_used_textures_in_listed_wads": true,
+  "all_targets_have_a_receiver": true,
+  "silver_key_door_present": true,
+  "gold_key_door_present": true,
+  "player_start_present": true,
+  "exit_present": true
+}

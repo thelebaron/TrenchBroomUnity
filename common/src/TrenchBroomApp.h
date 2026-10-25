@@ -47,6 +47,8 @@ class Logger;
 namespace tb::ui
 {
 class FrameManager;
+class CommandLineControlServer;
+class CommandLineControlService;
 class RecentDocuments;
 class WelcomeWindow;
 
@@ -59,6 +61,8 @@ private:
   upd::Updater* m_updater = nullptr;
   kdl::task_manager m_taskManager = kdl::task_manager{256};
   std::unique_ptr<FrameManager> m_frameManager;
+  std::unique_ptr<CommandLineControlService> m_commandLineControlService;
+  std::unique_ptr<CommandLineControlServer> m_commandLineControlServer;
   std::unique_ptr<RecentDocuments> m_recentDocuments;
   std::unique_ptr<WelcomeWindow> m_welcomeWindow;
   QTimer* m_recentDocumentsReloadTimer = nullptr;
@@ -72,6 +76,7 @@ public:
 public:
   void askForAutoUpdates();
   void parseCommandLineAndShowFrame();
+  CommandLineControlService& commandLineControlService();
 
   upd::Updater& updater();
   FrameManager* frameManager();
@@ -112,6 +117,8 @@ public:
 
 private:
   static bool useSDI();
+
+  friend class CommandLineControlService;
 signals:
   void recentDocumentsDidChange();
 };

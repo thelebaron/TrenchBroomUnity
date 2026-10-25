@@ -255,9 +255,9 @@ public: // persistence
     std::unique_ptr<Game> game,
     const std::filesystem::path& path);
   Result<void> reload();
-  void save();
-  void saveAs(const std::filesystem::path& path);
-  void saveTo(const std::filesystem::path& path);
+  Result<void> save();
+  Result<void> saveAs(const std::filesystem::path& path);
+  Result<void> saveTo(const std::filesystem::path& path);
   Result<void> exportAs(const io::ExportOptions& options) const;
 
   void clear();
@@ -365,7 +365,8 @@ private:
   void ensureClassIndices(const std::vector<Node*>& nodes);
   void ensureClassIndex(EntityNode& entityNode);
   size_t allocateClassIndex(const std::string& classname);
-  bool registerClassIndex(const std::string& classname, size_t index, EntityNode& entityNode);
+  bool registerClassIndex(
+    const std::string& classname, size_t index, EntityNode& entityNode);
   void unregisterClassIndex(EntityNode& entityNode);
   void removeClassIndices(const std::vector<Node*>& nodes);
   void removeClassIndex(EntityNode& entityNode);
