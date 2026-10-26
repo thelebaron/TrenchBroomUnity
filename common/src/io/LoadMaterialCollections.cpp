@@ -38,6 +38,7 @@
 #include "mdl/Quake3Shader.h"
 #include "mdl/Texture.h"
 #include "mdl/TextureResource.h"
+#include "unity/UnityTextureFolders.h"
 
 #include "kdl/functional.h"
 #include "kdl/grouped_range.h"
@@ -328,7 +329,7 @@ mdl::ResourceLoader<mdl::Texture> makeTextureResourceLoader(
   const FileSystem& fs,
   const std::optional<Result<mdl::Palette>>& paletteResult)
 {
-  return [&, path, name, paletteResult]() -> Result<mdl::Texture> {
+  return [&, path, name, extensions, paletteResult]() -> Result<mdl::Texture> {
     return loadTexture(path, name, extensions, fs, paletteResult)
            | kdl::or_else([&](auto e) -> Result<mdl::Texture> {
                return Error{fmt::format("Could not load texture '{}': {}", path, e.msg)};
@@ -360,21 +361,27 @@ std::string materialCollectionName(
   const mdl::MaterialConfig& materialConfig,
   const std::filesystem::path& materialPath)
 {
+  if (const auto* metadata = fs.metadata(materialPath, unity::TextureFolderPath))
+  {
+    return std::get<std::filesystem::path>(*metadata).filename().generic_string();
+  }
   const auto prefixLength = kdl::path_length(materialConfig.root);
-  if (const auto collectionPath =
-        kdl::path_clip(materialPath, prefixLength).parent_path();
-      !collectionPath.empty())
+  if (
+    const auto collectionPath = kdl::path_clip(materialPath, prefixLength).parent_path();
+    !collectionPath.empty())
   {
     // If the file was loaded from a subdirectory of the root, use the parent path.
     return materialPath.parent_path().generic_string();
   }
 
-  if (const auto* metadata =
-        fs.metadata(materialPath, io::FileSystemMetadataKeys::ImageFilePath);
-      metadata && std::holds_alternative<std::filesystem::path>(*metadata))
+  if (
+    const auto* metadata =
+      fs.metadata(materialPath, io::FileSystemMetadataKeys::ImageFilePath);
+    metadata && std::holds_alternative<std::filesystem::path>(*metadata))
   {
-    if (const auto imageFileName = std::get<std::filesystem::path>(*metadata).filename();
-        kdl::path_has_extension(kdl::path_to_lower(imageFileName), ".wad"))
+    if (
+      const auto imageFileName = std::get<std::filesystem::path>(*metadata).filename();
+      kdl::path_has_extension(kdl::path_to_lower(imageFileName), ".wad"))
     {
       // If the texture was loaded from a WAD file, use the WAD file name as the
       // collection name.

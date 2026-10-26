@@ -23,6 +23,7 @@
 #include "Logger.h"
 #include "PreferenceManager.h"
 #include "Preferences.h"
+#include "Uuid.h"
 #include "io/DiskIO.h"
 #include "io/GameConfigParser.h"
 #include "io/LoadMaterialCollections.h"
@@ -58,10 +59,6 @@
 #include "mdl/LayerNode.h"
 #include "mdl/LinkSourceValidator.h"
 #include "mdl/LinkedGroupUtils.h"
-
-#include <charconv>
-#include <limits>
-#include <system_error>
 #include "mdl/LongPropertyKeyValidator.h"
 #include "mdl/LongPropertyValueValidator.h"
 #include "mdl/Map.h"
@@ -84,7 +81,6 @@
 #include "mdl/PointEntityWithBrushesValidator.h"
 #include "mdl/PropertyKeyWithDoubleQuotationMarksValidator.h"
 #include "mdl/PropertyValueWithDoubleQuotationMarksValidator.h"
-#include "Uuid.h"
 #include "mdl/PushSelection.h"
 #include "mdl/RepeatStack.h"
 #include "mdl/ResourceManager.h"
@@ -98,6 +94,7 @@
 #include "mdl/WorldBoundsValidator.h"
 #include "mdl/WorldNode.h"
 #include "mdl/WorldNode.h" // IWYU pragma: keep
+#include "unity/UnityTextureFolders.h"
 
 #include "kdl/path_utils.h"
 #include "kdl/range_to_vector.h"
@@ -109,13 +106,16 @@
 
 #include <algorithm>
 #include <cassert>
+#include <charconv>
 #include <cstdlib>
+#include <limits>
 #include <memory>
 #include <ranges>
 #include <string>
 #include <string_view>
-#include <vector>
+#include <system_error>
 #include <variant>
+#include <vector>
 
 
 namespace tb::mdl
@@ -1115,16 +1115,17 @@ void Map::reloadMaterials()
 
 void Map::loadMaterials()
 {
-  if (const auto* wadStr = m_world->entity().property(EntityPropertyKeys::Wad))
+  const auto* wadStr = m_world->entity().property(EntityPropertyKeys::Wad);
+  if (wadStr || m_game->config().name == "Quake")
   {
     const auto wadPaths = kdl::vec_transform(
-      kdl::str_split(*wadStr, ";"),
+      kdl::str_split(wadStr ? *wadStr : std::string{}, ";"),
       [](const auto& str) { return std::filesystem::path{str}; });
     m_game->reloadWads(path(), wadPaths, m_logger);
   }
   m_materialManager->reload(
     m_game->gameFileSystem(),
-    m_game->config().materialConfig,
+    unity::textureMaterialConfig(m_game->config()),
     [&](auto resourceLoader) {
       auto resource = std::make_shared<TextureResource>(std::move(resourceLoader));
       m_resourceManager->addResource(resource);

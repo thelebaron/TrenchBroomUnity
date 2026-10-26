@@ -80,8 +80,9 @@ void FrameManager::onFocusChange(QWidget* /* old */, QWidget* now)
     // child widgets, so get the top-level widget with QWidget::window()
     if (auto* frame = dynamic_cast<MapFrame*>(now->window()))
     {
-      if (auto it = std::find(m_frames.begin(), m_frames.end(), frame);
-          it != m_frames.end() && it != m_frames.begin())
+      if (
+        auto it = std::find(m_frames.begin(), m_frames.end(), frame);
+        it != m_frames.end() && it != m_frames.begin())
       {
         assert(topFrame() != frame);
         m_frames.erase(it);
@@ -119,6 +120,10 @@ void FrameManager::removeFrame(MapFrame* frame)
   if (auto it = std::find(m_frames.begin(), m_frames.end(), frame); it != m_frames.end())
   {
     m_frames.erase(it);
+    if (m_frames.empty())
+    {
+      qApp->quit();
+    }
     // MapFrame uses Qt::WA_DeleteOnClose so we don't need to delete it here
   }
 }

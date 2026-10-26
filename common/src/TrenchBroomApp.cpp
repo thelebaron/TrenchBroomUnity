@@ -49,6 +49,7 @@
 #include "ui/RecentDocuments.h"
 #include "ui/UpdateConfig.h"
 #include "ui/WelcomeWindow.h"
+#include "unity/UnityWorkflow.h"
 #include "upd/QtHttpClient.h"
 #include "upd/Updater.h"
 
@@ -121,23 +122,8 @@ std::optional<std::tuple<std::string, mdl::MapFormat>> detectOrQueryGameAndForma
            [&](auto detectedGameNameAndMapFormat)
              -> std::optional<std::tuple<std::string, mdl::MapFormat>> {
              auto [gameName, mapFormat] = detectedGameNameAndMapFormat;
-             const auto& gameFactory = mdl::GameFactory::instance();
 
-             if (
-               gameName == std::nullopt
-               || !kdl::vec_contains(gameFactory.gameList(), *gameName)
-               || mapFormat == mdl::MapFormat::Unknown)
-             {
-               auto queriedGameNameAndMapFormat = GameDialog::showOpenDocumentDialog();
-               if (!queriedGameNameAndMapFormat)
-               {
-                 return std::nullopt;
-               }
-
-               std::tie(gameName, mapFormat) = *queriedGameNameAndMapFormat;
-             }
-
-             return std::optional{std::tuple{std::move(*gameName), mapFormat}};
+             return unity::completeMapHeader(std::move(gameName), mapFormat);
            })
          | kdl::transform_error([](const auto&) { return std::nullopt; }) | kdl::value();
 }
@@ -221,7 +207,7 @@ TrenchBroomApp::TrenchBroomApp(int& argc, char** argv)
   m_recentDocumentsReloadTimer->start(1s);
 
 #ifdef __APPLE__
-  setQuitOnLastWindowClosed(false);
+  setQuitOnLastWindowClosed(true);
 
   auto* menuBar = new QMenuBar{};
   auto actionMap = std::unordered_map<const Action*, QAction*>{};
@@ -294,7 +280,8 @@ void TrenchBroomApp::parseCommandLineAndShowFrame()
 
   if (parser.isSet(commandLineControlSocketOption))
   {
-    auto server = std::make_unique<CommandLineControlServer>(*m_commandLineControlService);
+    auto server =
+      std::make_unique<CommandLineControlServer>(*m_commandLineControlService);
     if (
       const auto result =
         server->listen(parser.value(commandLineControlSocketOption).toStdString());
@@ -484,13 +471,18 @@ bool TrenchBroomApp::openDocument(const std::filesystem::path& path)
                  return Result<bool>{false};
                }
 
-               frame = m_frameManager->newFrame(m_taskManager);
+               frame = unity::untouchedStartupFrame(m_frameManager->frames());
+               if (!frame)
+               {
+                 frame = m_frameManager->newFrame(m_taskManager);
+               }
 
                auto [gameName, mapFormat] = *gameNameAndMapFormat;
                auto game = gameFactory.createGame(gameName, frame->logger());
                ensure(game != nullptr, "game is null");
 
                closeWelcomeWindow();
+               unity::markStartupMap(*frame, false);
 
                return frame->openDocument(std::move(game), mapFormat, absPath);
              })
@@ -559,12 +551,14 @@ bool TrenchBroomApp::initializeGameFactory()
          | kdl::is_success();
 }
 
-bool TrenchBroomApp::newDocument()
+bool TrenchBroomApp::newDocument(const bool chooseGame)
 {
   auto* frame = static_cast<MapFrame*>(nullptr);
   try
   {
-    const auto gameNameAndMapFormat = GameDialog::showNewDocumentDialog();
+    const auto gameNameAndMapFormat = chooseGame
+                                        ? GameDialog::showNewDocumentDialog()
+                                        : std::optional{unity::defaultGameAndFormat()};
     if (!gameNameAndMapFormat)
     {
       return false;
@@ -575,10 +569,12 @@ bool TrenchBroomApp::newDocument()
     frame = m_frameManager->newFrame(m_taskManager);
 
     auto& gameFactory = mdl::GameFactory::instance();
-    auto game = gameFactory.createGame(gameName, frame->logger());
+    auto game = chooseGame ? gameFactory.createGame(gameName, frame->logger())
+                           : unity::createEmptyGame(gameName, frame->logger());
     ensure(game != nullptr, "game is null");
 
     closeWelcomeWindow();
+    unity::markStartupMap(*frame, false);
     return frame->newDocument(std::move(game), mapFormat)
            | kdl::transform_error([&](auto e) {
                frame->close();
@@ -692,7 +688,7 @@ bool TrenchBroomApp::event(QEvent* event)
   {
     if (m_frameManager && m_frameManager->allFramesClosed())
     {
-      showWelcomeWindow();
+      openFilesOrWelcomeFrame({});
     }
   }
   return QApplication::event(event);
@@ -714,9 +710,12 @@ void TrenchBroomApp::openFilesOrWelcomeFrame(const QStringList& fileNames)
     }
   }
 
-  if (!anyDocumentOpened)
+  if (!anyDocumentOpened && m_frameManager->allFramesClosed())
   {
-    showWelcomeWindow();
+    if (newDocument())
+    {
+      unity::markStartupMap(*m_frameManager->topFrame(), true);
+    }
   }
 }
 
@@ -777,11 +776,12 @@ std::filesystem::path savedMapPath()
 std::filesystem::path crashReportBasePath()
 {
   const auto mapPath = savedMapPath();
-  const auto crashLogPath = !mapPath.empty()
-                              ? mapPath.parent_path() / mapPath.stem() += "-crash.txt"
-                              : io::pathFromQString(QStandardPaths::writableLocation(
-                                  QStandardPaths::DocumentsLocation))
-                                  / "trenchbroom-crash.txt";
+  const auto crashLogPath =
+    !mapPath.empty()
+      ? mapPath.parent_path() / mapPath.stem() += "-crash.txt"
+      : io::pathFromQString(
+          QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation))
+          / "trenchbroom-crash.txt";
 
   // ensure it doesn't exist
   auto index = 0;

@@ -3,10 +3,12 @@
 #include "PreferenceManager.h"
 #include "Preferences.h"
 #include "mdl/EntityProperties.h"
+#include "mdl/Game.h"
 #include "mdl/Map.h"
 #include "mdl/Map_Assets.h"
 #include "mdl/WorldNode.h"
 #include "ui/MapDocument.h"
+#include "unity/UnityTextureFolders.h"
 
 #include "kdl/string_utils.h"
 #include "kdl/vector_utils.h"
@@ -53,9 +55,8 @@ void MaterialWadFilter::setWadHidden(const std::filesystem::path& wad, const boo
   }
   else
   {
-    updated = kdl::vec_erase_if(std::move(updated), [&](const auto& entry) {
-      return entry == wad;
-    });
+    updated = kdl::vec_erase_if(
+      std::move(updated), [&](const auto& entry) { return entry == wad; });
   }
 
   updated = kdl::vec_sort_and_remove_duplicates(std::move(updated));
@@ -74,8 +75,10 @@ void MaterialWadFilter::setWadHidden(const std::filesystem::path& wad, const boo
 void MaterialWadFilter::connectObservers()
 {
   auto& map = m_document.map();
-  m_notifierConnection += map.mapWasCreatedNotifier.connect(this, &MaterialWadFilter::reloadCollections);
-  m_notifierConnection += map.mapWasLoadedNotifier.connect(this, &MaterialWadFilter::reloadCollections);
+  m_notifierConnection +=
+    map.mapWasCreatedNotifier.connect(this, &MaterialWadFilter::reloadCollections);
+  m_notifierConnection +=
+    map.mapWasLoadedNotifier.connect(this, &MaterialWadFilter::reloadCollections);
   m_notifierConnection += map.materialCollectionsDidChangeNotifier.connect(
     this, &MaterialWadFilter::reloadCollections);
 
@@ -118,7 +121,9 @@ std::vector<std::filesystem::path> MaterialWadFilter::gatherWadCollections() con
   auto wadCollections = std::vector<std::filesystem::path>{};
 
   const auto& map = m_document.map();
-  if (const auto* world = map.world())
+  if (
+    const auto* world = map.world();
+    world && !(map.game() && unity::usesTextureFolders(map.game()->config())))
   {
     if (const auto* wadValue = world->entity().property(mdl::EntityPropertyKeys::Wad))
     {
@@ -133,7 +138,8 @@ std::vector<std::filesystem::path> MaterialWadFilter::gatherWadCollections() con
   }
 
   const auto enabledCollections = mdl::enabledMaterialCollections(map);
-  wadCollections.insert(wadCollections.end(), enabledCollections.begin(), enabledCollections.end());
+  wadCollections.insert(
+    wadCollections.end(), enabledCollections.begin(), enabledCollections.end());
 
   return kdl::vec_sort_and_remove_duplicates(std::move(wadCollections));
 }

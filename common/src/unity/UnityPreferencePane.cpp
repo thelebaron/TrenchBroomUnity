@@ -21,20 +21,27 @@
 
 #include <QBoxLayout>
 #include <QCheckBox>
+#include <QComboBox>
 #include <QFileDialog>
 #include <QLabel>
 #include <QLineEdit>
+#include <QPlainTextEdit>
 #include <QPointer>
 #include <QPushButton>
+#include <QScrollArea>
 
 #include "PreferenceManager.h"
 #include "Preferences.h"
 #include "io/PathQt.h"
+#include "mdl/GameFactory.h"
+#include "mdl/Map.h"
+#include "mdl/Map_Assets.h"
 #include "ui/FormWithSectionsLayout.h"
 #include "ui/MapDocument.h"
 #include "ui/QtUtils.h"
 #include "ui/ViewConstants.h"
 #include "unity/UnityIntegration.h"
+#include "unity/UnityWorkflow.h"
 
 #include "kdl/set_temp.h"
 
@@ -51,18 +58,98 @@ UnityPreferencePane::UnityPreferencePane(ui::MapDocument* document, QWidget* par
 void UnityPreferencePane::createGui()
 {
   auto* widget = createUnityPreferences();
+  auto* scroll = new QScrollArea{};
+  scroll->setWidgetResizable(true);
+  scroll->setFrameShape(QFrame::NoFrame);
+  scroll->setWidget(widget);
 
   auto* layout = new QVBoxLayout{};
   layout->setContentsMargins(QMargins{});
   layout->setSpacing(0);
   layout->addSpacing(ui::LayoutConstants::NarrowVMargin);
-  layout->addWidget(widget, 1);
+  layout->addWidget(scroll, 1);
   layout->addSpacing(ui::LayoutConstants::MediumVMargin);
   setLayout(layout);
 }
 
 QWidget* UnityPreferencePane::createUnityPreferences()
 {
+  m_defaultGameCombo = new QComboBox{};
+  for (const auto& name : mdl::GameFactory::instance().gameList())
+  {
+    m_defaultGameCombo->addItem(QString::fromStdString(name));
+  }
+  m_defaultMapFormatCombo = new QComboBox{};
+  connect(
+    m_defaultGameCombo, &QComboBox::currentTextChanged, this, [this](const auto& name) {
+      if (m_disableNotifiers)
+      {
+        return;
+      }
+      PreferenceManager::instance().set(Preferences::UnityDefaultGame, name);
+      updateMapFormats();
+      PreferenceManager::instance().set(
+        Preferences::UnityDefaultMapFormat, m_defaultMapFormatCombo->currentText());
+    });
+  connect(
+    m_defaultMapFormatCombo,
+    &QComboBox::currentTextChanged,
+    this,
+    [this](const auto& format) {
+      if (!m_disableNotifiers && !format.isEmpty())
+      {
+        PreferenceManager::instance().set(Preferences::UnityDefaultMapFormat, format);
+      }
+    });
+  m_textureSourceCombo = new QComboBox{};
+  m_textureSourceCombo->addItems({tr("Unity folders"), tr("WAD")});
+  connect(
+    m_textureSourceCombo, &QComboBox::currentIndexChanged, this, [this](const int index) {
+      if (m_disableNotifiers)
+      {
+        return;
+      }
+      PreferenceManager::instance().set(
+        Preferences::UnityTextureFoldersEnabled, index == 0);
+      m_textureFoldersEdit->setEnabled(index == 0);
+      m_textureFolderBrowseButton->setEnabled(index == 0);
+    });
+  m_textureFoldersEdit = new QPlainTextEdit{};
+  m_textureFoldersEdit->setMaximumHeight(85);
+  m_textureFoldersEdit->setPlaceholderText(tr("<Unity project>/Assets/Content/Textures"));
+  connect(m_textureFoldersEdit, &QPlainTextEdit::textChanged, this, [this]() {
+    if (m_disableNotifiers)
+    {
+      return;
+    }
+    auto folders = std::vector<std::filesystem::path>{};
+    for (const auto& line : m_textureFoldersEdit->toPlainText().split('\n'))
+    {
+      if (!line.trimmed().isEmpty())
+      {
+        folders.push_back(io::pathFromQString(line.trimmed()));
+      }
+    }
+    PreferenceManager::instance().set(
+      Preferences::UnityTextureFolders, std::move(folders));
+  });
+  m_textureFolderBrowseButton = new QPushButton{tr("Add Folder...")};
+  connect(m_textureFolderBrowseButton, &QPushButton::clicked, this, [this]() {
+    const auto folder = QFileDialog::getExistingDirectory(
+      this, tr("Texture Folder"), io::pathAsQString(pref(Preferences::UnityProjectPath)));
+    if (!folder.isEmpty())
+    {
+      m_textureFoldersEdit->appendPlainText(folder);
+    }
+  });
+  m_refreshTexturesButton = new QPushButton{tr("Refresh Textures")};
+  m_refreshTexturesButton->setEnabled(m_document != nullptr);
+  connect(m_refreshTexturesButton, &QPushButton::clicked, this, [this]() {
+    if (m_document && m_document->map().world())
+    {
+      mdl::reloadMaterialCollections(m_document->map());
+    }
+  });
   auto* description = new QLabel{tr(
     "Assign a stable, non-empty identifier to every entity. Helpful when exporting maps "
     "to downstream tools that rely on consistent IDs (for example Unity).")};
@@ -190,6 +277,28 @@ QWidget* UnityPreferencePane::createUnityPreferences()
     ui::LayoutConstants::DialogOuterMargin);
   layout->setVerticalSpacing(ui::LayoutConstants::WideVMargin);
 
+  layout->addSection(tr("Startup"));
+  layout->addRow(tr("Default game"), m_defaultGameCombo);
+  layout->addRow(tr("Default map format"), m_defaultMapFormatCombo);
+  auto* formatDescription =
+    new QLabel{tr("Quake uses Standard format to match Scopa's texture coordinates.")};
+  formatDescription->setWordWrap(true);
+  layout->addRow(formatDescription);
+
+  layout->addSection(tr("Textures"));
+  layout->addRow(tr("Texture source"), m_textureSourceCombo);
+  layout->addRow(tr("Texture folders"), m_textureFoldersEdit);
+  auto* folderDescription = new QLabel{tr(
+    "One folder per line, searched recursively. Leave empty to use "
+    "Assets/Content/Textures in the Unity project. Duplicate names are reported in the "
+    "editor log and are not loaded.")};
+  folderDescription->setWordWrap(true);
+  layout->addRow(folderDescription);
+  auto* textureButtons = new QHBoxLayout{};
+  textureButtons->addWidget(m_textureFolderBrowseButton);
+  textureButtons->addWidget(m_refreshTexturesButton);
+  layout->addRow("", textureButtons);
+
   layout->addSection("Entities");
   layout->addRow(description);
   layout->addRow("Generate unique entity identifiers", m_generateEntityIdsCheckBox);
@@ -226,11 +335,30 @@ void UnityPreferencePane::doResetToDefaults()
   prefs.resetToDefault(Preferences::UnityReimportOnSave);
   prefs.resetToDefault(Preferences::UnityRebakeSubsceneOnSave);
   prefs.resetToDefault(Preferences::UnityProjectPath);
+  prefs.resetToDefault(Preferences::UnityDefaultGame);
+  prefs.resetToDefault(Preferences::UnityDefaultMapFormat);
+  prefs.resetToDefault(Preferences::UnityTextureFoldersEnabled);
+  prefs.resetToDefault(Preferences::UnityTextureFolders);
 }
 
 void UnityPreferencePane::updateControls()
 {
   const auto disableNotifiers = kdl::set_temp{m_disableNotifiers, true};
+  const auto [game, format] = defaultGameAndFormat();
+  m_defaultGameCombo->setCurrentText(QString::fromStdString(game));
+  updateMapFormats();
+  m_defaultMapFormatCombo->setCurrentText(
+    QString::fromStdString(mdl::formatName(format)));
+  const auto foldersEnabled = pref(Preferences::UnityTextureFoldersEnabled);
+  m_textureSourceCombo->setCurrentIndex(foldersEnabled ? 0 : 1);
+  m_textureFoldersEdit->setEnabled(foldersEnabled);
+  m_textureFolderBrowseButton->setEnabled(foldersEnabled);
+  auto folders = QStringList{};
+  for (const auto& folder : pref(Preferences::UnityTextureFolders))
+  {
+    folders.push_back(io::pathAsQString(folder));
+  }
+  m_textureFoldersEdit->setPlainText(folders.join('\n'));
   m_generateEntityIdsCheckBox->setChecked(pref(Preferences::GenerateEntityIds));
   m_generateClassIndicesCheckBox->setChecked(pref(Preferences::GenerateClassIndices));
   m_unityReimportOnSaveCheckBox->setChecked(pref(Preferences::UnityReimportOnSave));
@@ -245,6 +373,24 @@ void UnityPreferencePane::updateControls()
 bool UnityPreferencePane::validate()
 {
   return true;
+}
+
+void UnityPreferencePane::updateMapFormats()
+{
+  const auto disableNotifiers = kdl::set_temp{m_disableNotifiers, true};
+  const auto game = m_defaultGameCombo->currentText().toStdString();
+  m_defaultMapFormatCombo->clear();
+  if (game == "Quake")
+  {
+    m_defaultMapFormatCombo->addItem("Standard");
+  }
+  else
+  {
+    for (const auto& format : mdl::GameFactory::instance().fileFormats(game))
+    {
+      m_defaultMapFormatCombo->addItem(QString::fromStdString(format));
+    }
+  }
 }
 
 void UnityPreferencePane::updateClassIndicesClicked()

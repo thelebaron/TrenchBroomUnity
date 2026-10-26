@@ -521,6 +521,9 @@ set(COMMON_SOURCE
         ${COMMON_SOURCE_DIR}/ui/WelcomeWindow.cpp
         ${COMMON_SOURCE_DIR}/unity/UnityIntegration.cpp
         ${COMMON_SOURCE_DIR}/unity/UnityPreferencePane.cpp
+        ${COMMON_SOURCE_DIR}/unity/UnityWorkflow.cpp
+        ${COMMON_SOURCE_DIR}/unity/UnityTextureFolders.cpp
+        ${COMMON_SOURCE_DIR}/unity/TextureFolderWatcher.cpp
         ${COMMON_SOURCE_DIR}/Uuid.cpp
 )
 
@@ -1095,6 +1098,9 @@ set(COMMON_HEADER
         ${COMMON_SOURCE_DIR}/ui/WelcomeWindow.h
         ${COMMON_SOURCE_DIR}/unity/UnityIntegration.h
         ${COMMON_SOURCE_DIR}/unity/UnityPreferencePane.h
+        ${COMMON_SOURCE_DIR}/unity/UnityWorkflow.h
+        ${COMMON_SOURCE_DIR}/unity/UnityTextureFolders.h
+        ${COMMON_SOURCE_DIR}/unity/TextureFolderWatcher.h
         ${COMMON_SOURCE_DIR}/Uuid.h
 )
 

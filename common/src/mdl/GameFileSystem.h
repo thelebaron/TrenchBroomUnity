@@ -48,7 +48,8 @@ public:
     const std::filesystem::path& rootPath,
     const std::vector<std::filesystem::path>& wadSearchPaths,
     const std::vector<std::filesystem::path>& wadPaths,
-    Logger& logger);
+    Logger& logger,
+    bool textureFolders = false);
 
 private:
   void addDefaultAssetPaths(const GameConfig& config, Logger& logger);

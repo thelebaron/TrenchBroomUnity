@@ -1023,29 +1023,40 @@ void ActionManager::createMenu()
 void ActionManager::createFileMenu()
 {
   auto& fileMenu = createMainMenu("File");
-  fileMenu.addItem(addAction(Action{
-    "Menu/File/New",
-    QObject::tr("New Document"),
-    ActionContext::Any,
-    QKeySequence::New,
-    [](auto&) {
-      auto& app = TrenchBroomApp::instance();
-      app.newDocument();
-    },
-    [](const auto&) { return true; },
-  }));
+  fileMenu.addItem(addAction(
+    Action{
+      "Menu/File/New",
+      QObject::tr("New Map"),
+      ActionContext::Any,
+      QKeySequence::New,
+      [](auto&) {
+        auto& app = TrenchBroomApp::instance();
+        app.newDocument();
+      },
+      [](const auto&) { return true; },
+    }));
+  fileMenu.addItem(addAction(
+    Action{
+      "Menu/File/New Map (Choose Game)...",
+      QObject::tr("New Map (Choose Game)..."),
+      ActionContext::Any,
+      QKeySequence{},
+      [](auto&) { TrenchBroomApp::instance().newDocument(true); },
+      [](const auto&) { return true; },
+    }));
   fileMenu.addSeparator();
-  fileMenu.addItem(addAction(Action{
-    "Menu/File/Open...",
-    QObject::tr("Open Document..."),
-    ActionContext::Any,
-    QKeySequence::Open,
-    [](auto&) {
-      auto& app = TrenchBroomApp::instance();
-      app.openDocument();
-    },
-    [](const auto&) { return true; },
-  }));
+  fileMenu.addItem(addAction(
+    Action{
+      "Menu/File/Open...",
+      QObject::tr("Open Document..."),
+      ActionContext::Any,
+      QKeySequence::Open,
+      [](auto&) {
+        auto& app = TrenchBroomApp::instance();
+        app.openDocument();
+      },
+      [](const auto&) { return true; },
+    }));
   fileMenu.addMenu("Open Recent", MenuEntryType::RecentDocuments);
   fileMenu.addSeparator();
   fileMenu.addItem(addAction(Action{
@@ -2205,27 +2216,37 @@ void ActionManager::createHelpMenu()
 {
   auto& helpMenu = createMainMenu("Help");
   helpMenu.addItem(addAction(Action{
-    std::filesystem::path{"Menu/Help/TrenchBroom Manual"},
-    QObject::tr("TrenchBroom Manual"),
-    ActionContext::Any,
-    QKeySequence{QKeySequence::HelpContents},
-    [](auto&) {
-      auto& app = TrenchBroomApp::instance();
-      app.showManual();
-    },
-    [](const auto&) { return true; },
-  }));
-  helpMenu.addItem(addAction(Action{
-    "Menu/File/About TrenchBroom",
-    QObject::tr("About TrenchBroom"),
+    "Menu/Help/Welcome Window",
+    QObject::tr("Welcome Window"),
     ActionContext::Any,
     QKeySequence{},
-    [](auto&) {
-      auto& app = TrenchBroomApp::instance();
-      app.showAboutDialog();
-    },
+    [](auto&) { TrenchBroomApp::instance().showWelcomeWindow(); },
     [](const auto&) { return true; },
   }));
+  helpMenu.addItem(addAction(
+    Action{
+      std::filesystem::path{"Menu/Help/TrenchBroom Manual"},
+      QObject::tr("TrenchBroom Manual"),
+      ActionContext::Any,
+      QKeySequence{QKeySequence::HelpContents},
+      [](auto&) {
+        auto& app = TrenchBroomApp::instance();
+        app.showManual();
+      },
+      [](const auto&) { return true; },
+    }));
+  helpMenu.addItem(addAction(
+    Action{
+      "Menu/File/About TrenchBroom",
+      QObject::tr("About TrenchBroom"),
+      ActionContext::Any,
+      QKeySequence{},
+      [](auto&) {
+        auto& app = TrenchBroomApp::instance();
+        app.showAboutDialog();
+      },
+      [](const auto&) { return true; },
+    }));
 }
 
 Menu& ActionManager::createMainMenu(std::string name)

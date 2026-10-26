@@ -30,6 +30,7 @@
 #include "io/WadFileSystem.h"
 #include "io/ZipFileSystem.h"
 #include "mdl/GameConfig.h"
+#include "unity/UnityTextureFolders.h"
 
 #include "kdl/result_fold.h"
 #include "kdl/string_compare.h"
@@ -60,9 +61,15 @@ void GameFileSystem::reloadWads(
   const std::filesystem::path& rootPath,
   const std::vector<std::filesystem::path>& wadSearchPaths,
   const std::vector<std::filesystem::path>& wadPaths,
-  Logger& logger)
+  Logger& logger,
+  const bool textureFolders)
 {
   unmountWads();
+  if (textureFolders)
+  {
+    m_wadMountPoints = unity::mountTextureFolders(*this, rootPath, logger);
+    return;
+  }
   mountWads(rootPath, wadSearchPaths, wadPaths, logger);
 }
 

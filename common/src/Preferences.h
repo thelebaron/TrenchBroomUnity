@@ -212,6 +212,10 @@ extern Preference<bool> AutoSetDefaultEntityProperties;
 extern Preference<bool> UnityReimportOnSave;
 extern Preference<bool> UnityRebakeSubsceneOnSave;
 extern Preference<std::filesystem::path> UnityProjectPath;
+extern Preference<QString> UnityDefaultGame;
+extern Preference<QString> UnityDefaultMapFormat;
+extern Preference<bool> UnityTextureFoldersEnabled;
+extern Preference<std::vector<std::filesystem::path>> UnityTextureFolders;
 
 extern Preference<int> RoomCreatorMode;
 extern Preference<int> RoomCreatorWallThickness;

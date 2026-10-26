@@ -27,6 +27,8 @@ namespace tb
 void TestPreferenceManager::initialize()
 {
   set(Preferences::AskForAutoUpdates, false);
+  // Upstream fixtures exercise their WAD files. Unity workflow tests opt into folders.
+  set(Preferences::UnityTextureFoldersEnabled, false);
 }
 
 bool TestPreferenceManager::saveInstantly() const

@@ -31,7 +31,7 @@ if (-not $qtDirectoryLine) { throw 'Qt6_DIR was not found in the build cache.' }
 $qtCmakeDirectory = ($qtDirectoryLine -split '=', 2)[1]
 $qtBinDirectory = [System.IO.Path]::GetFullPath((Join-Path $qtCmakeDirectory '../../../bin'))
 $originalPath = $env:PATH
-$testFilter = if ($All) { '*' } else { '[entity-identity]' }
+$testFilter = if ($All) { '*' } else { '[entity-identity],[unity-workflow]' }
 
 Push-Location (Split-Path -Parent $testExecutable)
 try {

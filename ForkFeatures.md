@@ -4,8 +4,9 @@ This document inventories the custom features in this checkout for future mainte
 and rebasing. It describes the current implementation, rather than promising that each
 feature is finished. Source paths are relative to the repository root.
 
-The only dedicated fork regression tests retained are for Unity entity identity:
-`_tb_unique_id` and `classindex`. TrenchBroom's original upstream test suites remain.
+Dedicated fork regression tests cover Unity entity identity (`_tb_unique_id` and
+`classindex`), startup defaults, and texture folders. TrenchBroom's original upstream
+test suites remain.
 The standalone fork tests for other features, including the room creator prototype,
 have been removed. Feature implementations remain in place.
 
@@ -259,6 +260,61 @@ one transaction. The UI persists settings under the `Room Creator/` preferences.
 reconnect its menu/action and model operations, but do not treat it as a finished feature
 or an acceptance requirement for the rebase.
 
+## 12. Direct startup and map defaults
+
+**Use:** Startup opens an empty, untitled map. **New Map** uses the default game and
+format from Unity preferences without prompting. The defaults are Quake and Standard;
+Quake defaults always use Standard because Scopa imports paraxial UVs. Explicit map
+headers retain their format, including Valve. Missing game/format headers use the
+defaults. No Quake installation is required for bundled definitions or folder textures.
+
+Opening a file reuses an untouched startup map. **File > New Map (Choose Game)...**
+retains the game chooser, and **Help > Welcome Window** retains the welcome screen.
+Closing the last map window quits the application, including when Welcome is open.
+
+**Main files:** `common/src/unity/UnityWorkflow.*`, `UnityPreferencePane.*`,
+`common/src/TrenchBroomApp.*`, `common/src/ui/Actions.cpp`, and `FrameManager.cpp`.
+
+**Rebase considerations:** Preserve the shared open-file path for recent files and
+command-line files, the untouched-startup-map check, unsaved-change confirmations,
+explicit format headers, and the empty-map configuration copy (never mutate the
+shared game config).
+
+## 13. Unity texture folders
+
+**Use:** Unity preferences offers **Unity folders** (default) and **WAD** texture
+sources for Quake. List one folder per line; an empty list uses
+`<Unity project>/Assets/Content/Textures`. Relative folders resolve against the Unity
+project. The scanner searches recursively for PNG, TGA, BMP, JPEG and TIFF images.
+Each configured folder is a material collection, with flat texture names taken from
+the filename without its extension. Image dimensions are retained.
+
+Folder mode ignores the worldspawn `wad` property without editing it or face names.
+WAD mode retains the existing loader. Case-insensitive duplicate names are errors
+listing every conflicting file; all candidates for an ambiguous name are omitted.
+Other images still load. Warnings flag names over 15 characters, uppercase names,
+and `*`, `+0` through `+9`, or `sky` prefixes, without rejecting those images.
+Missing folders are reported in the editor log. Folder and image changes reload
+materials automatically after a short debounce. **Refresh Textures** in Unity
+preferences and the existing collection reload control provide manual refresh.
+
+**Main files:** `common/src/unity/UnityTextureFolders.*`, `TextureFolderWatcher.*`,
+`UnityPreferencePane.*`, `common/src/mdl/GameFileSystem.*`, `GameImpl.cpp`, `Map.cpp`,
+`common/src/io/LoadMaterialCollections.cpp`, `common/src/ui/MapDocument.*`, and
+`MaterialWadFilter.cpp`.
+
+**Rebase considerations:** Keep the flat virtual filesystem, folder metadata used for
+collection names, palette-free image loading, and captured extension-list ownership
+in asynchronous texture loaders. Reconnect watcher lifetimes to document lifetimes.
+Reloading resources must not modify maps or their undo history. Keep WAD export
+separate; it is not implemented by this feature.
+
+**Tests:** `common/test/src/unity/tst_UnityWorkflow.cpp` covers Standard startup,
+explicit format preservation, empty map creation, recursive flat discovery, duplicate
+and missing-folder errors, WAD-name warnings, collection grouping, image dimensions,
+map save round trips, and automatic reload without map modifications. Upstream test
+fixtures explicitly use WAD mode; Unity tests opt into folder mode.
+
 ## Build and maintenance changes
 
 The fork also changes Windows build guidance, ignore rules, editor icons and toolbar
@@ -267,12 +323,12 @@ changes rather than user-facing features. Compare them against upstream's curren
 and dependency setup before replaying them. A local branch name such as `feature/decal`
 or `feature/2d` alone is not evidence of another implemented feature in the active tip.
 
-## Running the retained identity tests
+## Running the fork regression tests
 
 With `build-vs18` configured as described in `AGENTS.md`:
 
 ```powershell
-# Build common-test and run the Unity entity ID/class-index tests.
+# Build common-test and run Unity identity and workflow tests.
 .\test-fork.ps1
 
 # Use the existing binary, or run the full original common suite as well.
@@ -280,7 +336,7 @@ With `build-vs18` configured as described in `AGENTS.md`:
 .\test-fork.ps1 -All
 ```
 
-The runner selects `[entity-identity]` by default, uses the configured Qt kit and sets
+The runner selects `[entity-identity],[unity-workflow]` by default, uses the configured Qt kit and sets
 the executable directory as the working directory. `-All` runs the remaining full common
 suite; the removed feature tests are not part of either run.
 

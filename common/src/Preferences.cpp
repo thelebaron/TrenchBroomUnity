@@ -330,6 +330,11 @@ Preference<bool> AutoSetDefaultEntityProperties(
 Preference<bool> UnityReimportOnSave("Misc/Unity reimport on save", false);
 Preference<bool> UnityRebakeSubsceneOnSave("Misc/Unity rebake subscene on save", true);
 Preference<std::filesystem::path> UnityProjectPath("Misc/Unity project path", {});
+Preference<QString> UnityDefaultGame("Unity/Default game", "Quake");
+Preference<QString> UnityDefaultMapFormat("Unity/Default map format", "Standard");
+Preference<bool> UnityTextureFoldersEnabled("Unity/Texture folders enabled", true);
+Preference<std::vector<std::filesystem::path>> UnityTextureFolders(
+  "Unity/Texture folders", {});
 
 Preference<int> RoomCreatorMode("Room Creator/Mode", 1);
 Preference<int> RoomCreatorWallThickness("Room Creator/Wall thickness", 16);
@@ -463,6 +468,10 @@ const std::vector<PreferenceBase*>& staticPreferences()
     &UnityReimportOnSave,
     &UnityRebakeSubsceneOnSave,
     &UnityProjectPath,
+    &UnityDefaultGame,
+    &UnityDefaultMapFormat,
+    &UnityTextureFoldersEnabled,
+    &UnityTextureFolders,
     &RoomCreatorMode,
     &RoomCreatorWallThickness,
     &RoomCreatorWallHeight,

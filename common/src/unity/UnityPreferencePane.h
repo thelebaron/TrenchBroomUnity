@@ -22,6 +22,8 @@
 #include "ui/PreferencePane.h"
 
 class QCheckBox;
+class QComboBox;
+class QPlainTextEdit;
 class QLabel;
 class QLineEdit;
 class QPushButton;
@@ -50,6 +52,12 @@ private:
   QPushButton* m_unityProjectBrowseButton = nullptr;
   QPushButton* m_unityTestConnectionButton = nullptr;
   QLabel* m_unityStatusLabel = nullptr;
+  QComboBox* m_defaultGameCombo = nullptr;
+  QComboBox* m_defaultMapFormatCombo = nullptr;
+  QComboBox* m_textureSourceCombo = nullptr;
+  QPlainTextEdit* m_textureFoldersEdit = nullptr;
+  QPushButton* m_textureFolderBrowseButton = nullptr;
+  QPushButton* m_refreshTexturesButton = nullptr;
 
   bool m_disableNotifiers = false;
 
@@ -63,6 +71,7 @@ private:
   void updateClassIndicesClicked();
   void chooseUnityProjectPathClicked();
   void testUnityConnectionClicked();
+  void updateMapFormats();
 
   bool canResetToDefaults() override;
   void doResetToDefaults() override;

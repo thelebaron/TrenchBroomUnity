@@ -97,7 +97,7 @@ public:
   void openAbout();
   bool initializeGameFactory();
 
-  bool newDocument();
+  bool newDocument(bool chooseGame = false);
   void openDocument();
   void showManual();
   void showPreferences();

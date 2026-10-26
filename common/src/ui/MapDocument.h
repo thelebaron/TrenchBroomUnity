@@ -54,6 +54,11 @@ class Node;
 class PickResult;
 } // namespace tb::mdl
 
+namespace tb::unity
+{
+class TextureFolderWatcher;
+}
+
 namespace tb::ui
 {
 class ViewEffectsService;
@@ -87,6 +92,7 @@ public:
 private:
   std::unique_ptr<mdl::Map> m_map;
   std::unique_ptr<PrefabLibrary> m_prefabLibrary;
+  std::unique_ptr<unity::TextureFolderWatcher> m_textureFolderWatcher;
 
   std::optional<PointFile> m_pointFile;
   std::optional<PortalFile> m_portalFile;

@@ -41,6 +41,7 @@
 #include "mdl/EntityProperties.h"
 #include "mdl/GameConfig.h"
 #include "mdl/MaterialManager.h"
+#include "unity/UnityTextureFolders.h"
 
 #include "kdl/path_utils.h"
 #include "kdl/result.h"
@@ -170,7 +171,12 @@ void GameImpl::reloadWads(
     m_gamePath,                 // Search for assets relative to the location of the game.
     io::SystemPaths::appDirectory(), // Search for assets relative to the application.
   };
-  m_fs.reloadWads(m_config.materialConfig.root, searchPaths, wadPaths, logger);
+  m_fs.reloadWads(
+    m_config.materialConfig.root,
+    searchPaths,
+    wadPaths,
+    logger,
+    unity::usesTextureFolders(m_config));
 }
 
 bool GameImpl::isEntityDefinitionFile(const std::filesystem::path& path) const
