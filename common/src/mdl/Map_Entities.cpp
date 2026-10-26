@@ -37,6 +37,7 @@
 #include "mdl/PropertyDefinition.h"
 #include "mdl/Transaction.h"
 #include "mdl/WorldNode.h"
+#include "unity/UnityCatalog.h"
 
 #include "kdl/string_utils.h"
 
@@ -148,6 +149,7 @@ EntityNode* createPointEntity(
   }
 
   ensureRotationProperty(definition, entity);
+  unity::setPrefabGuid(definition, entity);
 
   auto* entityNode = new EntityNode{std::move(entity)};
 

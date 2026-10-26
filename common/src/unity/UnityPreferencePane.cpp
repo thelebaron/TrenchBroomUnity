@@ -271,6 +271,21 @@ QWidget* UnityPreferencePane::createUnityPreferences()
   m_unityStatusLabel = new QLabel{};
   m_unityStatusLabel->setWordWrap(true);
 
+  m_entityDefinitionsCheckBox = new QCheckBox{};
+  connect(
+    m_entityDefinitionsCheckBox,
+    &QCheckBox::checkStateChanged,
+    this,
+    [&](const auto state) {
+      if (m_disableNotifiers)
+      {
+        return;
+      }
+
+      auto& prefs = PreferenceManager::instance();
+      prefs.set(Preferences::UnityEntityDefinitionsEnabled, state == Qt::Checked);
+    });
+
   m_liveLinkSocketNameEdit = new QLineEdit{};
   connect(m_liveLinkSocketNameEdit, &QLineEdit::editingFinished, this, [&]() {
     if (m_disableNotifiers)
@@ -333,6 +348,17 @@ QWidget* UnityPreferencePane::createUnityPreferences()
   formatDescription->setWordWrap(true);
   layout->addRow(formatDescription);
 
+  layout->addSection(tr("Prefabs"));
+  layout->addRow(
+    tr("Entity definitions from Unity"), m_entityDefinitionsCheckBox);
+  auto* prefabDescription = new QLabel{tr(
+    "Loads entity definitions, preview models and the Unity tab's prefabs from the "
+    "TrenchBroom folder in the Unity project. The map's own entity definition setting "
+    "is ignored but kept. Unity keeps the folder up to date; Junk > Trenchbroom > Export "
+    "Prefab Catalog rebuilds it.")};
+  prefabDescription->setWordWrap(true);
+  layout->addRow(prefabDescription);
+
   layout->addSection(tr("Textures"));
   layout->addRow(tr("Texture source"), m_textureSourceCombo);
   layout->addRow(tr("Default folder"), m_defaultTextureFolderLabel);
@@ -388,6 +414,7 @@ void UnityPreferencePane::doResetToDefaults()
   prefs.resetToDefault(Preferences::UnityTextureFoldersEnabled);
   prefs.resetToDefault(Preferences::UnityAdditionalTextureFolders);
   prefs.resetToDefault(Preferences::UnityLiveLinkSocketName);
+  prefs.resetToDefault(Preferences::UnityEntityDefinitionsEnabled);
 }
 
 void UnityPreferencePane::updateControls()
@@ -419,6 +446,7 @@ void UnityPreferencePane::updateControls()
   m_unityProjectPathEdit->setText(io::pathAsQString(pref(Preferences::UnityProjectPath)));
   m_unityStatusLabel->clear();
   m_liveLinkSocketNameEdit->setText(pref(Preferences::UnityLiveLinkSocketName));
+  m_entityDefinitionsCheckBox->setChecked(pref(Preferences::UnityEntityDefinitionsEnabled));
   updateLiveLinkStatus();
 }
 

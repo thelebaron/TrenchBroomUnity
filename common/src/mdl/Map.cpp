@@ -64,6 +64,7 @@
 #include "mdl/Map.h"
 #include "mdl/MapFormat.h"
 #include "mdl/MapTextEncoding.h"
+#include "mdl/Map_Assets.h"
 #include "mdl/Map_Entities.h"
 #include "mdl/Map_Groups.h"
 #include "mdl/Map_Nodes.h"
@@ -94,6 +95,7 @@
 #include "mdl/WorldBoundsValidator.h"
 #include "mdl/WorldNode.h"
 #include "mdl/WorldNode.h" // IWYU pragma: keep
+#include "unity/UnityCatalog.h"
 #include "unity/UnityTextureFolders.h"
 
 #include "kdl/path_utils.h"
@@ -1079,7 +1081,10 @@ void Map::loadEntityDefinitions()
 {
   const auto spec = m_world ? game()->extractEntityDefinitionFile(m_world->entity())
                             : EntityDefinitionFileSpec{};
-  const auto path = game()->findEntityDefinitionFile(spec, externalSearchPaths(*this));
+  const auto fromUnity = unity::usesUnityEntityDefinitions(game()->config());
+  const auto path =
+    fromUnity ? unity::unityEntityDefinitionsPath()
+              : game()->findEntityDefinitionFile(spec, externalSearchPaths(*this));
   auto status = io::SimpleParserStatus{m_logger};
 
   entityDefinitionManager().loadDefinitions(path, *game(), status)
@@ -1088,7 +1093,13 @@ void Map::loadEntityDefinitions()
           "Loaded entity definition file {}", path.filename());
       })
     | kdl::transform_error([&](auto e) {
-        if (spec.builtin())
+        if (fromUnity)
+        {
+          m_logger.error() << "Could not load Unity entity definitions '"
+                           << path.string() << "' (export them from Unity with Junk > "
+                           << "Trenchbroom > Export Prefab Catalog): " << e.msg;
+        }
+        else if (spec.builtin())
         {
           m_logger.error() << "Could not load builtin entity definition file '"
                            << spec.path() << "': " << e.msg;
@@ -1953,7 +1964,9 @@ void Map::preferenceDidChange(const std::filesystem::path& path)
     return;
   }
 
-  if (m_game && m_game->isGamePathPreference(path))
+  if (
+    m_game
+    && (m_game->isGamePathPreference(path) || unity::isUnityEntityDefinitionPreference(path)))
   {
     const auto& gameFactory = GameFactory::instance();
     const auto newGamePath = gameFactory.gamePath(m_game->config().name);
@@ -1964,6 +1977,11 @@ void Map::preferenceDidChange(const std::filesystem::path& path)
 
     reloadMaterials();
     setMaterials();
+
+    if (unity::isUnityEntityDefinitionPreference(path))
+    {
+      mdl::reloadEntityDefinitions(*this);
+    }
   }
 }
 

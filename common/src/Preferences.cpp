@@ -333,6 +333,8 @@ Preference<std::filesystem::path> UnityProjectPath("Misc/Unity project path", {}
 Preference<QString> UnityDefaultGame("Unity/Default game", "Quake");
 Preference<QString> UnityDefaultMapFormat("Unity/Default map format", "Standard");
 Preference<bool> UnityTextureFoldersEnabled("Unity/Texture folders enabled", true);
+// Load entity definitions from the Unity export instead of the map's _tb_def property.
+Preference<bool> UnityEntityDefinitionsEnabled("Unity/Entity definitions from Unity", true);
 // Folders in addition to Assets/Content/Textures, which is always used. Relative folders
 // resolve against the Unity project path.
 Preference<std::vector<std::filesystem::path>> UnityAdditionalTextureFolders(
@@ -477,6 +479,7 @@ const std::vector<PreferenceBase*>& staticPreferences()
     &UnityDefaultGame,
     &UnityDefaultMapFormat,
     &UnityTextureFoldersEnabled,
+    &UnityEntityDefinitionsEnabled,
     &UnityAdditionalTextureFolders,
     &UnityLiveLinkSocketName,
     &RoomCreatorMode,

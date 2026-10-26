@@ -57,7 +57,8 @@ class PickResult;
 namespace tb::unity
 {
 class TextureFolderWatcher;
-}
+class UnityCatalogWatcher;
+} // namespace tb::unity
 
 namespace tb::ui
 {
@@ -93,6 +94,7 @@ private:
   std::unique_ptr<mdl::Map> m_map;
   std::unique_ptr<PrefabLibrary> m_prefabLibrary;
   std::unique_ptr<unity::TextureFolderWatcher> m_textureFolderWatcher;
+  std::unique_ptr<unity::UnityCatalogWatcher> m_unityCatalogWatcher;
 
   std::optional<PointFile> m_pointFile;
   std::optional<PortalFile> m_portalFile;
@@ -113,6 +115,7 @@ public: // accessors and such
   const mdl::Map& map() const;
   PrefabLibrary& prefabLibrary();
   const PrefabLibrary& prefabLibrary() const;
+  unity::UnityCatalogWatcher& unityCatalogWatcher();
 
   Logger& logger();
 

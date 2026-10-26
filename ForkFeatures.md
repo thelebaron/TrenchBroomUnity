@@ -351,6 +351,40 @@ which is only started by its command-line option.
 validation, normalization and serialization of every message type. The socket and
 camera behaviour are checked manually against a running Unity editor.
 
+## 15. Unity prefab catalog
+
+**Purpose:** Place Unity prefabs from TrenchBroom without hand-maintained entity
+definitions, and give every placed prefab a stable identity the Unity importer can find.
+
+**Use:** Unity (`com.junk.trenchbroom`) exports `<Unity project>/TrenchBroom/`:
+`entities.fgd` (the core FGD plus one point class per prefab, with a preview model and a
+read-only `_unity_prefab` GUID property), `models/<guid>.obj`, `thumbnails/<guid>.png`
+and `catalog.json`, written last. With **Entity definitions from Unity** on (Unity
+preferences, `Unity/Entity definitions from Unity`, default on, needs a Unity project
+path), TrenchBroom loads that FGD instead of the map's `_tb_def`, which is left
+untouched, and mounts the export folder so the models resolve. The **Unity** inspector
+tab lists the catalog's prefabs with thumbnails, a category filter and search; dragging
+one places it like the Entity browser does. Creating a point entity always sets
+`_unity_prefab` from its definition, even with automatic default properties off. A new
+`catalog.json` reloads the entity definitions and the tab. **Unity > Update Prefab
+Entities from Catalog** gives catalog GUIDs to entities placed by class name only and
+renames entities whose prefab was renamed; it is one undoable command.
+
+**Main files:** `common/src/unity/UnityCatalog.*`, `UnityCatalogWatcher.*`,
+`UnityPrefabBrowser.*`, `UnityPreferencePane.*`; hooks in `common/src/mdl/Map.cpp`
+(entity definition path, reload on preference change), `Map_Entities.cpp` (GUID on
+creation), `GameFileSystem.cpp` (export folder mount), `common/src/ui/MapDocument.*`
+(owns the watcher), `Inspector.cpp` (Unity tab) and `Actions.cpp` (update command).
+
+**Rebase considerations:** Keep the entity definition path override in
+`Map::loadEntityDefinitions`, the mount after the game file systems so the export's
+`models/` wins, and the GUID hook next to `ensureRotationProperty` in point entity
+creation. The Unity tab is the last inspector page so existing page indices still hold.
+
+**Tests:** `common/test/src/unity/tst_UnityCatalog.cpp` covers catalog parsing and
+rejection, the entity definition preference, GUIDs from definitions, and the update
+command including undo.
+
 ## Build and maintenance changes
 
 The fork also changes Windows build guidance, ignore rules, editor icons and toolbar
@@ -364,7 +398,7 @@ or `feature/2d` alone is not evidence of another implemented feature in the acti
 With `build-vs18` configured as described in `AGENTS.md`:
 
 ```powershell
-# Build common-test and run Unity identity, workflow and live link tests.
+# Build common-test and run Unity identity, workflow, live link and catalog tests.
 .\test-fork.ps1
 
 # Use the existing binary, or run the full original common suite as well.
@@ -372,7 +406,7 @@ With `build-vs18` configured as described in `AGENTS.md`:
 .\test-fork.ps1 -All
 ```
 
-The runner selects `[entity-identity],[unity-workflow],[unity-live-link]` by default, uses the configured Qt kit and sets
+The runner selects `[entity-identity],[unity-workflow],[unity-live-link],[unity-catalog]` by default, uses the configured Qt kit and sets
 the executable directory as the working directory. `-All` runs the remaining full common
 suite; the removed feature tests are not part of either run.
 

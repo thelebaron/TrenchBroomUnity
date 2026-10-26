@@ -215,6 +215,7 @@ extern Preference<std::filesystem::path> UnityProjectPath;
 extern Preference<QString> UnityDefaultGame;
 extern Preference<QString> UnityDefaultMapFormat;
 extern Preference<bool> UnityTextureFoldersEnabled;
+extern Preference<bool> UnityEntityDefinitionsEnabled;
 extern Preference<std::vector<std::filesystem::path>> UnityAdditionalTextureFolders;
 extern Preference<QString> UnityLiveLinkSocketName;
 

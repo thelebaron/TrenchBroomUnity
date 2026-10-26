@@ -29,6 +29,7 @@
 #include "ui/QtUtils.h"
 #include "ui/TabBar.h"
 #include "ui/TabBook.h"
+#include "unity/UnityPrefabBrowser.h"
 
 namespace tb::ui
 {
@@ -47,6 +48,7 @@ Inspector::Inspector(
   m_tabBook->addPage(m_prefabInspector, "Prefabs");
   m_tabBook->addPage(m_entityInspector, "Entity");
   m_tabBook->addPage(m_faceInspector, "Face");
+  m_tabBook->addPage(new unity::UnityPrefabBrowser{document}, "Unity");
 
   auto* layout = new QVBoxLayout{};
   layout->setContentsMargins(0, 0, 0, 0);

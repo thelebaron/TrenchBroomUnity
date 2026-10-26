@@ -59,6 +59,7 @@ private:
   QPlainTextEdit* m_textureFoldersEdit = nullptr;
   QPushButton* m_textureFolderBrowseButton = nullptr;
   QPushButton* m_refreshTexturesButton = nullptr;
+  QCheckBox* m_entityDefinitionsCheckBox = nullptr;
   QLineEdit* m_liveLinkSocketNameEdit = nullptr;
   QLabel* m_liveLinkStatusLabel = nullptr;
 

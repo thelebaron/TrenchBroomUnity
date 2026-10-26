@@ -30,6 +30,7 @@
 #include "io/WadFileSystem.h"
 #include "io/ZipFileSystem.h"
 #include "mdl/GameConfig.h"
+#include "unity/UnityCatalog.h"
 #include "unity/UnityTextureFolders.h"
 
 #include "kdl/result_fold.h"
@@ -54,6 +55,14 @@ void GameFileSystem::initialize(
   if (!gamePath.empty() && io::Disk::pathInfo(gamePath) == io::PathInfo::Directory)
   {
     addGameFileSystems(config, gamePath, additionalSearchPaths, logger);
+  }
+
+  // Preview models in the Unity export, such as models/<guid>.obj.
+  if (
+    unity::usesUnityEntityDefinitions(config)
+    && io::Disk::pathInfo(unity::exportFolder()) == io::PathInfo::Directory)
+  {
+    addFileSystemPath(unity::exportFolder(), logger);
   }
 }
 

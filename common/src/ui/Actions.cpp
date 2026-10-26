@@ -38,6 +38,7 @@
 #include "ui/MapDocument.h"
 #include "ui/MapFrame.h"
 #include "ui/MapViewBase.h"
+#include "unity/UnityCatalog.h"
 #include "unity/UnityLiveLink.h"
 
 #include "kdl/const_overload.h"
@@ -2168,6 +2169,15 @@ void ActionManager::createUnityMenu()
     },
     [](const auto&) { return true; },
     [](const auto&) { return TrenchBroomApp::instance().unityLiveLink().liveCamera(); },
+  }));
+  unityMenu.addSeparator();
+  unityMenu.addItem(addAction(Action{
+    "Menu/Unity/Update Prefab Entities from Catalog",
+    QObject::tr("Update Prefab Entities from Catalog"),
+    ActionContext::Any,
+    QKeySequence{},
+    [](auto& context) { unity::updatePrefabEntitiesFromCatalog(context.map()); },
+    [](const auto& context) { return context.hasDocument(); },
   }));
 }
 

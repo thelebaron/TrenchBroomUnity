@@ -41,6 +41,7 @@
 #include "ui/PrefabLibrary.h"
 #include "ui/ViewEffectsService.h"
 #include "unity/TextureFolderWatcher.h"
+#include "unity/UnityCatalogWatcher.h"
 
 #include "kdl/result.h"
 #include "kdl/task_manager.h"
@@ -68,6 +69,7 @@ MapDocument::MapDocument(kdl::task_manager& taskManager)
   : m_map{std::make_unique<mdl::Map>(taskManager, *this)}
   , m_prefabLibrary{std::make_unique<PrefabLibrary>(*this)}
   , m_textureFolderWatcher{std::make_unique<unity::TextureFolderWatcher>(*m_map)}
+  , m_unityCatalogWatcher{std::make_unique<unity::UnityCatalogWatcher>(*m_map)}
 {
   connectObservers();
 }
@@ -97,6 +99,11 @@ const mdl::Map& MapDocument::map() const
 PrefabLibrary& MapDocument::prefabLibrary()
 {
   return *m_prefabLibrary;
+}
+
+unity::UnityCatalogWatcher& MapDocument::unityCatalogWatcher()
+{
+  return *m_unityCatalogWatcher;
 }
 
 const PrefabLibrary& MapDocument::prefabLibrary() const
