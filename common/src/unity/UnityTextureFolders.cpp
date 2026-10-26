@@ -30,7 +30,6 @@
 #include "kdl/string_utils.h"
 
 #include <algorithm>
-#include <cctype>
 #include <map>
 #include <set>
 #include <system_error>
@@ -58,17 +57,15 @@ bool usesTextureFolders(const mdl::GameConfig& config)
 bool isTextureFolderPreference(const std::filesystem::path& path)
 {
   return path == Preferences::UnityTextureFoldersEnabled.path()
-         || path == Preferences::UnityTextureFolders.path()
+         || path == Preferences::UnityAdditionalTextureFolders.path()
          || path == Preferences::UnityProjectPath.path();
 }
 std::vector<std::filesystem::path> textureFolders()
 {
-  auto folders = pref(Preferences::UnityTextureFolders);
+  auto folders = std::vector<std::filesystem::path>{DefaultTextureFolder};
+  const auto& additional = pref(Preferences::UnityAdditionalTextureFolders);
+  folders.insert(folders.end(), additional.begin(), additional.end());
   const auto project = pref(Preferences::UnityProjectPath);
-  if (folders.empty() && !project.empty())
-  {
-    folders.push_back(project / "Assets/Content/Textures");
-  }
   for (auto& folder : folders)
   {
     if (folder.is_relative() && !project.empty())
@@ -88,22 +85,26 @@ TextureFolderScan scanTextureFolders(const std::vector<std::filesystem::path>& f
   for (const auto& folder : folders)
   {
     auto ec = std::error_code{};
+    if (folder.is_relative())
+    {
+      scan.errors.push_back(
+        "Texture folder '" + folder.string()
+        + "' is relative, but no Unity project path is set");
+      continue;
+    }
     if (!std::filesystem::is_directory(folder, ec))
     {
       scan.errors.push_back("Texture folder is unavailable: " + folder.string());
       continue;
     }
     scan.directories.push_back(folder);
-    auto it = std::filesystem::recursive_directory_iterator{folder, ec};
-    const auto end = std::filesystem::recursive_directory_iterator{};
+    // Only images directly inside each folder; subfolders are added as their own folders.
+    auto it = std::filesystem::directory_iterator{folder, ec};
+    const auto end = std::filesystem::directory_iterator{};
     while (it != end && !ec)
     {
       const auto path = it->path();
-      if (it->is_directory(ec))
-      {
-        scan.directories.push_back(path);
-      }
-      else if (!ec && it->is_regular_file(ec) && isTextureImage(path))
+      if (it->is_regular_file(ec) && isTextureImage(path))
       {
         auto canonical = std::filesystem::weakly_canonical(path, ec);
         if (!ec && seenFiles.insert(canonical).second)
@@ -136,20 +137,13 @@ TextureFolderScan scanTextureFolders(const std::vector<std::filesystem::path>& f
       continue;
     }
     const auto& texture = textures.front();
-    const auto originalName = texture.path.stem().string();
-    const auto uppercase =
-      std::any_of(originalName.begin(), originalName.end(), [](const unsigned char c) {
-        return std::isupper(c) != 0;
-      });
+    // Case is ignored: Scopa and Quake tools both match texture names case-insensitively.
     const auto prefix =
       name.starts_with("*") || name.starts_with("sky")
       || (name.size() >= 2 && name[0] == '+' && name[1] >= '0' && name[1] <= '9');
-    if (originalName.size() > 15 || uppercase || prefix)
+    if (name.size() > 15 || prefix)
     {
-      scan.warnings.push_back(
-        "Texture name may not survive Quake WAD export (length, uppercase, or reserved "
-        "prefix): "
-        + texture.path.string());
+      scan.warnings.push_back(texture.path.string());
     }
     scan.textures.push_back(texture);
   }
@@ -200,9 +194,15 @@ std::vector<io::VirtualMountPointId> mountTextureFolders(
   {
     logger.error() << error;
   }
-  for (const auto& warning : scan.warnings)
+  if (!scan.warnings.empty())
   {
-    logger.warn() << warning;
+    logger.warn() << scan.warnings.size()
+                  << " texture names may not survive Quake WAD export (longer than 15 "
+                     "characters, or a reserved prefix such as *, +0 or sky)";
+    for (const auto& warning : scan.warnings)
+    {
+      logger.debug() << "  " << warning;
+    }
   }
   auto mounts = std::vector<io::VirtualMountPointId>{};
   for (const auto& folder : folders)

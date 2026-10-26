@@ -47,6 +47,10 @@ This auto-detects Qt and Visual Studio, configures, and builds a Release binary.
 | All tests | `cmake --build build-vs18 --target common-test --config Debug` |
 | Single test lib | `cmake --build build-vs18 --target kdl-test --config Debug` |
 
+### Rebuilding the Editor
+- After code changes, always rebuild the editor (`TrenchBroom` target, Release), not only the tests. `test-fork.ps1` builds `common-test` only, so the editor exe stays stale until rebuilt.
+- If the build is blocked because `TrenchBroom.exe` is running (the linker can't replace a locked exe), terminate the running editor process (`Stop-Process -Name TrenchBroom -Force`) and rebuild.
+
 ### Running Tests
 ```bat
 build-vs18\common\test\Debug\common-test.exe --reporter compact --success

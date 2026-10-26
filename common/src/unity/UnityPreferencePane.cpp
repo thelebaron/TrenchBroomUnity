@@ -41,6 +41,7 @@
 #include "ui/QtUtils.h"
 #include "ui/ViewConstants.h"
 #include "unity/UnityIntegration.h"
+#include "unity/UnityTextureFolders.h"
 #include "unity/UnityWorkflow.h"
 
 #include "kdl/set_temp.h"
@@ -114,9 +115,11 @@ QWidget* UnityPreferencePane::createUnityPreferences()
       m_textureFoldersEdit->setEnabled(index == 0);
       m_textureFolderBrowseButton->setEnabled(index == 0);
     });
+  m_defaultTextureFolderLabel = new QLabel{};
+  m_defaultTextureFolderLabel->setWordWrap(true);
+  m_defaultTextureFolderLabel->setTextInteractionFlags(Qt::TextSelectableByMouse);
   m_textureFoldersEdit = new QPlainTextEdit{};
   m_textureFoldersEdit->setMaximumHeight(85);
-  m_textureFoldersEdit->setPlaceholderText(tr("<Unity project>/Assets/Content/Textures"));
   connect(m_textureFoldersEdit, &QPlainTextEdit::textChanged, this, [this]() {
     if (m_disableNotifiers)
     {
@@ -131,15 +134,23 @@ QWidget* UnityPreferencePane::createUnityPreferences()
       }
     }
     PreferenceManager::instance().set(
-      Preferences::UnityTextureFolders, std::move(folders));
+      Preferences::UnityAdditionalTextureFolders, std::move(folders));
   });
   m_textureFolderBrowseButton = new QPushButton{tr("Add Folder...")};
   connect(m_textureFolderBrowseButton, &QPushButton::clicked, this, [this]() {
-    const auto folder = QFileDialog::getExistingDirectory(
-      this, tr("Texture Folder"), io::pathAsQString(pref(Preferences::UnityProjectPath)));
-    if (!folder.isEmpty())
+    const auto project = pref(Preferences::UnityProjectPath);
+    const auto folder = io::pathFromQString(QFileDialog::getExistingDirectory(
+      this,
+      tr("Texture Folder"),
+      io::pathAsQString(project / DefaultTextureFolder)));
+    if (!folder.empty())
     {
-      m_textureFoldersEdit->appendPlainText(folder);
+      // Store folders inside the Unity project relative to it, like the default.
+      const auto relative = folder.lexically_relative(project);
+      const auto insideProject =
+        !project.empty() && !relative.empty() && *relative.begin() != "..";
+      m_textureFoldersEdit->appendPlainText(
+        io::pathAsQString(insideProject ? relative : folder));
     }
   });
   m_refreshTexturesButton = new QPushButton{tr("Refresh Textures")};
@@ -238,6 +249,7 @@ QWidget* UnityPreferencePane::createUnityPreferences()
     const auto pathStr = m_unityProjectPathEdit->text().trimmed();
     auto& prefs = PreferenceManager::instance();
     prefs.set(Preferences::UnityProjectPath, io::pathFromQString(pathStr));
+    updateDefaultTextureFolderLabel();
   });
 
   m_unityProjectBrowseButton = new QPushButton{tr("...")};
@@ -287,11 +299,13 @@ QWidget* UnityPreferencePane::createUnityPreferences()
 
   layout->addSection(tr("Textures"));
   layout->addRow(tr("Texture source"), m_textureSourceCombo);
-  layout->addRow(tr("Texture folders"), m_textureFoldersEdit);
+  layout->addRow(tr("Default folder"), m_defaultTextureFolderLabel);
+  layout->addRow(tr("Additional folders"), m_textureFoldersEdit);
   auto* folderDescription = new QLabel{tr(
-    "One folder per line, searched recursively. Leave empty to use "
-    "Assets/Content/Textures in the Unity project. Duplicate names are reported in the "
-    "editor log and are not loaded.")};
+    "The default folder is always used. List additional folders one per line. Only "
+    "images directly inside each folder are used; add subfolders on their own lines. "
+    "Relative folders are inside the Unity project. Duplicate names are reported in "
+    "the editor log and are not loaded.")};
   folderDescription->setWordWrap(true);
   layout->addRow(folderDescription);
   auto* textureButtons = new QHBoxLayout{};
@@ -338,7 +352,7 @@ void UnityPreferencePane::doResetToDefaults()
   prefs.resetToDefault(Preferences::UnityDefaultGame);
   prefs.resetToDefault(Preferences::UnityDefaultMapFormat);
   prefs.resetToDefault(Preferences::UnityTextureFoldersEnabled);
-  prefs.resetToDefault(Preferences::UnityTextureFolders);
+  prefs.resetToDefault(Preferences::UnityAdditionalTextureFolders);
 }
 
 void UnityPreferencePane::updateControls()
@@ -354,7 +368,8 @@ void UnityPreferencePane::updateControls()
   m_textureFoldersEdit->setEnabled(foldersEnabled);
   m_textureFolderBrowseButton->setEnabled(foldersEnabled);
   auto folders = QStringList{};
-  for (const auto& folder : pref(Preferences::UnityTextureFolders))
+  updateDefaultTextureFolderLabel();
+  for (const auto& folder : pref(Preferences::UnityAdditionalTextureFolders))
   {
     folders.push_back(io::pathAsQString(folder));
   }
@@ -419,7 +434,18 @@ void UnityPreferencePane::chooseUnityProjectPathClicked()
     m_unityProjectPathEdit->setText(pathStr);
     auto& prefs = PreferenceManager::instance();
     prefs.set(Preferences::UnityProjectPath, io::pathFromQString(pathStr));
+    updateDefaultTextureFolderLabel();
   }
+}
+
+void UnityPreferencePane::updateDefaultTextureFolderLabel()
+{
+  const auto project = pref(Preferences::UnityProjectPath);
+  m_defaultTextureFolderLabel->setText(
+    project.empty()
+      ? tr("Set a Unity project path to use %1")
+          .arg(io::pathAsQString(DefaultTextureFolder))
+      : io::pathAsQString((project / DefaultTextureFolder).lexically_normal()));
 }
 
 void UnityPreferencePane::testUnityConnectionClicked()

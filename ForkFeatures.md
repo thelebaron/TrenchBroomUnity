@@ -283,19 +283,26 @@ shared game config).
 ## 13. Unity texture folders
 
 **Use:** Unity preferences offers **Unity folders** (default) and **WAD** texture
-sources for Quake. List one folder per line; an empty list uses
-`<Unity project>/Assets/Content/Textures`. Relative folders resolve against the Unity
-project. The scanner searches recursively for PNG, TGA, BMP, JPEG and TIFF images.
+sources for Quake. `<Unity project>/Assets/Content/Textures` is always used and is
+shown read-only. **Additional folders** (`Unity/Additional texture folders`) are listed
+one per line after it; relative folders resolve against the Unity project path. Only
+PNG, TGA, BMP, JPEG and TIFF images directly inside each folder are used. Subfolders
+are not searched; list them on their own lines (for example
+`Assets/Content/Textures/PrototypingQuake`). **Add Folder...** starts in
+`Assets/Content/Textures` and stores folders inside the project as relative paths.
 Each configured folder is a material collection, with flat texture names taken from
 the filename without its extension. Image dimensions are retained.
 
 Folder mode ignores the worldspawn `wad` property without editing it or face names.
 WAD mode retains the existing loader. Case-insensitive duplicate names are errors
 listing every conflicting file; all candidates for an ambiguous name are omitted.
-Other images still load. Warnings flag names over 15 characters, uppercase names,
-and `*`, `+0` through `+9`, or `sky` prefixes, without rejecting those images.
-Missing folders are reported in the editor log. Folder and image changes reload
-materials automatically after a short debounce. **Refresh Textures** in Unity
+Other images still load. Names over 15 characters and `*`, `+0` through `+9`, or
+`sky` prefixes are reported as one summary warning (individual paths at debug level),
+without rejecting those images. Case is not checked, since Scopa and Quake tools match
+names case-insensitively. Missing folders, and relative folders without a Unity project
+path, are reported in the editor log. Adding, removing or editing images reloads
+materials automatically after a short debounce. Other changes in the folders, such as
+Unity writing `.meta` files, do not reload. **Refresh Textures** in Unity
 preferences and the existing collection reload control provide manual refresh.
 
 **Main files:** `common/src/unity/UnityTextureFolders.*`, `TextureFolderWatcher.*`,
@@ -310,9 +317,10 @@ Reloading resources must not modify maps or their undo history. Keep WAD export
 separate; it is not implemented by this feature.
 
 **Tests:** `common/test/src/unity/tst_UnityWorkflow.cpp` covers Standard startup,
-explicit format preservation, empty map creation, recursive flat discovery, duplicate
-and missing-folder errors, WAD-name warnings, collection grouping, image dimensions,
-map save round trips, and automatic reload without map modifications. Upstream test
+explicit format preservation, empty map creation, non-recursive flat discovery,
+project-relative folders, duplicate and missing-folder errors, WAD-name warnings, collection grouping, image dimensions,
+map save round trips, automatic reload without map modifications, and no reload for
+non-image files. Upstream test
 fixtures explicitly use WAD mode; Unity tests opt into folder mode.
 
 ## Build and maintenance changes

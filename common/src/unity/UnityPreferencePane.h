@@ -55,6 +55,7 @@ private:
   QComboBox* m_defaultGameCombo = nullptr;
   QComboBox* m_defaultMapFormatCombo = nullptr;
   QComboBox* m_textureSourceCombo = nullptr;
+  QLabel* m_defaultTextureFolderLabel = nullptr;
   QPlainTextEdit* m_textureFoldersEdit = nullptr;
   QPushButton* m_textureFolderBrowseButton = nullptr;
   QPushButton* m_refreshTexturesButton = nullptr;
@@ -70,6 +71,7 @@ private:
   QWidget* createUnityPreferences();
   void updateClassIndicesClicked();
   void chooseUnityProjectPathClicked();
+  void updateDefaultTextureFolderLabel();
   void testUnityConnectionClicked();
   void updateMapFormats();
 

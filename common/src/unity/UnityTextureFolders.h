@@ -48,11 +48,16 @@ struct TextureFolderScan
   std::vector<FolderTexture> textures;
   std::vector<std::filesystem::path> directories;
   std::vector<std::string> errors;
+  // Paths of textures whose names may not survive Quake WAD export.
   std::vector<std::string> warnings;
 };
 bool usesTextureFolders(const mdl::GameConfig& config);
 bool isTextureImage(const std::filesystem::path& path);
 bool isTextureFolderPreference(const std::filesystem::path& path);
+// Always scanned first, relative to the Unity project path.
+inline const auto DefaultTextureFolder = std::filesystem::path{"Assets/Content/Textures"};
+// The default folder followed by the additional folders, resolved against the Unity
+// project path.
 std::vector<std::filesystem::path> textureFolders();
 TextureFolderScan scanTextureFolders(const std::vector<std::filesystem::path>& folders);
 mdl::MaterialConfig textureMaterialConfig(const mdl::GameConfig& config);

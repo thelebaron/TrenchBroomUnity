@@ -333,8 +333,10 @@ Preference<std::filesystem::path> UnityProjectPath("Misc/Unity project path", {}
 Preference<QString> UnityDefaultGame("Unity/Default game", "Quake");
 Preference<QString> UnityDefaultMapFormat("Unity/Default map format", "Standard");
 Preference<bool> UnityTextureFoldersEnabled("Unity/Texture folders enabled", true);
-Preference<std::vector<std::filesystem::path>> UnityTextureFolders(
-  "Unity/Texture folders", {});
+// Folders in addition to Assets/Content/Textures, which is always used. Relative folders
+// resolve against the Unity project path.
+Preference<std::vector<std::filesystem::path>> UnityAdditionalTextureFolders(
+  "Unity/Additional texture folders", {});
 
 Preference<int> RoomCreatorMode("Room Creator/Mode", 1);
 Preference<int> RoomCreatorWallThickness("Room Creator/Wall thickness", 16);
@@ -471,7 +473,7 @@ const std::vector<PreferenceBase*>& staticPreferences()
     &UnityDefaultGame,
     &UnityDefaultMapFormat,
     &UnityTextureFoldersEnabled,
-    &UnityTextureFolders,
+    &UnityAdditionalTextureFolders,
     &RoomCreatorMode,
     &RoomCreatorWallThickness,
     &RoomCreatorWallHeight,

@@ -25,12 +25,25 @@
 
 #include "NotifierConnection.h"
 
+#include <cstdint>
+#include <filesystem>
+#include <vector>
+
 namespace tb::mdl
 {
 class Map;
 }
 namespace tb::unity
 {
+struct WatchedImage
+{
+  std::filesystem::path path;
+  std::filesystem::file_time_type lastWriteTime;
+  std::uintmax_t size;
+
+  bool operator==(const WatchedImage&) const = default;
+};
+
 class TextureFolderWatcher : public QObject
 {
 private:
@@ -38,6 +51,8 @@ private:
   QFileSystemWatcher m_watcher;
   QTimer m_reloadTimer;
   NotifierConnection m_connections;
+  std::vector<WatchedImage> m_images;
+  bool m_forceReload = false;
 
 public:
   explicit TextureFolderWatcher(mdl::Map& map);

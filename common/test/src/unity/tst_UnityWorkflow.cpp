@@ -90,14 +90,16 @@ TEST_CASE("Unity startup defaults explicitly select Standard", "[unity-workflow]
 }
 
 TEST_CASE(
-  "Unity texture folders flatten recursive images and reject ambiguous names",
+  "Unity texture folders use images directly inside each folder and reject ambiguous "
+  "names",
   "[unity-workflow]")
 {
   auto environment = io::TestEnvironment{[](auto& env) {
     env.createDirectory("first/sub");
     env.createDirectory("second");
-    env.createFile("first/sub/brick.png", "image");
-    env.createFile("first/sub/metal.tga", "image");
+    env.createFile("first/brick.png", "image");
+    env.createFile("first/metal.tga", "image");
+    env.createFile("first/sub/nested.png", "image");
     env.createFile("second/floor.bmp", "image");
     env.createFile("second/ignore.mat", "not an image");
   }};
@@ -112,7 +114,7 @@ TEST_CASE(
   REQUIRE(paths.is_success());
   CHECK(paths.value().size() == 3);
   CHECK(folderFs.value()->openFile("brick.png").is_success());
-  CHECK(folderFs.value()->openFile("sub/brick.png").is_error());
+  CHECK(folderFs.value()->openFile("nested.png").is_error());
 
   SECTION("duplicates include both paths and neither candidate is loaded")
   {
@@ -124,11 +126,23 @@ TEST_CASE(
     CHECK(scan.errors.front().find("brick.png") != std::string::npos);
     CHECK(scan.textures.size() == 2);
   }
-  SECTION("overlapping roots do not duplicate the same file")
+  SECTION("subfolders are used when listed on their own")
   {
     scan = scanTextureFolders({folders.front(), folders.front() / "sub"});
     CHECK(scan.errors.empty());
+    CHECK(scan.textures.size() == 3);
+  }
+  SECTION("the same folder listed twice does not duplicate its files")
+  {
+    scan = scanTextureFolders({folders.front(), folders.front()});
+    CHECK(scan.errors.empty());
     CHECK(scan.textures.size() == 2);
+  }
+  SECTION("relative folder without a Unity project is an error")
+  {
+    scan = scanTextureFolders({"Assets/Content/Textures"});
+    CHECK(scan.errors.size() == 1);
+    CHECK(scan.textures.empty());
   }
   SECTION("missing folder is an error")
   {
@@ -136,7 +150,7 @@ TEST_CASE(
     CHECK(scan.errors.size() == 1);
     CHECK(scan.textures.empty());
   }
-  SECTION("WAD name warnings do not prevent loading")
+  SECTION("WAD name warnings do not prevent loading and ignore case")
   {
     environment.createFile("first/UPPER.png", "image");
     environment.createFile("first/abcdefghijklmnop.png", "image");
@@ -144,8 +158,47 @@ TEST_CASE(
     environment.createFile("first/sky_test.png", "image");
     scan = scanTextureFolders(folders);
     CHECK(scan.errors.empty());
-    CHECK(scan.warnings.size() == 4);
+    CHECK(scan.warnings.size() == 3);
     CHECK(scan.textures.size() == 7);
+  }
+}
+
+TEST_CASE("Unity texture folders resolve relative to the Unity project", "[unity-workflow]")
+{
+  auto environment =
+    io::TestEnvironment{[](auto& env) { env.createDirectory("Assets/Content/Textures"); }};
+  auto project = TemporarilySetPref{Preferences::UnityProjectPath, environment.dir()};
+
+  const auto defaultFolder =
+    (environment.dir() / "Assets/Content/Textures").lexically_normal();
+
+  SECTION("the default folder is always used")
+  {
+    auto folders = TemporarilySetPref{
+      Preferences::UnityAdditionalTextureFolders, std::vector<std::filesystem::path>{}};
+    CHECK(textureFolders() == std::vector<std::filesystem::path>{defaultFolder});
+  }
+  SECTION("additional relative folders follow the default folder")
+  {
+    auto folders = TemporarilySetPref{
+      Preferences::UnityAdditionalTextureFolders,
+      std::vector<std::filesystem::path>{"Assets/Content/Textures/PrototypingQuake"}};
+    CHECK(
+      textureFolders()
+      == std::vector<std::filesystem::path>{
+        defaultFolder,
+        (environment.dir() / "Assets/Content/Textures/PrototypingQuake")
+          .lexically_normal()});
+  }
+  SECTION("additional absolute folders are kept")
+  {
+    auto folders = TemporarilySetPref{
+      Preferences::UnityAdditionalTextureFolders,
+      std::vector<std::filesystem::path>{environment.dir() / "Elsewhere"}};
+    CHECK(
+      textureFolders()
+      == std::vector<std::filesystem::path>{
+        defaultFolder, (environment.dir() / "Elsewhere").lexically_normal()});
   }
 }
 
@@ -154,13 +207,14 @@ TEST_CASE(
   "[unity-workflow]")
 {
   auto environment =
-    io::TestEnvironment{[](auto& env) { env.createDirectory("Textures/sub"); }};
+    io::TestEnvironment{[](auto& env) { env.createDirectory("Assets/Content/Textures"); }};
   std::filesystem::copy_file(
-    "fixture/test/io/Image/707x710.png", environment.dir() / "Textures/sub/brick.png");
+    "fixture/test/io/Image/707x710.png",
+    environment.dir() / "Assets/Content/Textures/brick.png");
   auto enabled = TemporarilySetPref{Preferences::UnityTextureFoldersEnabled, true};
+  auto project = TemporarilySetPref{Preferences::UnityProjectPath, environment.dir()};
   auto folders = TemporarilySetPref{
-    Preferences::UnityTextureFolders,
-    std::vector<std::filesystem::path>{environment.dir() / "Textures"}};
+    Preferences::UnityAdditionalTextureFolders, std::vector<std::filesystem::path>{}};
   auto logger = NullLogger{};
   auto tasks = kdl::task_manager{};
   auto fs = io::VirtualFileSystem{};
@@ -195,9 +249,10 @@ TEST_CASE(
   "[unity-workflow]")
 {
   auto environment =
-    io::TestEnvironment{[](auto& env) { env.createDirectory("Textures"); }};
+    io::TestEnvironment{[](auto& env) { env.createDirectory("Assets/Content/Textures"); }};
   std::filesystem::copy_file(
-    "fixture/test/io/Image/5x5.png", environment.dir() / "Textures/brick.png");
+    "fixture/test/io/Image/5x5.png",
+    environment.dir() / "Assets/Content/Textures/brick.png");
   environment.createFile("source.map", R"(// Game: Quake
 // Format: Standard
 {
@@ -214,9 +269,9 @@ TEST_CASE(
 }
 )");
   auto enabled = TemporarilySetPref{Preferences::UnityTextureFoldersEnabled, true};
+  auto project = TemporarilySetPref{Preferences::UnityProjectPath, environment.dir()};
   auto folders = TemporarilySetPref{
-    Preferences::UnityTextureFolders,
-    std::vector<std::filesystem::path>{environment.dir() / "Textures"}};
+    Preferences::UnityAdditionalTextureFolders, std::vector<std::filesystem::path>{}};
   auto fixture = mdl::MapFixture{};
   fixture.load(
     environment.dir() / "source.map",
@@ -247,7 +302,8 @@ TEST_CASE(
   auto connection =
     map.materialCollectionsDidChangeNotifier.connect([&]() { ++reloads; });
   std::filesystem::copy_file(
-    "fixture/test/io/Image/5x5.png", environment.dir() / "Textures/added.png");
+    "fixture/test/io/Image/5x5.png",
+    environment.dir() / "Assets/Content/Textures/added.png");
   auto eventLoop = QEventLoop{};
   QTimer::singleShot(1200, &eventLoop, &QEventLoop::quit);
   eventLoop.exec();
@@ -255,5 +311,12 @@ TEST_CASE(
   CHECK(map.materialManager().material("added") != nullptr);
   CHECK_FALSE(map.modified());
   CHECK(*map.world()->entity().property("wad") == "C:/old/path/legacy.wad");
+
+  // Files that aren't texture images, such as Unity .meta files, don't reload.
+  reloads = 0;
+  environment.createFile("Assets/Content/Textures/added.png.meta", "meta");
+  QTimer::singleShot(1200, &eventLoop, &QEventLoop::quit);
+  eventLoop.exec();
+  CHECK(reloads == 0);
 }
 } // namespace tb::unity
