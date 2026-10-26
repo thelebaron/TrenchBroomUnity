@@ -44,6 +44,11 @@ namespace tb
 class Logger;
 }
 
+namespace tb::unity
+{
+class UnityLiveLink;
+}
+
 namespace tb::ui
 {
 class FrameManager;
@@ -63,6 +68,7 @@ private:
   std::unique_ptr<FrameManager> m_frameManager;
   std::unique_ptr<CommandLineControlService> m_commandLineControlService;
   std::unique_ptr<CommandLineControlServer> m_commandLineControlServer;
+  std::unique_ptr<unity::UnityLiveLink> m_unityLiveLink;
   std::unique_ptr<RecentDocuments> m_recentDocuments;
   std::unique_ptr<WelcomeWindow> m_welcomeWindow;
   QTimer* m_recentDocumentsReloadTimer = nullptr;
@@ -77,6 +83,7 @@ public:
   void askForAutoUpdates();
   void parseCommandLineAndShowFrame();
   CommandLineControlService& commandLineControlService();
+  unity::UnityLiveLink& unityLiveLink();
 
   upd::Updater& updater();
   FrameManager* frameManager();

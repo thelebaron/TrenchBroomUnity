@@ -49,6 +49,7 @@
 #include "ui/RecentDocuments.h"
 #include "ui/UpdateConfig.h"
 #include "ui/WelcomeWindow.h"
+#include "unity/UnityLiveLink.h"
 #include "unity/UnityWorkflow.h"
 #include "upd/QtHttpClient.h"
 #include "upd/Updater.h"
@@ -184,6 +185,7 @@ TrenchBroomApp::TrenchBroomApp(int& argc, char** argv)
   // these must be initialized here and not earlier
   m_frameManager = std::make_unique<FrameManager>(useSDI());
   m_commandLineControlService = std::make_unique<CommandLineControlService>(*this);
+  m_unityLiveLink = std::make_unique<unity::UnityLiveLink>(*m_frameManager);
 
   m_recentDocuments = std::make_unique<RecentDocuments>(
     10, [](const auto& path) { return std::filesystem::exists(path); });
@@ -304,6 +306,11 @@ void TrenchBroomApp::parseCommandLineAndShowFrame()
 CommandLineControlService& TrenchBroomApp::commandLineControlService()
 {
   return *m_commandLineControlService;
+}
+
+unity::UnityLiveLink& TrenchBroomApp::unityLiveLink()
+{
+  return *m_unityLiveLink;
 }
 
 upd::Updater& TrenchBroomApp::updater()

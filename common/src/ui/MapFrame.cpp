@@ -103,6 +103,7 @@
 #include "ui/VertexTool.h"
 #include "ui/ViewUtils.h"
 #include "unity/UnityIntegration.h"
+#include "unity/UnityLiveLink.h"
 #include "upd/Updater.h"
 
 #include "kdl/const_overload.h"
@@ -930,6 +931,11 @@ void MapFrame::bindEvents()
     // update the "Paste" menu items
     this->updateActionState();
   });
+  connect(
+    &TrenchBroomApp::instance().unityLiveLink(),
+    &unity::UnityLiveLink::statusChanged,
+    this,
+    &MapFrame::updateActionStateDelayed);
   connect(
     m_toolBar, &QToolBar::visibilityChanged, this, [this](const bool /* visible */) {
       // update the "Toggle Toolbar" menu item

@@ -38,6 +38,7 @@
 #include "ui/MapDocument.h"
 #include "ui/MapFrame.h"
 #include "ui/MapViewBase.h"
+#include "unity/UnityLiveLink.h"
 
 #include "kdl/const_overload.h"
 
@@ -1016,6 +1017,7 @@ void ActionManager::createMenu()
   createEditMenu();
   createViewMenu();
   createRunMenu();
+  createUnityMenu();
   createDebugMenu();
   createHelpMenu();
 }
@@ -2127,6 +2129,45 @@ void ActionManager::createRunMenu()
     QKeySequence{},
     [](auto& context) { context.frame().showLaunchEngineDialog(); },
     [](const auto& context) { return context.hasDocument(); },
+  }));
+}
+
+void ActionManager::createUnityMenu()
+{
+  auto& unityMenu = createMainMenu("Unity");
+  unityMenu.addItem(addAction(Action{
+    "Menu/Unity/Send Camera to Unity",
+    QObject::tr("Send Camera to Unity"),
+    ActionContext::Any,
+    QKeySequence{},
+    [](auto&) { TrenchBroomApp::instance().unityLiveLink().sendCamera(); },
+    [](const auto& context) {
+      return context.hasDocument()
+             && TrenchBroomApp::instance().unityLiveLink().isConnected();
+    },
+  }));
+  unityMenu.addItem(addAction(Action{
+    "Menu/Unity/Pull Camera from Unity",
+    QObject::tr("Pull Camera from Unity"),
+    ActionContext::Any,
+    QKeySequence{},
+    [](auto&) { TrenchBroomApp::instance().unityLiveLink().requestCamera(); },
+    [](const auto& context) {
+      return context.hasDocument()
+             && TrenchBroomApp::instance().unityLiveLink().isConnected();
+    },
+  }));
+  unityMenu.addItem(addAction(Action{
+    "Menu/Unity/Live Camera",
+    QObject::tr("Live Camera"),
+    ActionContext::Any,
+    QKeySequence{},
+    [](auto&) {
+      auto& liveLink = TrenchBroomApp::instance().unityLiveLink();
+      liveLink.setLiveCamera(!liveLink.liveCamera());
+    },
+    [](const auto&) { return true; },
+    [](const auto&) { return TrenchBroomApp::instance().unityLiveLink().liveCamera(); },
   }));
 }
 

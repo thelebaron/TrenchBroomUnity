@@ -32,6 +32,7 @@
 
 #include "PreferenceManager.h"
 #include "Preferences.h"
+#include "TrenchBroomApp.h"
 #include "io/PathQt.h"
 #include "mdl/GameFactory.h"
 #include "mdl/Map.h"
@@ -41,6 +42,7 @@
 #include "ui/QtUtils.h"
 #include "ui/ViewConstants.h"
 #include "unity/UnityIntegration.h"
+#include "unity/UnityLiveLink.h"
 #include "unity/UnityTextureFolders.h"
 #include "unity/UnityWorkflow.h"
 
@@ -269,6 +271,26 @@ QWidget* UnityPreferencePane::createUnityPreferences()
   m_unityStatusLabel = new QLabel{};
   m_unityStatusLabel->setWordWrap(true);
 
+  m_liveLinkSocketNameEdit = new QLineEdit{};
+  connect(m_liveLinkSocketNameEdit, &QLineEdit::editingFinished, this, [&]() {
+    if (m_disableNotifiers)
+    {
+      return;
+    }
+
+    auto& prefs = PreferenceManager::instance();
+    prefs.set(
+      Preferences::UnityLiveLinkSocketName, m_liveLinkSocketNameEdit->text().trimmed());
+  });
+
+  m_liveLinkStatusLabel = new QLabel{};
+  m_liveLinkStatusLabel->setWordWrap(true);
+  connect(
+    &ui::TrenchBroomApp::instance().unityLiveLink(),
+    &UnityLiveLink::statusChanged,
+    this,
+    &UnityPreferencePane::updateLiveLinkStatus);
+
   auto* unityPathLayout = new QHBoxLayout{};
   unityPathLayout->setContentsMargins(QMargins{});
   unityPathLayout->setSpacing(ui::LayoutConstants::MediumHMargin);
@@ -293,6 +315,15 @@ QWidget* UnityPreferencePane::createUnityPreferences()
   layout->addSection(tr("Unity Project"));
   layout->addRow(tr("Unity project directory"), unityPathLayout);
   layout->addRow("", unityTestLayout);
+
+  layout->addSection(tr("Live Link"));
+  auto* liveLinkDescription = new QLabel{tr(
+    "The Unity editor connects to this socket to sync cameras. Use the same name in "
+    "Unity. Leave empty to turn the live link off.")};
+  liveLinkDescription->setWordWrap(true);
+  layout->addRow(liveLinkDescription);
+  layout->addRow(tr("Socket name"), m_liveLinkSocketNameEdit);
+  layout->addRow(tr("Status"), m_liveLinkStatusLabel);
 
   layout->addSection(tr("Startup"));
   layout->addRow(tr("Default game"), m_defaultGameCombo);
@@ -356,6 +387,7 @@ void UnityPreferencePane::doResetToDefaults()
   prefs.resetToDefault(Preferences::UnityDefaultMapFormat);
   prefs.resetToDefault(Preferences::UnityTextureFoldersEnabled);
   prefs.resetToDefault(Preferences::UnityAdditionalTextureFolders);
+  prefs.resetToDefault(Preferences::UnityLiveLinkSocketName);
 }
 
 void UnityPreferencePane::updateControls()
@@ -386,6 +418,14 @@ void UnityPreferencePane::updateControls()
     m_unityReimportOnSaveCheckBox->isChecked());
   m_unityProjectPathEdit->setText(io::pathAsQString(pref(Preferences::UnityProjectPath)));
   m_unityStatusLabel->clear();
+  m_liveLinkSocketNameEdit->setText(pref(Preferences::UnityLiveLinkSocketName));
+  updateLiveLinkStatus();
+}
+
+void UnityPreferencePane::updateLiveLinkStatus()
+{
+  m_liveLinkStatusLabel->setText(
+    ui::TrenchBroomApp::instance().unityLiveLink().statusText());
 }
 
 bool UnityPreferencePane::validate()

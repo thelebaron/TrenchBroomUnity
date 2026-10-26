@@ -272,6 +272,7 @@ private:
   void createEditMenu();
   void createViewMenu();
   void createRunMenu();
+  void createUnityMenu();
   void createDebugMenu();
   void createHelpMenu();
 

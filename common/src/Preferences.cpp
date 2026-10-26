@@ -337,6 +337,10 @@ Preference<bool> UnityTextureFoldersEnabled("Unity/Texture folders enabled", tru
 // resolve against the Unity project path.
 Preference<std::vector<std::filesystem::path>> UnityAdditionalTextureFolders(
   "Unity/Additional texture folders", {});
+// The local socket (a named pipe on Windows) the Unity editor connects to. Empty turns
+// the live link off.
+Preference<QString> UnityLiveLinkSocketName(
+  "Unity/Live link socket name", "trenchbroom-unity");
 
 Preference<int> RoomCreatorMode("Room Creator/Mode", 1);
 Preference<int> RoomCreatorWallThickness("Room Creator/Wall thickness", 16);
@@ -474,6 +478,7 @@ const std::vector<PreferenceBase*>& staticPreferences()
     &UnityDefaultMapFormat,
     &UnityTextureFoldersEnabled,
     &UnityAdditionalTextureFolders,
+    &UnityLiveLinkSocketName,
     &RoomCreatorMode,
     &RoomCreatorWallThickness,
     &RoomCreatorWallHeight,

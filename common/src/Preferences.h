@@ -216,6 +216,7 @@ extern Preference<QString> UnityDefaultGame;
 extern Preference<QString> UnityDefaultMapFormat;
 extern Preference<bool> UnityTextureFoldersEnabled;
 extern Preference<std::vector<std::filesystem::path>> UnityAdditionalTextureFolders;
+extern Preference<QString> UnityLiveLinkSocketName;
 
 extern Preference<int> RoomCreatorMode;
 extern Preference<int> RoomCreatorWallThickness;

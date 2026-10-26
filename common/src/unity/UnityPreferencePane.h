@@ -59,6 +59,8 @@ private:
   QPlainTextEdit* m_textureFoldersEdit = nullptr;
   QPushButton* m_textureFolderBrowseButton = nullptr;
   QPushButton* m_refreshTexturesButton = nullptr;
+  QLineEdit* m_liveLinkSocketNameEdit = nullptr;
+  QLabel* m_liveLinkStatusLabel = nullptr;
 
   bool m_disableNotifiers = false;
 
@@ -72,6 +74,7 @@ private:
   void updateClassIndicesClicked();
   void chooseUnityProjectPathClicked();
   void updateDefaultTextureFolderLabel();
+  void updateLiveLinkStatus();
   void testUnityConnectionClicked();
   void updateMapFormats();
 

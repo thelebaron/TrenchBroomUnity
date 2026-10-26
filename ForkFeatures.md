@@ -323,6 +323,34 @@ map save round trips, automatic reload without map modifications, and no reload 
 non-image files. Upstream test
 fixtures explicitly use WAD mode; Unity tests opt into folder mode.
 
+## 14. Unity live link and camera sync
+
+**Purpose:** Keep TrenchBroom's 3D camera and the Unity scene view camera in sync, so the
+same spot can be seen with Unity's real lighting.
+
+**Use:** TrenchBroom listens on a local socket (`Unity/Live link socket name`, default
+`trenchbroom-unity`, set under **Live Link** in Unity preferences, which also shows the
+connection status). The Unity editor connects from `com.junk.trenchbroom`. The **Unity**
+menu has **Send Camera to Unity**, **Pull Camera from Unity** and the checkable **Live
+Camera**. With Live Camera on, the application that has focus sends its camera about 30
+times a second and the other follows. Live Camera is shared by both sides and not saved.
+No default shortcuts; assign them in Keyboard preferences. Protocol in
+`UnityLiveLinkProtocol.md`.
+
+**Main files:** `common/src/unity/UnityLiveLink.*`, `UnityLiveLinkProtocol.*`,
+`UnityPreferencePane.*`; hooks in `common/src/TrenchBroomApp.*` (owns the link),
+`common/src/ui/Actions.*` (Unity menu) and `common/src/ui/MapFrame.cpp` (refreshes menu
+state when the link status changes).
+
+**Rebase considerations:** The link reads and moves the camera of the top frame's
+`MapView3D`. Keep `Camera::moveTo`/`setDirection` semantics (unit direction and up) and
+the `topFrame()` lookup. It is separate from the command-line control server (feature 10),
+which is only started by its command-line option.
+
+**Tests:** `common/test/src/unity/tst_UnityLiveLinkProtocol.cpp` covers parsing,
+validation, normalization and serialization of every message type. The socket and
+camera behaviour are checked manually against a running Unity editor.
+
 ## Build and maintenance changes
 
 The fork also changes Windows build guidance, ignore rules, editor icons and toolbar
@@ -336,7 +364,7 @@ or `feature/2d` alone is not evidence of another implemented feature in the acti
 With `build-vs18` configured as described in `AGENTS.md`:
 
 ```powershell
-# Build common-test and run Unity identity and workflow tests.
+# Build common-test and run Unity identity, workflow and live link tests.
 .\test-fork.ps1
 
 # Use the existing binary, or run the full original common suite as well.
@@ -344,7 +372,7 @@ With `build-vs18` configured as described in `AGENTS.md`:
 .\test-fork.ps1 -All
 ```
 
-The runner selects `[entity-identity],[unity-workflow]` by default, uses the configured Qt kit and sets
+The runner selects `[entity-identity],[unity-workflow],[unity-live-link]` by default, uses the configured Qt kit and sets
 the executable directory as the working directory. `-All` runs the remaining full common
 suite; the removed feature tests are not part of either run.
 
