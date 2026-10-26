@@ -289,6 +289,11 @@ QWidget* UnityPreferencePane::createUnityPreferences()
     ui::LayoutConstants::DialogOuterMargin);
   layout->setVerticalSpacing(ui::LayoutConstants::WideVMargin);
 
+  // The project directory comes first: texture folders and reimport depend on it.
+  layout->addSection(tr("Unity Project"));
+  layout->addRow(tr("Unity project directory"), unityPathLayout);
+  layout->addRow("", unityTestLayout);
+
   layout->addSection(tr("Startup"));
   layout->addRow(tr("Default game"), m_defaultGameCombo);
   layout->addRow(tr("Default map format"), m_defaultMapFormatCombo);
@@ -328,8 +333,6 @@ QWidget* UnityPreferencePane::createUnityPreferences()
   layout->addRow(tr("Trigger Unity reimport on save"), m_unityReimportOnSaveCheckBox);
   layout->addRow(
     tr("Trigger SubScene rebake on save"), m_unityRebakeSubsceneOnSaveCheckBox);
-  layout->addRow(tr("Unity project directory"), unityPathLayout);
-  layout->addRow("", unityTestLayout);
 
   auto* widget = new QWidget{};
   widget->setLayout(layout);
