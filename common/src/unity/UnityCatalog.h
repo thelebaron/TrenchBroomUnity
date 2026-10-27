@@ -91,6 +91,13 @@ Result<UnityCatalog> parseCatalog(
 Result<UnityCatalog> loadCatalog();
 
 /**
+ * Whether the definition is a Unity prefab from the catalog. Its other properties are
+ * the prefab's component fields: placing it doesn't copy their defaults, so a placed
+ * prefab follows the prefab's values until they are changed in TrenchBroom.
+ */
+bool isUnityPrefab(const mdl::EntityDefinition& definition);
+
+/**
  * Sets the prefab GUID on a new entity from its definition's default, whether or not
  * default properties are applied in general, so a placed prefab can always be found.
  */

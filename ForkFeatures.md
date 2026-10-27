@@ -365,7 +365,9 @@ path), TrenchBroom loads that FGD instead of the map's `_tb_def`, which is left
 untouched, and mounts the export folder so the models resolve. The **Unity** inspector
 tab lists the catalog's prefabs with thumbnails, a category filter and search; dragging
 one places it like the Entity browser does. Creating a point entity always sets
-`_unity_prefab` from its definition, even with automatic default properties off. A new
+`_unity_prefab` from its definition, even with automatic default properties off, and
+never copies a Unity prefab's other defaults (they are the prefab's component values,
+which placed prefabs follow until changed; `unity::isUnityPrefab`). A new
 `catalog.json` reloads the entity definitions and the tab. **Unity > Update Prefab
 Entities from Catalog** gives catalog GUIDs to entities placed by class name only and
 renames entities whose prefab was renamed; it is one undoable command.
@@ -383,7 +385,8 @@ creation. The Unity tab is the last inspector page so existing page indices stil
 
 **Tests:** `common/test/src/unity/tst_UnityCatalog.cpp` covers catalog parsing and
 rejection, the entity definition preference, GUIDs from definitions, and the update
-command including undo.
+command including undo, and that placing a Unity prefab copies no defaults while other
+entities still get theirs.
 
 ## Build and maintenance changes
 

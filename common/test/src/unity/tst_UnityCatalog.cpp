@@ -26,6 +26,7 @@
 #include "mdl/EntityNode.h"
 #include "mdl/GameConfig.h"
 #include "mdl/Map.h"
+#include "mdl/Map_Entities.h"
 #include "mdl/Map_Nodes.h"
 #include "mdl/PropertyDefinition.h"
 #include "unity/UnityCatalog.h"
@@ -154,6 +155,49 @@ TEST_CASE("Unity prefab GUID is set from the entity definition", "[unity-catalog
     setPrefabGuid(definition, entity);
     CHECK(entity.property(PrefabGuidProperty) == nullptr);
   }
+}
+
+TEST_CASE("Placed Unity prefabs follow the prefab's values", "[unity-catalog]")
+{
+  auto defaults = TemporarilySetPref{Preferences::AutoSetDefaultEntityProperties, true};
+  auto fixture = mdl::MapFixture{};
+  fixture.create();
+  auto& map = fixture.map();
+
+  const auto prefab = mdl::EntityDefinition{
+    "item_can",
+    Color{},
+    "",
+    {
+      {PrefabGuidProperty,
+       mdl::PropertyValueTypes::String{std::string{VanGuid}},
+       "",
+       "",
+       true},
+      {"chance_to_spawn", mdl::PropertyValueTypes::Float{0.1f}, "", ""},
+    },
+    mdl::PointEntityDefinition{vm::bbox3d{8.0}, {}, {}},
+  };
+  const auto plain = mdl::EntityDefinition{
+    "light",
+    Color{},
+    "",
+    {{"light", mdl::PropertyValueTypes::Integer{300}, "", ""}},
+    mdl::PointEntityDefinition{vm::bbox3d{8.0}, {}, {}},
+  };
+
+  CHECK(isUnityPrefab(prefab));
+  CHECK_FALSE(isUnityPrefab(plain));
+
+  const auto* placedPrefab = mdl::createPointEntity(map, prefab, {0, 0, 0});
+  REQUIRE(placedPrefab != nullptr);
+  CHECK(propertyOf(*placedPrefab, PrefabGuidProperty) == VanGuid);
+  CHECK(placedPrefab->entity().property("chance_to_spawn") == nullptr);
+
+  // Other entities still get their defaults.
+  const auto* placedLight = mdl::createPointEntity(map, plain, {0, 0, 0});
+  REQUIRE(placedLight != nullptr);
+  CHECK(propertyOf(*placedLight, "light") == "300");
 }
 
 TEST_CASE("Unity catalog updates existing prefab entities", "[unity-catalog]")

@@ -169,6 +169,13 @@ Result<UnityCatalog> loadCatalog()
   return parseCatalog(json.value(), exportFolder());
 }
 
+bool isUnityPrefab(const mdl::EntityDefinition& definition)
+{
+  return std::ranges::any_of(definition.propertyDefinitions, [](const auto& property) {
+    return property.key == PrefabGuidProperty;
+  });
+}
+
 void setPrefabGuid(const mdl::EntityDefinition& definition, mdl::Entity& entity)
 {
   const auto property = std::ranges::find(

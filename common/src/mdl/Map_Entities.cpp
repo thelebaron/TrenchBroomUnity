@@ -143,7 +143,9 @@ EntityNode* createPointEntity(
   auto entity = Entity{{{EntityPropertyKeys::Classname, definition.name}}};
   entity.setDefinition(&definition);
 
-  if (map.world()->entityPropertyConfig().setDefaultProperties)
+  if (
+    map.world()->entityPropertyConfig().setDefaultProperties
+    && !unity::isUnityPrefab(definition))
   {
     mdl::setDefaultProperties(definition, entity, SetDefaultPropertyMode::SetAll);
   }
