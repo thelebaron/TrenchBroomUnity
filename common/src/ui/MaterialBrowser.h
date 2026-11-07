@@ -41,6 +41,7 @@ class BrushFaceHandle;
 class Map;
 class Material;
 class Node;
+class ResourceId;
 } // namespace tb::mdl
 
 namespace tb::ui
@@ -57,6 +58,7 @@ class MaterialBrowser : public QWidget
 private:
   MapDocument& m_document;
   QComboBox* m_sortOrderChoice = nullptr;
+  QComboBox* m_textureSizeChoice = nullptr;
   QPushButton* m_groupButton = nullptr;
   QPushButton* m_usedButton = nullptr;
   QLineEdit* m_filterBox = nullptr;
@@ -95,6 +97,7 @@ private:
   void nodesWereRemoved(const std::vector<mdl::Node*>& nodes);
   void nodesDidChange(const std::vector<mdl::Node*>& nodes);
   void brushFacesDidChange(const std::vector<mdl::BrushFaceHandle>& faces);
+  void resourcesWereProcessed(const std::vector<mdl::ResourceId>& resources);
   void materialCollectionsDidChange();
   void currentMaterialNameDidChange(const std::string& materialName);
   void preferenceDidChange(const std::filesystem::path& path);
@@ -104,6 +107,8 @@ private:
   void connectWadFilter();
   void applyHiddenWads();
   void updateWadFilterMenu();
+  void updateTextureSizeChoice();
+  void applyTextureSizeFilter();
 };
 
 } // namespace tb::ui

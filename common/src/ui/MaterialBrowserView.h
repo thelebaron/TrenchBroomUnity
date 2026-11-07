@@ -24,8 +24,10 @@
 #include "ui/CellView.h"
 
 #include <filesystem>
+#include <optional>
 #include <string>
 #include <unordered_set>
+#include <utility>
 #include <vector>
 
 class QScrollBar;
@@ -43,6 +45,7 @@ namespace tb::ui
 class GLContextManager;
 class MapDocument;
 using MaterialGroupData = std::string;
+using MaterialTextureSize = std::pair<size_t, size_t>;
 
 enum class MaterialSortOrder
 {
@@ -59,6 +62,7 @@ private:
   bool m_hideUnused = false;
   MaterialSortOrder m_sortOrder = MaterialSortOrder::Name;
   std::string m_filterText;
+  std::optional<MaterialTextureSize> m_textureSizeFilter;
   std::unordered_set<std::filesystem::path> m_hiddenCollections;
 
   const mdl::Material* m_selectedMaterial = nullptr;
@@ -74,6 +78,7 @@ public:
   void setGroup(bool group);
   void setHideUnused(bool hideUnused);
   void setFilterText(const std::string& filterText);
+  void setTextureSizeFilter(std::optional<MaterialTextureSize> textureSize);
   void setHiddenMaterialCollections(
     const std::unordered_set<std::filesystem::path>& hiddenCollections);
 

@@ -27,12 +27,15 @@
 #include <QPushButton>
 #include <QScrollBar>
 #include <QSize>
+#include <QSignalBlocker>
 #include <QStyle>
 #include <QToolButton>
 #include <QVBoxLayout>
 #include <QtGlobal>
 
 #include <memory>
+#include <optional>
+#include <set>
 #include <unordered_set>
 
 #include "PreferenceManager.h"
@@ -145,6 +148,13 @@ void MaterialBrowser::createGui(GLContextManager& contextManager)
       m_view->setSortOrder(sortOrder);
     });
 
+  m_textureSizeChoice = new QComboBox{};
+  m_textureSizeChoice->setToolTip(tr("Filter materials by texture size"));
+  connect(
+    m_textureSizeChoice, QOverload<int>::of(&QComboBox::activated), this, [this](int) {
+      applyTextureSizeFilter();
+    });
+
   m_groupButton = new QPushButton{tr("Group")};
   m_groupButton->setToolTip(tr("Group materials by material collection"));
   m_groupButton->setCheckable(true);
@@ -192,6 +202,7 @@ void MaterialBrowser::createGui(GLContextManager& contextManager)
     LayoutConstants::NarrowVMargin);
   controlLayout->setSpacing(LayoutConstants::NarrowHMargin);
   controlLayout->addWidget(m_sortOrderChoice);
+  controlLayout->addWidget(m_textureSizeChoice);
   controlLayout->addWidget(m_groupButton);
   controlLayout->addWidget(m_usedButton);
   controlLayout->addWidget(m_wadFilterButton);
@@ -204,6 +215,7 @@ void MaterialBrowser::createGui(GLContextManager& contextManager)
   outerLayout->addLayout(controlLayout, 0);
 
   setLayout(outerLayout);
+  updateTextureSizeChoice();
 }
 
 void MaterialBrowser::bindEvents()
@@ -294,6 +306,8 @@ void MaterialBrowser::connectObservers()
     map.nodesDidChangeNotifier.connect(this, &MaterialBrowser::nodesDidChange);
   m_notifierConnection +=
     map.brushFacesDidChangeNotifier.connect(this, &MaterialBrowser::brushFacesDidChange);
+  m_notifierConnection += map.resourcesWereProcessedNotifier.connect(
+    this, &MaterialBrowser::resourcesWereProcessed);
   m_notifierConnection += map.materialCollectionsDidChangeNotifier.connect(
     this, &MaterialBrowser::materialCollectionsDidChange);
   m_notifierConnection += map.currentMaterialNameDidChangeNotifier.connect(
@@ -334,8 +348,14 @@ void MaterialBrowser::brushFacesDidChange(const std::vector<mdl::BrushFaceHandle
   reload();
 }
 
+void MaterialBrowser::resourcesWereProcessed(const std::vector<mdl::ResourceId>&)
+{
+  updateTextureSizeChoice();
+}
+
 void MaterialBrowser::materialCollectionsDidChange()
 {
+  updateTextureSizeChoice();
   reload();
 }
 
@@ -375,6 +395,67 @@ void MaterialBrowser::updateSelectedMaterial()
   const auto& materialName = map.currentMaterialName();
   const auto* material = map.materialManager().material(materialName);
   m_view->setSelectedMaterial(material);
+}
+
+void MaterialBrowser::updateTextureSizeChoice()
+{
+  if (m_textureSizeChoice == nullptr)
+  {
+    return;
+  }
+
+  const auto currentSize = m_textureSizeChoice->currentData().toSize();
+  auto textureSizes = std::set<MaterialTextureSize>{};
+  for (const auto* material : m_document.map().materialManager().materials())
+  {
+    if (const auto* texture = material->texture())
+    {
+      textureSizes.emplace(texture->width(), texture->height());
+    }
+  }
+
+  const auto signalBlocker = QSignalBlocker{m_textureSizeChoice};
+  m_textureSizeChoice->clear();
+  m_textureSizeChoice->addItem(tr("All Sizes"));
+
+  for (const auto& [width, height] : textureSizes)
+  {
+    const auto size = QSize{static_cast<int>(width), static_cast<int>(height)};
+    m_textureSizeChoice->addItem(
+      tr("%1 × %2").arg(size.width()).arg(size.height()), QVariant::fromValue(size));
+  }
+
+  auto selectedIndex = 0;
+  for (int i = 1; i < m_textureSizeChoice->count(); ++i)
+  {
+    if (m_textureSizeChoice->itemData(i).toSize() == currentSize)
+    {
+      selectedIndex = i;
+      break;
+    }
+  }
+  m_textureSizeChoice->setCurrentIndex(selectedIndex);
+  applyTextureSizeFilter();
+}
+
+void MaterialBrowser::applyTextureSizeFilter()
+{
+  if (m_textureSizeChoice == nullptr || m_view == nullptr)
+  {
+    return;
+  }
+
+  const auto size = m_textureSizeChoice->currentData().toSize();
+  if (size.isValid())
+  {
+    m_view->setTextureSizeFilter(
+      MaterialTextureSize{
+        static_cast<size_t>(size.width()), static_cast<size_t>(size.height())});
+  }
+  else
+  {
+    m_view->setTextureSizeFilter(std::nullopt);
+  }
 }
 
 } // namespace tb::ui

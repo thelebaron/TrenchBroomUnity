@@ -19,11 +19,16 @@
 
 #include "MaterialBrowserView.h"
 
+#include <QDesktopServices>
 #include <QMenu>
 #include <QTextStream>
+#include <QUrl>
 
 #include "PreferenceManager.h"
 #include "Preferences.h"
+#include "io/FileSystemMetadata.h"
+#include "io/PathQt.h"
+#include "mdl/Game.h"
 #include "mdl/Map.h"
 #include "mdl/Map_Assets.h"
 #include "mdl/Map_Selection.h"
@@ -40,6 +45,7 @@
 #include "render/Transformation.h"
 #include "render/VertexArray.h"
 #include "ui/MapDocument.h"
+#include "unity/UnityTextureFolders.h"
 
 #include "kdl/string_compare.h"
 #include "kdl/string_utils.h"
@@ -50,8 +56,68 @@
 #include "vm/vec.h"
 
 #include <filesystem>
+#include <optional>
 #include <string>
+#include <system_error>
 #include <vector>
+
+namespace
+{
+
+std::optional<std::filesystem::path> materialSourcePath(
+  const tb::mdl::Map& map, const tb::mdl::Material& material)
+{
+  const auto& fileSystem = map.game()->gameFileSystem();
+
+  if (
+    const auto* metadata =
+      fileSystem.metadata(material.relativePath(), tb::unity::TextureFolderPath))
+  {
+    if (const auto* folder = std::get_if<std::filesystem::path>(metadata))
+    {
+      return (*folder / material.relativePath().filename()).lexically_normal();
+    }
+  }
+
+  if (
+    const auto* metadata = fileSystem.metadata(
+      material.relativePath(), tb::io::FileSystemMetadataKeys::ImageFilePath))
+  {
+    if (const auto* imageFilePath = std::get_if<std::filesystem::path>(metadata))
+    {
+      return *imageFilePath;
+    }
+  }
+
+  auto error = std::error_code{};
+  if (
+    !material.absolutePath().empty()
+    && std::filesystem::is_regular_file(material.absolutePath(), error))
+  {
+    return material.absolutePath();
+  }
+
+  return std::nullopt;
+}
+
+void openMaterialSourceFolder(const std::filesystem::path& sourcePath)
+{
+  const auto folderPath = sourcePath.parent_path();
+  auto error = std::error_code{};
+  if (!folderPath.empty() && std::filesystem::is_directory(folderPath, error))
+  {
+    QDesktopServices::openUrl(QUrl::fromLocalFile(tb::io::pathAsQString(folderPath)));
+  }
+}
+
+bool canOpenMaterialSourceFolder(const std::filesystem::path& sourcePath)
+{
+  const auto folderPath = sourcePath.parent_path();
+  auto error = std::error_code{};
+  return !folderPath.empty() && std::filesystem::is_directory(folderPath, error);
+}
+
+} // namespace
 
 namespace tb::ui
 {
@@ -105,6 +171,16 @@ void MaterialBrowserView::setFilterText(const std::string& filterText)
   if (filterText != m_filterText)
   {
     m_filterText = filterText;
+    reloadMaterials();
+  }
+}
+
+void MaterialBrowserView::setTextureSizeFilter(
+  std::optional<MaterialTextureSize> textureSize)
+{
+  if (textureSize != m_textureSizeFilter)
+  {
+    m_textureSizeFilter = std::move(textureSize);
     reloadMaterials();
   }
 }
@@ -271,6 +347,15 @@ std::vector<const mdl::Material*> MaterialBrowserView::filterMaterials(
       return !kdl::all_of(kdl::str_split(m_filterText, " "), [&](const auto& pattern) {
         return kdl::ci::str_contains(material->name(), pattern);
       });
+    });
+  }
+  if (m_textureSizeFilter)
+  {
+    materials = kdl::vec_erase_if(std::move(materials), [&](const auto* material) {
+      const auto* texture = material->texture();
+      return texture == nullptr
+             || MaterialTextureSize{texture->width(), texture->height()}
+                  != *m_textureSizeFilter;
     });
   }
   if (!m_hiddenCollections.empty())
@@ -478,6 +563,19 @@ void MaterialBrowserView::doContextMenu(
     menu.addAction(tr("Select Brushes"), this, [&, material = &cellData(*cell)]() {
       selectBrushesWithMaterial(m_document.map(), material);
     });
+
+    menu.addSeparator();
+
+    const auto& material = cellData(*cell);
+    const auto sourcePath = materialSourcePath(m_document.map(), material);
+    auto* openInFolderAction = menu.addAction(tr("Open in Folder"), this, [sourcePath]() {
+      if (sourcePath)
+      {
+        openMaterialSourceFolder(*sourcePath);
+      }
+    });
+    openInFolderAction->setEnabled(
+      sourcePath && canOpenMaterialSourceFolder(*sourcePath));
 
     menu.exec(event->globalPos());
   }
