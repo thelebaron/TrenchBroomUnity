@@ -170,6 +170,9 @@ void FaceRenderer::doRender(RenderContext& context)
     shader.set("PreviewLightData", 1);
     shader.set("PreviewShadows", context.previewLightingShadows());
     shader.set("PreviewShadowAtlas", 2);
+    shader.set("PreviewDirShadowEnabled", context.previewDirShadowEnabled());
+    shader.set("PreviewDirLightViewProj", context.previewDirLightViewProj());
+    shader.set("PreviewDirShadowMap", 3);
     shader.set("Alpha", m_alpha);
     shader.set("EnableMasked", false);
     shader.set("ShowSoftMapBounds", !context.softMapBounds().is_empty());

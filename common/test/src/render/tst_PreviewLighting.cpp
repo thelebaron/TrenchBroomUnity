@@ -21,6 +21,10 @@
 #include "mdl/EntityProperties.h"
 #include "render/PreviewLighting.h"
 
+#include "vm/util.h"
+
+#include <cmath>
+
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 
@@ -29,6 +33,8 @@ namespace tb::render
 
 TEST_CASE("PreviewLighting.isRealtimePreviewLightClassname")
 {
+  CHECK(isRealtimePreviewLightClassname("light_unity"));
+  CHECK(isRealtimePreviewLightClassname("LIGHT_UNITY"));
   CHECK(isRealtimePreviewLightClassname("light_realtime"));
   CHECK(isRealtimePreviewLightClassname("LIGHT_REALTIME"));
   CHECK(isRealtimePreviewLightClassname("custom_realtime_light"));
@@ -39,6 +45,67 @@ TEST_CASE("PreviewLighting.isRealtimePreviewLightClassname")
   CHECK_FALSE(isRealtimePreviewLightClassname("light_fluoro"));
   CHECK_FALSE(isRealtimePreviewLightClassname("func_realtime"));
   CHECK_FALSE(isRealtimePreviewLightClassname("worldspawn"));
+}
+
+TEST_CASE("PreviewLighting.extractUnityLightTypesAndDirection")
+{
+  SECTION("Bare light_unity uses Unity defaults (not Quake fallback)")
+  {
+    const auto entity = mdl::Entity{{
+      {"classname", "light_unity"},
+      {"origin", "16 32 48"},
+    }};
+
+    const auto light = extractPreviewLight(entity, 0.03125f);
+    REQUIRE(light.has_value());
+    CHECK(light->type == PreviewLightType::Point);
+    CHECK(light->intensity == Catch::Approx(1.0f));
+    CHECK(light->range == Catch::Approx(320.0f));
+    CHECK(light->spotAngle == Catch::Approx(45.0f));
+    CHECK(light->direction.x() == Catch::Approx(1.0f));
+    CHECK(light->direction.y() == Catch::Approx(0.0f).margin(1e-5f));
+    CHECK(light->direction.z() == Catch::Approx(0.0f).margin(1e-5f));
+  }
+
+  SECTION("Spot light parses light_type, spotangle, and downward pitch")
+  {
+    const auto entity = mdl::Entity{{
+      {"classname", "light_unity"},
+      {"light_type", "1"},
+      {"spotangle", "60"},
+      {"angles", "90 0 0"},
+      {"range", "15"},
+      {"intensity", "3"},
+    }};
+
+    const auto light = extractPreviewLight(entity, 0.03125f);
+    REQUIRE(light.has_value());
+    CHECK(light->type == PreviewLightType::Spot);
+    CHECK(light->spotAngle == Catch::Approx(60.0f));
+    CHECK(light->range == Catch::Approx(480.0f));
+    CHECK(light->intensity == Catch::Approx(3.0f));
+    CHECK(light->direction.x() == Catch::Approx(0.0f).margin(1e-5f));
+    CHECK(light->direction.y() == Catch::Approx(0.0f).margin(1e-5f));
+    CHECK(light->direction.z() == Catch::Approx(-1.0f).margin(1e-5f));
+  }
+
+  SECTION("Directional light parses yaw and downward pitch matching Scopa")
+  {
+    const auto entity = mdl::Entity{{
+      {"classname", "light_unity"},
+      {"light_type", "2"},
+      {"angles", "45 90 0"},
+      {"intensity", "1.5"},
+    }};
+
+    const auto light = extractPreviewLight(entity, 0.03125f);
+    REQUIRE(light.has_value());
+    CHECK(light->type == PreviewLightType::Directional);
+    CHECK(light->intensity == Catch::Approx(1.5f));
+    CHECK(light->direction.x() == Catch::Approx(0.0f).margin(1e-5f));
+    CHECK(light->direction.y() == Catch::Approx(std::cos(vm::to_radians(45.0f))).margin(1e-4f));
+    CHECK(light->direction.z() == Catch::Approx(-std::sin(vm::to_radians(45.0f))).margin(1e-4f));
+  }
 }
 
 TEST_CASE("PreviewLighting.extractPreviewLightUnityProperties")
@@ -177,6 +244,28 @@ TEST_CASE("PreviewLighting.selectActivePreviewLights")
 
 TEST_CASE("PreviewLighting.packPreviewLightTextureData")
 {
+  auto spotLight = PreviewLight{
+    vm::vec3f{-5.0f, 0.0f, 15.0f},
+    160.0f,
+    vm::vec3f{0.5f, 1.0f, 0.5f},
+    1.0f,
+    2,
+    false,
+    3,
+    PreviewLightType::Spot,
+    vm::vec3f{0.0f, 0.0f, -1.0f},
+    60.0f};
+  auto dirLight = PreviewLight{
+    vm::vec3f{0.0f, 0.0f, 0.0f},
+    0.0f,
+    vm::vec3f{1.0f, 0.9f, 0.8f},
+    1.0f,
+    2,
+    false,
+    0,
+    PreviewLightType::Directional,
+    vm::normalize(vm::vec3f{1.0f, 0.0f, -1.0f}),
+    45.0f};
   const auto lights = std::vector<PreviewLight>{
     PreviewLight{
       vm::vec3f{10.0f, 20.0f, 30.0f},
@@ -186,26 +275,12 @@ TEST_CASE("PreviewLighting.packPreviewLightTextureData")
       1,
       false,
       0},
-    PreviewLight{
-      vm::vec3f{-5.0f, 0.0f, 15.0f},
-      160.0f,
-      vm::vec3f{0.5f, 1.0f, 0.5f},
-      1.0f,
-      2,
-      false,
-      3},
-    PreviewLight{
-      vm::vec3f{0.0f, 0.0f, 0.0f},
-      100.0f,
-      vm::vec3f{1.0f, 1.0f, 1.0f},
-      1.0f,
-      0,
-      false,
-      -1},
+    spotLight,
+    dirLight,
   };
 
   const auto texels = packPreviewLightTextureData(lights);
-  REQUIRE(texels.size() == MaxPreviewLights * 2 * 4);
+  REQUIRE(texels.size() == MaxPreviewLights * PreviewLightTextureRows * 4);
 
   // Row 0: position + range
   CHECK(texels[0] == Catch::Approx(10.0f));
@@ -218,9 +293,67 @@ TEST_CASE("PreviewLighting.packPreviewLightTextureData")
   CHECK(texels[row1 + 0] == Catch::Approx(2.0f));
   CHECK(texels[row1 + 1] == Catch::Approx(1.0f));
   CHECK(texels[row1 + 2] == Catch::Approx(0.5f));
-  CHECK(texels[row1 + 3] == Catch::Approx(1.0f));  // Hard shadow in slot 0 -> +1
-  CHECK(texels[row1 + 7] == Catch::Approx(-4.0f)); // Soft shadow in slot 3 -> -4
-  CHECK(texels[row1 + 11] == Catch::Approx(0.0f)); // Unshadowed -> 0
+  CHECK(texels[row1 + 3] == Catch::Approx(1.0f));   // Hard shadow in slot 0 -> +1
+  CHECK(texels[row1 + 7] == Catch::Approx(-4.0f));  // Soft shadow in slot 3 -> -4
+  CHECK(texels[row1 + 11] == Catch::Approx(-1.0f)); // Soft directional shadow -> -1
+
+  // Row 2: direction + type
+  const auto row2 = MaxPreviewLights * 2 * 4;
+  CHECK(texels[row2 + 3] == Catch::Approx(0.0f));  // Point
+  CHECK(texels[row2 + 6] == Catch::Approx(-1.0f)); // Spot dir.z
+  CHECK(texels[row2 + 7] == Catch::Approx(1.0f));  // Spot type
+  CHECK(texels[row2 + 11] == Catch::Approx(2.0f)); // Directional type
+
+  // Row 3: spot attenuation parameters (non-zero for spot, zero for point/directional)
+  const auto row3 = MaxPreviewLights * 3 * 4;
+  CHECK(texels[row3 + 0] == Catch::Approx(0.0f));
+  CHECK(texels[row3 + 4] > 0.0f);
+  CHECK(texels[row3 + 5] < 0.0f);
+}
+
+TEST_CASE("PreviewLighting.directionalShadowViewProjectionCoversBoundsAndOrdersDepth")
+{
+  const auto bounds =
+    vm::bbox3f{vm::vec3f{-512.0f, -256.0f, 0.0f}, vm::vec3f{512.0f, 256.0f, 384.0f}};
+
+  const auto directions = std::array<vm::vec3f, 3>{
+    vm::normalize(vm::vec3f{1.0f, 1.0f, -1.0f}),
+    vm::vec3f{0.0f, 0.0f, -1.0f},
+    vm::vec3f{1.0f, 0.0f, 0.0f},
+  };
+
+  for (const auto& dir : directions)
+  {
+    const auto vp = previewDirectionalShadowViewProjection(dir, bounds);
+
+    // Every corner of the world bounds must project strictly inside [-1, 1]^3.
+    for (int cx = 0; cx < 2; ++cx)
+    {
+      for (int cy = 0; cy < 2; ++cy)
+      {
+        for (int cz = 0; cz < 2; ++cz)
+        {
+          const auto corner = vm::vec3f{
+            cx == 0 ? bounds.min.x() : bounds.max.x(),
+            cy == 0 ? bounds.min.y() : bounds.max.y(),
+            cz == 0 ? bounds.min.z() : bounds.max.z()};
+          const auto clip = vp * vm::vec4f{corner, 1.0f};
+          CHECK(clip.x() >= -1.0f);
+          CHECK(clip.x() <= 1.0f);
+          CHECK(clip.y() >= -1.0f);
+          CHECK(clip.y() <= 1.0f);
+          CHECK(clip.z() >= -1.0f);
+          CHECK(clip.z() <= 1.0f);
+        }
+      }
+    }
+
+    // A point upstream (closer to the sun) must have smaller depth than a downstream point.
+    const auto center = bounds.center();
+    const auto upstreamClip = vp * vm::vec4f{center - dir * 100.0f, 1.0f};
+    const auto downstreamClip = vp * vm::vec4f{center + dir * 100.0f, 1.0f};
+    CHECK(upstreamClip.z() < downstreamClip.z());
+  }
 }
 
 TEST_CASE("PreviewLighting.shadowFaceViewProjectionMatchesDirectionLookup")

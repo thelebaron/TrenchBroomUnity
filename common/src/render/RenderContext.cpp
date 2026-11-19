@@ -233,6 +233,26 @@ void RenderContext::setPreviewLightCount(const int previewLightCount)
   m_previewLightCount = previewLightCount;
 }
 
+bool RenderContext::previewDirShadowEnabled() const
+{
+  return m_previewDirShadowEnabled;
+}
+
+void RenderContext::setPreviewDirShadowEnabled(const bool previewDirShadowEnabled)
+{
+  m_previewDirShadowEnabled = previewDirShadowEnabled;
+}
+
+const vm::mat4x4f& RenderContext::previewDirLightViewProj() const
+{
+  return m_previewDirLightViewProj;
+}
+
+void RenderContext::setPreviewDirLightViewProj(const vm::mat4x4f& previewDirLightViewProj)
+{
+  m_previewDirLightViewProj = previewDirLightViewProj;
+}
+
 bool RenderContext::showGrid() const
 {
   return m_showGrid;

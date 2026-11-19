@@ -46,6 +46,7 @@ class RenderBatch;
 class RenderContext;
 
 inline constexpr size_t MaxPreviewLights = 256;
+inline constexpr size_t PreviewLightTextureRows = 4;
 inline constexpr float DefaultPreviewLightUnitScale = 0.03125f;
 
 inline constexpr size_t MaxPreviewShadowLights = 16;
@@ -56,6 +57,14 @@ inline constexpr int PreviewShadowAtlasWidth =
   PreviewShadowTileSize * PreviewShadowAtlasCols;
 inline constexpr int PreviewShadowAtlasHeight =
   PreviewShadowTileSize * PreviewShadowAtlasRows;
+inline constexpr int PreviewDirectionalShadowMapSize = 2048;
+
+enum class PreviewLightType
+{
+  Point = 0,
+  Spot = 1,
+  Directional = 2
+};
 
 struct PreviewLight
 {
@@ -66,14 +75,28 @@ struct PreviewLight
   int shadows = 2;
   bool selected = false;
   int shadowSlot = -1;
+  PreviewLightType type = PreviewLightType::Point;
+  vm::vec3f direction = vm::vec3f{1.0f, 0.0f, 0.0f};
+  float spotAngle = 45.0f;
 };
 
 struct PreviewShadowSlot
 {
   bool occupied = false;
+  PreviewLightType type = PreviewLightType::Point;
   vm::vec3f position{};
   float range = 0.0f;
+  vm::vec3f direction{1.0f, 0.0f, 0.0f};
+  float spotAngle = 45.0f;
   uint64_t geometryGeneration = 0;
+};
+
+struct PreviewDirectionalShadowCache
+{
+  bool valid = false;
+  vm::vec3f direction{1.0f, 0.0f, 0.0f};
+  uint64_t geometryGeneration = 0;
+  vm::mat4x4f viewProj = vm::mat4x4f::identity();
 };
 
 struct PreviewShadowFaceUV
@@ -122,6 +145,9 @@ std::vector<int> assignPreviewShadowSlots(
 vm::mat4x4f previewShadowFaceViewProjection(
   const vm::vec3f& lightPos, float lightRange, int face);
 
+vm::mat4x4f previewDirectionalShadowViewProjection(
+  const vm::vec3f& lightDirection, const vm::bbox3f& worldBounds);
+
 PreviewShadowFaceUV previewShadowDirectionToFaceUV(const vm::vec3f& direction);
 
 PreviewShadowTileRect previewShadowTileRect(int slot, int face);
@@ -140,15 +166,20 @@ private:
   size_t m_shadowBrushVertexCount = 0;
   size_t m_shadowPatchVertexCount = 0;
   std::vector<PreviewShadowModelCaster> m_shadowModelCasters;
+  vm::bbox3f m_shadowWorldBounds;
+  bool m_hasShadowWorldBounds = false;
   bool m_geometryDirty = true;
   bool m_shadowCasterVboDirty = true;
   uint64_t m_geometryGeneration = 1;
 
   std::array<PreviewShadowSlot, MaxPreviewShadowLights> m_shadowSlots{};
+  PreviewDirectionalShadowCache m_dirShadowCache{};
 
   GLuint m_textureId = 0;
   GLuint m_shadowFboId = 0;
   GLuint m_shadowAtlasTextureId = 0;
+  GLuint m_dirShadowFboId = 0;
+  GLuint m_dirShadowTextureId = 0;
   GLuint m_shadowCasterVboId = 0;
 
 public:

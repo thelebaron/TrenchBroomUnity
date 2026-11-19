@@ -24,6 +24,7 @@
 #include "render/Transformation.h"
 
 #include "vm/bbox.h"
+#include "vm/mat.h"
 
 namespace tb::render
 {
@@ -78,6 +79,8 @@ private:
   bool m_previewLightingShadows = false;
   float m_previewLightingAmbient = 0.15f;
   int m_previewLightCount = 0;
+  bool m_previewDirShadowEnabled = false;
+  vm::mat4x4f m_previewDirLightViewProj = vm::mat4x4f::identity();
 
   bool m_showGrid = true;
   double m_gridSize = 4;
@@ -154,6 +157,12 @@ public:
 
   int previewLightCount() const;
   void setPreviewLightCount(int previewLightCount);
+
+  bool previewDirShadowEnabled() const;
+  void setPreviewDirShadowEnabled(bool previewDirShadowEnabled);
+
+  const vm::mat4x4f& previewDirLightViewProj() const;
+  void setPreviewDirLightViewProj(const vm::mat4x4f& previewDirLightViewProj);
 
   bool showGrid() const;
   void setShowGrid(bool showGrid);

@@ -19,12 +19,18 @@
  along with TrenchBroom. If not, see <http://www.gnu.org/licenses/>.
  */
 
+uniform bool IsDirectionalShadow;
 uniform vec3 LightPosition;
 uniform float LightRange;
 
 varying vec3 worldPosition;
+varying float orthoDepth;
 
 void main(void) {
-    float dist = length(worldPosition - LightPosition);
-    gl_FragDepth = clamp(dist / max(LightRange, 0.0001), 0.0, 1.0);
+    if (IsDirectionalShadow) {
+        gl_FragDepth = clamp(orthoDepth, 0.0, 1.0);
+    } else {
+        float dist = length(worldPosition - LightPosition);
+        gl_FragDepth = clamp(dist / max(LightRange, 0.0001), 0.0, 1.0);
+    }
 }

@@ -140,21 +140,14 @@ EntityRotationInfo entityRotationInfo(const Entity& entity)
       }
       else if (!entity.hasProperty(EntityPropertyKeys::Target))
       {
-        // not a spotlight, but might have a rotatable model, so change angle or angles
-        if (entity.hasProperty(EntityPropertyKeys::Angles))
-        {
-          type = eulerType;
-          propertyKey = EntityPropertyKeys::Angles;
-        }
-        else if (entity.hasProperty(EntityPropertyKeys::Angle))
-        {
-          type = EntityRotationType::Angle;
-          propertyKey = EntityPropertyKeys::Angle;
-        }
-        else
-        {
-          // not a spotlight, don't modify
-        }
+        // not a spotlight, but might have a rotatable model or Unity light direction, so
+        // change angles or angle (checking FGD definition as fallback)
+        std::tie(propertyKey, type) =
+          selectEntityRotationType(
+            entity,
+            {{EntityPropertyKeys::Angles, eulerType},
+             {EntityPropertyKeys::Angle, EntityRotationType::Angle}})
+            .value_or(std::make_tuple(propertyKey, type));
       }
       else
       {

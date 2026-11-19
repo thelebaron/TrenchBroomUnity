@@ -23,9 +23,11 @@ uniform mat4 LightViewProjection;
 uniform mat4 ModelMatrix;
 
 varying vec3 worldPosition;
+varying float orthoDepth;
 
 void main(void) {
     vec4 worldPos = ModelMatrix * gl_Vertex;
     worldPosition = worldPos.xyz;
     gl_Position = LightViewProjection * worldPos;
+    orthoDepth = gl_Position.z * 0.5 + 0.5;
 }
