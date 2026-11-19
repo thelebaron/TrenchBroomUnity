@@ -1030,6 +1030,7 @@ void MapViewBase::renderContents()
   renderContext.setShowFog(pref(Preferences::ShowFog));
   renderContext.setPreviewLighting(
     renderMode() == render::RenderMode::Render3D && pref(Preferences::PreviewLighting));
+  renderContext.setPreviewLightingShadows(pref(Preferences::PreviewLightingShadows));
   renderContext.setPreviewLightingAmbient(pref(Preferences::PreviewLightingAmbient));
   renderContext.setShowGrid(grid.visible());
   renderContext.setGridSize(grid.actualSize());

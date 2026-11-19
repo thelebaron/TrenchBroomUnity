@@ -501,7 +501,12 @@ QWidget* ViewEditor::createRendererPanel(QWidget* parent)
   m_showFogCheckBox = new QCheckBox{tr("Use fog")};
   m_showEdgesCheckBox = new QCheckBox{tr("Show edges")};
   m_previewLightingCheckBox = new QCheckBox{tr("Preview lighting")};
+  m_previewLightingShadowsCheckBox = new QCheckBox{tr("Preview shadows")};
   m_previewLightingAmbientSlider = new SliderWithLabel{0, 100};
+
+  auto* shadowsLayout = new QHBoxLayout{};
+  shadowsLayout->setContentsMargins(LayoutConstants::WideHMargin, 0, 0, 0);
+  shadowsLayout->addWidget(m_previewLightingShadowsCheckBox);
 
   auto* ambientLayout = new QHBoxLayout{};
   ambientLayout->setContentsMargins(LayoutConstants::WideHMargin, 0, 0, 0);
@@ -547,6 +552,11 @@ QWidget* ViewEditor::createRendererPanel(QWidget* parent)
     this,
     &ViewEditor::previewLightingChanged);
   connect(
+    m_previewLightingShadowsCheckBox,
+    &QAbstractButton::clicked,
+    this,
+    &ViewEditor::previewLightingShadowsChanged);
+  connect(
     m_previewLightingAmbientSlider,
     &SliderWithLabel::valueChanged,
     this,
@@ -587,6 +597,7 @@ QWidget* ViewEditor::createRendererPanel(QWidget* parent)
   layout->addWidget(m_showFogCheckBox);
   layout->addWidget(m_showEdgesCheckBox);
   layout->addWidget(m_previewLightingCheckBox);
+  layout->addLayout(shadowsLayout);
   layout->addLayout(ambientLayout);
 
   for (auto* button : m_entityLinkRadioGroup->buttons())
@@ -650,6 +661,8 @@ void ViewEditor::refreshRendererPanel()
   m_showEdgesCheckBox->setChecked(pref(Preferences::ShowEdges));
   const auto previewLighting = pref(Preferences::PreviewLighting);
   m_previewLightingCheckBox->setChecked(previewLighting);
+  m_previewLightingShadowsCheckBox->setChecked(pref(Preferences::PreviewLightingShadows));
+  m_previewLightingShadowsCheckBox->setEnabled(previewLighting);
   {
     const auto blocker = QSignalBlocker{m_previewLightingAmbientSlider};
     const auto ambientPercent = static_cast<int>(
@@ -763,6 +776,11 @@ void ViewEditor::previewLightingChanged(const bool checked)
   setPref(Preferences::PreviewLighting, checked);
 }
 
+void ViewEditor::previewLightingShadowsChanged(const bool checked)
+{
+  setPref(Preferences::PreviewLightingShadows, checked);
+}
+
 void ViewEditor::previewLightingAmbientChanged(const int value)
 {
   setPref(Preferences::PreviewLightingAmbient, static_cast<float>(value) / 100.0f);
@@ -805,6 +823,7 @@ void ViewEditor::restoreDefaultsClicked()
   prefs.resetToDefault(Preferences::ShowFog);
   prefs.resetToDefault(Preferences::ShowEdges);
   prefs.resetToDefault(Preferences::PreviewLighting);
+  prefs.resetToDefault(Preferences::PreviewLightingShadows);
   prefs.resetToDefault(Preferences::PreviewLightingAmbient);
   prefs.resetToDefault(Preferences::ShowSoftMapBounds);
   prefs.resetToDefault(Preferences::ShowPointEntities);

@@ -179,7 +179,29 @@ TEST_CASE("PreviewLighting.packPreviewLightTextureData")
 {
   const auto lights = std::vector<PreviewLight>{
     PreviewLight{
-      vm::vec3f{10.0f, 20.0f, 30.0f}, 320.0f, vm::vec3f{1.0f, 0.5f, 0.25f}, 2.0f, 1, false},
+      vm::vec3f{10.0f, 20.0f, 30.0f},
+      320.0f,
+      vm::vec3f{1.0f, 0.5f, 0.25f},
+      2.0f,
+      1,
+      false,
+      0},
+    PreviewLight{
+      vm::vec3f{-5.0f, 0.0f, 15.0f},
+      160.0f,
+      vm::vec3f{0.5f, 1.0f, 0.5f},
+      1.0f,
+      2,
+      false,
+      3},
+    PreviewLight{
+      vm::vec3f{0.0f, 0.0f, 0.0f},
+      100.0f,
+      vm::vec3f{1.0f, 1.0f, 1.0f},
+      1.0f,
+      0,
+      false,
+      -1},
   };
 
   const auto texels = packPreviewLightTextureData(lights);
@@ -191,12 +213,118 @@ TEST_CASE("PreviewLighting.packPreviewLightTextureData")
   CHECK(texels[2] == Catch::Approx(30.0f));
   CHECK(texels[3] == Catch::Approx(320.0f));
 
-  // Row 1: color * intensity + shadows
+  // Row 1: color * intensity + encoded shadow metadata
   const auto row1 = MaxPreviewLights * 4;
   CHECK(texels[row1 + 0] == Catch::Approx(2.0f));
   CHECK(texels[row1 + 1] == Catch::Approx(1.0f));
   CHECK(texels[row1 + 2] == Catch::Approx(0.5f));
-  CHECK(texels[row1 + 3] == Catch::Approx(1.0f));
+  CHECK(texels[row1 + 3] == Catch::Approx(1.0f));  // Hard shadow in slot 0 -> +1
+  CHECK(texels[row1 + 7] == Catch::Approx(-4.0f)); // Soft shadow in slot 3 -> -4
+  CHECK(texels[row1 + 11] == Catch::Approx(0.0f)); // Unshadowed -> 0
+}
+
+TEST_CASE("PreviewLighting.shadowFaceViewProjectionMatchesDirectionLookup")
+{
+  const auto lightPos = vm::vec3f{64.0f, -128.0f, 32.0f};
+  const auto lightRange = 320.0f;
+
+  // Off-axis sample directions covering all 6 cube faces (+X, -X, +Y, -Y, +Z, -Z)
+  const auto sampleOffsets = std::array<vm::vec3f, 6>{
+    vm::vec3f{120.0f, -30.0f, 45.0f},  // +X (face 0)
+    vm::vec3f{-120.0f, 40.0f, -20.0f}, // -X (face 1)
+    vm::vec3f{35.0f, 110.0f, -50.0f},  // +Y (face 2)
+    vm::vec3f{-25.0f, -110.0f, 60.0f}, // -Y (face 3)
+    vm::vec3f{40.0f, -55.0f, 130.0f},  // +Z (face 4)
+    vm::vec3f{-45.0f, 35.0f, -130.0f}, // -Z (face 5)
+  };
+
+  for (int expectedFace = 0; expectedFace < 6; ++expectedFace)
+  {
+    const auto offset = sampleOffsets[static_cast<size_t>(expectedFace)];
+    const auto worldPoint = lightPos + offset;
+
+    const auto lookup = previewShadowDirectionToFaceUV(offset);
+    CHECK(lookup.face == expectedFace);
+
+    const auto vp = previewShadowFaceViewProjection(lightPos, lightRange, expectedFace);
+    const auto clip = vp * vm::vec4f{worldPoint, 1.0f};
+    REQUIRE(clip.w() > 0.0f);
+
+    const auto projectedU = (clip.x() / clip.w()) * 0.5f + 0.5f;
+    const auto projectedV = (clip.y() / clip.w()) * 0.5f + 0.5f;
+
+    CHECK(lookup.u == Catch::Approx(projectedU).margin(1e-4f));
+    CHECK(lookup.v == Catch::Approx(projectedV).margin(1e-4f));
+  }
+}
+
+TEST_CASE("PreviewLighting.shadowAtlasTileRectsAreUniqueAndInBounds")
+{
+  auto seen = std::vector<std::pair<int, int>>{};
+  for (int slot = 0; slot < static_cast<int>(MaxPreviewShadowLights); ++slot)
+  {
+    for (int face = 0; face < 6; ++face)
+    {
+      const auto rect = previewShadowTileRect(slot, face);
+      CHECK(rect.x >= 0);
+      CHECK(rect.y >= 0);
+      CHECK(rect.x + rect.width <= PreviewShadowAtlasWidth);
+      CHECK(rect.y + rect.height <= PreviewShadowAtlasHeight);
+      CHECK(rect.width == PreviewShadowTileSize);
+      CHECK(rect.height == PreviewShadowTileSize);
+      const auto key = std::pair{rect.x, rect.y};
+      CHECK(std::find(seen.begin(), seen.end(), key) == seen.end());
+      seen.push_back(key);
+    }
+  }
+  CHECK(seen.size() == MaxPreviewShadowLights * 6);
+}
+
+TEST_CASE("PreviewLighting.assignPreviewShadowSlotsCachingAndInvalidation")
+{
+  auto cache = std::array<PreviewShadowSlot, MaxPreviewShadowLights>{};
+  auto lights = std::vector<PreviewLight>{
+    PreviewLight{vm::vec3f{0, 0, 0}, 320.0f, vm::vec3f{1, 1, 1}, 1.0f, 2, false},
+    PreviewLight{vm::vec3f{100, 0, 0}, 320.0f, vm::vec3f{1, 1, 1}, 1.0f, 0, false},
+    PreviewLight{vm::vec3f{200, 0, 0}, 320.0f, vm::vec3f{1, 1, 1}, 1.0f, 1, false},
+  };
+
+  // Frame 1: shadow-casting lights get slots and are marked dirty.
+  const auto dirty1 =
+    assignPreviewShadowSlots(lights, cache, vm::vec3f{0, 0, 0}, 1, true);
+  CHECK(lights[0].shadowSlot == 0);
+  CHECK(lights[1].shadowSlot == -1); // shadows == 0 skipped
+  CHECK(lights[2].shadowSlot == 1);
+  CHECK(dirty1.size() == 2);
+
+  // Frame 2: nothing moved and geometry generation unchanged -> 0 dirty slots.
+  const auto dirty2 =
+    assignPreviewShadowSlots(lights, cache, vm::vec3f{50, 50, 0}, 1, true);
+  CHECK(lights[0].shadowSlot == 0);
+  CHECK(lights[2].shadowSlot == 1);
+  CHECK(dirty2.empty());
+
+  // Frame 3: move only light 2 -> light 0 stays cached, only light 2 re-renders.
+  lights[2].position = vm::vec3f{220, 0, 0};
+  const auto dirty3 =
+    assignPreviewShadowSlots(lights, cache, vm::vec3f{50, 50, 0}, 1, true);
+  CHECK(lights[0].shadowSlot == 0);
+  REQUIRE(lights[2].shadowSlot >= 0);
+  CHECK(lights[2].shadowSlot != lights[0].shadowSlot);
+  REQUIRE(dirty3.size() == 1);
+  CHECK(dirty3[0] == lights[2].shadowSlot);
+
+  // Frame 4: geometry changed -> both active shadow slots become dirty.
+  const auto dirty4 =
+    assignPreviewShadowSlots(lights, cache, vm::vec3f{50, 50, 0}, 2, true);
+  CHECK(dirty4.size() == 2);
+
+  // Frame 5: shadows disabled -> no slots assigned, no dirty renders.
+  const auto dirty5 =
+    assignPreviewShadowSlots(lights, cache, vm::vec3f{50, 50, 0}, 2, false);
+  CHECK(lights[0].shadowSlot == -1);
+  CHECK(lights[2].shadowSlot == -1);
+  CHECK(dirty5.empty());
 }
 
 } // namespace tb::render

@@ -75,6 +75,7 @@ private:
   bool m_showFog = false;
 
   bool m_previewLighting = false;
+  bool m_previewLightingShadows = false;
   float m_previewLightingAmbient = 0.15f;
   int m_previewLightCount = 0;
 
@@ -144,6 +145,9 @@ public:
 
   bool previewLighting() const;
   void setPreviewLighting(bool previewLighting);
+
+  bool previewLightingShadows() const;
+  void setPreviewLightingShadows(bool previewLightingShadows);
 
   float previewLightingAmbient() const;
   void setPreviewLightingAmbient(float previewLightingAmbient);

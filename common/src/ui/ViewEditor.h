@@ -107,6 +107,7 @@ private:
   QCheckBox* m_showFogCheckBox = nullptr;
   QCheckBox* m_showEdgesCheckBox = nullptr;
   QCheckBox* m_previewLightingCheckBox = nullptr;
+  QCheckBox* m_previewLightingShadowsCheckBox = nullptr;
   SliderWithLabel* m_previewLightingAmbientSlider = nullptr;
 
   QButtonGroup* m_entityLinkRadioGroup = nullptr;
@@ -159,6 +160,7 @@ private:
   void showFogChanged(bool checked);
   void showEdgesChanged(bool checked);
   void previewLightingChanged(bool checked);
+  void previewLightingShadowsChanged(bool checked);
   void previewLightingAmbientChanged(int value);
   void entityLinkModeChanged(int id);
   void showSoftMapBoundsChanged(bool checked);

@@ -102,6 +102,7 @@ bool GLContextManager::initialize()
       LinkArrowShader,
       TriangleShader,
       UVViewShader,
+      ShadowMapShader,
     };
 
     shaders | std::views::transform([&](const auto& shaderConfig) {

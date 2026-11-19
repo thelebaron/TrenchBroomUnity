@@ -45,5 +45,6 @@ extern const ShaderConfig LinkLineShader;
 extern const ShaderConfig LinkArrowShader;
 extern const ShaderConfig TriangleShader;
 extern const ShaderConfig UVViewShader;
+extern const ShaderConfig ShadowMapShader;
 
 } // namespace tb::render::Shaders

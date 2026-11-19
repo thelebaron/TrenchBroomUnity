@@ -193,6 +193,7 @@ extern Preference<bool> ShadeFaces;
 extern Preference<bool> ShowFog;
 extern Preference<bool> ShowEdges;
 extern Preference<bool> PreviewLighting;
+extern Preference<bool> PreviewLightingShadows;
 extern Preference<float> PreviewLightingAmbient;
 
 extern Preference<bool> ShowSoftMapBounds;

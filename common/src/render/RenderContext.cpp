@@ -203,6 +203,16 @@ void RenderContext::setPreviewLighting(const bool previewLighting)
   m_previewLighting = previewLighting;
 }
 
+bool RenderContext::previewLightingShadows() const
+{
+  return m_previewLightingShadows;
+}
+
+void RenderContext::setPreviewLightingShadows(const bool previewLightingShadows)
+{
+  m_previewLightingShadows = previewLightingShadows;
+}
+
 float RenderContext::previewLightingAmbient() const
 {
   return m_previewLightingAmbient;

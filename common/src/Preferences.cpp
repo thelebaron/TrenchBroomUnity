@@ -298,6 +298,7 @@ Preference<bool> ShadeFaces("Map view/Shade faces", true);
 Preference<bool> ShowFog("Map view/Show fog", false);
 Preference<bool> ShowEdges("Map view/Show edges", true);
 Preference<bool> PreviewLighting("Map view/Preview lighting", false);
+Preference<bool> PreviewLightingShadows("Map view/Preview lighting shadows", true);
 Preference<float> PreviewLightingAmbient("Map view/Preview lighting ambient", 0.15f);
 
 Preference<bool> ShowSoftMapBounds("Map view/Show soft map bounds", true);
@@ -471,6 +472,7 @@ const std::vector<PreferenceBase*>& staticPreferences()
     &ShowFog,
     &ShowEdges,
     &PreviewLighting,
+    &PreviewLightingShadows,
     &PreviewLightingAmbient,
     &ShowSoftMapBounds,
     &ShowPointEntities,

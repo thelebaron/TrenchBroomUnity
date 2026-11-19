@@ -154,4 +154,10 @@ const ShaderConfig UVViewShader = ShaderConfig{
   {"UVView.fragsh"},
 };
 
+const ShaderConfig ShadowMapShader = ShaderConfig{
+  "Shadow Map",
+  {"ShadowMap.vertsh"},
+  {"ShadowMap.fragsh"},
+};
+
 } // namespace tb::render::Shaders

@@ -653,7 +653,40 @@ void MapRenderer::invalidateGroupLinkRenderer()
 
 void MapRenderer::invalidatePreviewLightRenderer()
 {
-  m_previewLightRenderer->invalidate();
+  m_previewLightRenderer->invalidateAll();
+}
+
+void MapRenderer::invalidatePreviewLightRendererForNodes(
+  const std::vector<mdl::Node*>& nodes)
+{
+  auto lightsChanged = false;
+  auto geometryChanged = false;
+
+  for (const auto* node : nodes)
+  {
+    node->accept(kdl::overload(
+      [](const mdl::WorldNode*) {},
+      [](const mdl::LayerNode*) {},
+      [](const mdl::GroupNode*) {},
+      [&](const mdl::EntityNode* entityNode) {
+        lightsChanged = true;
+        if (entityNode->hasChildren() || entityNode->entity().model() != nullptr)
+        {
+          geometryChanged = true;
+        }
+      },
+      [&](const mdl::BrushNode*) { geometryChanged = true; },
+      [&](const mdl::PatchNode*) { geometryChanged = true; }));
+  }
+
+  if (lightsChanged)
+  {
+    m_previewLightRenderer->invalidateLights();
+  }
+  if (geometryChanged)
+  {
+    m_previewLightRenderer->invalidateGeometry();
+  }
 }
 
 void MapRenderer::reloadEntityModels()
@@ -757,7 +790,7 @@ void MapRenderer::nodesDidChange(const std::vector<mdl::Node*>& nodes)
   }
   invalidateEntityLinkRenderer();
   invalidateGroupLinkRenderer();
-  invalidatePreviewLightRenderer();
+  invalidatePreviewLightRendererForNodes(nodes);
 }
 
 void MapRenderer::nodeVisibilityDidChange(const std::vector<mdl::Node*>& nodes)
@@ -797,6 +830,7 @@ void MapRenderer::brushFacesDidChange(const std::vector<mdl::BrushFaceHandle>& f
   {
     updateAndInvalidateNode(face.node());
   }
+  m_previewLightRenderer->invalidateGeometry();
 }
 
 void MapRenderer::selectionDidChange(const mdl::SelectionChange& selectionChange)
@@ -839,11 +873,16 @@ void MapRenderer::resourcesWereProcessed(const std::vector<mdl::ResourceId>& res
   m_defaultRenderer->invalidateEntityModels(entityModels);
   m_selectionRenderer->invalidateEntityModels(entityModels);
   m_lockedRenderer->invalidateEntityModels(entityModels);
+  if (!entityModels.empty() || !materials.empty())
+  {
+    m_previewLightRenderer->invalidateGeometry();
+  }
 }
 
 void MapRenderer::materialCollectionsWillChange()
 {
   invalidateRenderers(Renderer::All);
+  m_previewLightRenderer->invalidateGeometry();
 }
 
 void MapRenderer::entityDefinitionsDidChange()
@@ -851,6 +890,7 @@ void MapRenderer::entityDefinitionsDidChange()
   reloadEntityModels();
   invalidateRenderers(Renderer::All);
   invalidateEntityLinkRenderer();
+  invalidatePreviewLightRenderer();
 }
 
 void MapRenderer::modsDidChange()
@@ -858,6 +898,7 @@ void MapRenderer::modsDidChange()
   reloadEntityModels();
   invalidateRenderers(Renderer::All);
   invalidateEntityLinkRenderer();
+  invalidatePreviewLightRenderer();
 }
 
 void MapRenderer::editorContextDidChange()

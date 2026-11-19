@@ -123,6 +123,7 @@ private:
   void invalidateEntityLinkRenderer();
   void invalidateGroupLinkRenderer();
   void invalidatePreviewLightRenderer();
+  void invalidatePreviewLightRendererForNodes(const std::vector<mdl::Node*>& nodes);
   void reloadEntityModels();
 
 private: // notification
