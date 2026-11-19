@@ -170,6 +170,10 @@ void EntityModelRenderer::doRender(RenderContext& renderContext)
     shader.set("TintColor", m_tintColor);
     shader.set("GrayScale", false);
     shader.set("Material", 0);
+    shader.set("PreviewLighting", renderContext.previewLighting());
+    shader.set("PreviewAmbient", renderContext.previewLightingAmbient());
+    shader.set("PreviewLightCount", renderContext.previewLightCount());
+    shader.set("PreviewLightData", 1);
     shader.set("ShowSoftMapBounds", !renderContext.softMapBounds().is_empty());
     shader.set("SoftMapBoundsMin", renderContext.softMapBounds().min);
     shader.set("SoftMapBoundsMax", renderContext.softMapBounds().max);

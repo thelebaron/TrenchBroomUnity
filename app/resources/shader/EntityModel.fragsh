@@ -24,10 +24,12 @@ uniform sampler2D Material;
 uniform bool ApplyTinting;
 uniform vec4 TintColor;
 uniform bool GrayScale;
+uniform bool PreviewLighting;
 
 varying vec4 worldCoordinates;
 
 vec3 applySoftMapBoundsTint(vec3 inputFragColor, vec3 worldCoords);
+vec3 applyPreviewLighting(vec3 albedo, vec3 worldCoords, vec3 normal);
 
 void main() {
     vec4 texel = texture2D(Material, gl_TexCoord[0].st);
@@ -38,8 +40,15 @@ void main() {
         discard;
     }
 
-    gl_FragColor = vec4(vec3(Brightness / 2.0 * texel), texel.a);
-    gl_FragColor = clamp(2 * gl_FragColor, 0.0, 1.0);
+    if (PreviewLighting) {
+        vec3 geometricNormal = cross(dFdx(worldCoordinates.xyz), dFdy(worldCoordinates.xyz));
+        float normalLen = length(geometricNormal);
+        vec3 normal = (normalLen > 0.000001) ? (geometricNormal / normalLen) : vec3(0.0, 0.0, 1.0);
+        gl_FragColor = vec4(applyPreviewLighting(texel.rgb, worldCoordinates.xyz, normal), texel.a);
+    } else {
+        gl_FragColor = vec4(vec3(Brightness / 2.0 * texel), texel.a);
+        gl_FragColor = clamp(2 * gl_FragColor, 0.0, 1.0);
+    }
     
     if (GrayScale) {
         float gray = dot(gl_FragColor.rgb, vec3(0.299, 0.587, 0.114));

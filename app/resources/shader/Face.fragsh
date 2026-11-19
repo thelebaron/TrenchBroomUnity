@@ -33,6 +33,7 @@ uniform float GridAlpha;
 uniform vec3 GridColor;
 uniform bool ShadeFaces;
 uniform bool ShowFog;
+uniform bool PreviewLighting;
 
 varying vec4 modelCoordinates;
 varying vec3 modelNormal;
@@ -41,6 +42,7 @@ varying vec3 viewVector;
 
 float grid(vec3 coords, vec3 normal, float gridSize, float minGridSize, float lineWidthFactor);
 vec3 applySoftMapBoundsTint(vec3 inputFragColor, vec3 worldCoords);
+vec3 applyPreviewLighting(vec3 albedo, vec3 worldCoords, vec3 normal);
 
 void main() {
 	if (ApplyMaterial)
@@ -54,9 +56,14 @@ void main() {
         discard;
     }
 
-    gl_FragColor = vec4(vec3(Brightness / 2.0 * gl_FragColor), gl_FragColor.a);
-    gl_FragColor = clamp(2.0 * gl_FragColor, 0.0, 1.0);
-    gl_FragColor.a = Alpha;
+    if (PreviewLighting) {
+        gl_FragColor.rgb = applyPreviewLighting(gl_FragColor.rgb, modelCoordinates.xyz, normalize(modelNormal));
+        gl_FragColor.a = Alpha;
+    } else {
+        gl_FragColor = vec4(vec3(Brightness / 2.0 * gl_FragColor), gl_FragColor.a);
+        gl_FragColor = clamp(2.0 * gl_FragColor, 0.0, 1.0);
+        gl_FragColor.a = Alpha;
+    }
 
     if (GrayScale) {
         float gray = dot(gl_FragColor.rgb, vec3(0.299, 0.587, 0.114));
@@ -69,7 +76,7 @@ void main() {
         gl_FragColor = clamp(brightnessCorrection * gl_FragColor, 0.0, 1.0);
     }
 
-	if (ShadeFaces) {
+	if (ShadeFaces && !PreviewLighting) {
 		// angular dimming ( can be controlled with dimStrength )
 		// TODO: make view option
 		float dimStrength = 0.25;

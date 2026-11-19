@@ -41,6 +41,7 @@
 #include "render/EntityLinkRenderer.h"
 #include "render/GroupLinkRenderer.h"
 #include "render/ObjectRenderer.h"
+#include "render/PreviewLighting.h"
 #include "render/RenderBatch.h"
 #include "render/RenderContext.h"
 #include "render/RenderUtils.h"
@@ -200,6 +201,7 @@ MapRenderer::MapRenderer(mdl::Map& map)
   , m_entityDecalRenderer{createEntityDecalRenderer(m_map)}
   , m_entityLinkRenderer{std::make_unique<EntityLinkRenderer>(m_map)}
   , m_groupLinkRenderer{std::make_unique<GroupLinkRenderer>(m_map)}
+  , m_previewLightRenderer{std::make_unique<PreviewLightRenderer>(m_map)}
 {
   connectObservers();
   setupRenderers();
@@ -230,6 +232,7 @@ void MapRenderer::restoreSelectionColors()
 void MapRenderer::render(RenderContext& renderContext, RenderBatch& renderBatch)
 {
   setupGL(renderBatch);
+  m_previewLightRenderer->prepare(renderContext, renderBatch);
   renderEntityDecals(renderContext, renderBatch);
   renderEntityLinks(renderContext, renderBatch);
   renderGroupLinks(renderContext, renderBatch);
@@ -241,6 +244,8 @@ void MapRenderer::render(RenderContext& renderContext, RenderBatch& renderBatch)
   renderDefaultTransparent(renderContext, renderBatch);
   renderLockedTransparent(renderContext, renderBatch);
   renderSelectionTransparent(renderContext, renderBatch);
+
+  m_previewLightRenderer->renderGizmos(renderContext, renderBatch);
 }
 
 void MapRenderer::reload()
@@ -248,6 +253,7 @@ void MapRenderer::reload()
   clear();
   updateAllNodes();
   invalidateEntityLinkRenderer();
+  invalidatePreviewLightRenderer();
 }
 
 void MapRenderer::clear()
@@ -258,6 +264,7 @@ void MapRenderer::clear()
   m_entityDecalRenderer->clear();
   m_entityLinkRenderer->invalidate();
   m_groupLinkRenderer->invalidate();
+  m_previewLightRenderer->clear();
   m_trackedNodes.clear();
 }
 
@@ -644,6 +651,11 @@ void MapRenderer::invalidateGroupLinkRenderer()
   m_groupLinkRenderer->invalidate();
 }
 
+void MapRenderer::invalidatePreviewLightRenderer()
+{
+  m_previewLightRenderer->invalidate();
+}
+
 void MapRenderer::reloadEntityModels()
 {
   m_defaultRenderer->reloadModels();
@@ -718,6 +730,7 @@ void MapRenderer::nodesWereAdded(const std::vector<mdl::Node*>& nodes)
   }
   invalidateGroupLinkRenderer();
   invalidateEntityLinkRenderer();
+  invalidatePreviewLightRenderer();
 }
 
 void MapRenderer::nodesWereRemoved(const std::vector<mdl::Node*>& nodes)
@@ -730,6 +743,7 @@ void MapRenderer::nodesWereRemoved(const std::vector<mdl::Node*>& nodes)
   }
   invalidateGroupLinkRenderer();
   invalidateEntityLinkRenderer();
+  invalidatePreviewLightRenderer();
 }
 
 void MapRenderer::nodesDidChange(const std::vector<mdl::Node*>& nodes)
@@ -743,6 +757,7 @@ void MapRenderer::nodesDidChange(const std::vector<mdl::Node*>& nodes)
   }
   invalidateEntityLinkRenderer();
   invalidateGroupLinkRenderer();
+  invalidatePreviewLightRenderer();
 }
 
 void MapRenderer::nodeVisibilityDidChange(const std::vector<mdl::Node*>& nodes)
@@ -752,6 +767,7 @@ void MapRenderer::nodeVisibilityDidChange(const std::vector<mdl::Node*>& nodes)
     updateAndInvalidateNodeRecursive(node);
   }
   invalidateEntityLinkRenderer();
+  invalidatePreviewLightRenderer();
 }
 
 void MapRenderer::nodeLockingDidChange(const std::vector<mdl::Node*>& nodes)
@@ -849,6 +865,7 @@ void MapRenderer::editorContextDidChange()
   invalidateRenderers(Renderer::All);
   invalidateEntityLinkRenderer();
   invalidateGroupLinkRenderer();
+  invalidatePreviewLightRenderer();
 }
 
 void MapRenderer::preferenceDidChange(const std::filesystem::path& path)
@@ -861,13 +878,17 @@ void MapRenderer::preferenceDidChange(const std::filesystem::path& path)
     invalidateRenderers(Renderer::All);
     invalidateEntityLinkRenderer();
     invalidateGroupLinkRenderer();
+    invalidatePreviewLightRenderer();
   }
 
-  if (kdl::path_has_prefix(path, "Map view"))
+  if (
+    kdl::path_has_prefix(path, "Map view")
+    || path == Preferences::UnityLightUnitScale.path())
   {
     invalidateRenderers(Renderer::All);
     invalidateEntityLinkRenderer();
     invalidateGroupLinkRenderer();
+    invalidatePreviewLightRenderer();
   }
 }
 

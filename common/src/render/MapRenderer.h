@@ -49,6 +49,7 @@ class EntityDecalRenderer;
 class EntityLinkRenderer;
 class GroupLinkRenderer;
 class ObjectRenderer;
+class PreviewLightRenderer;
 class RenderBatch;
 class RenderContext;
 
@@ -63,6 +64,7 @@ private:
   std::unique_ptr<EntityDecalRenderer> m_entityDecalRenderer;
   std::unique_ptr<EntityLinkRenderer> m_entityLinkRenderer;
   std::unique_ptr<GroupLinkRenderer> m_groupLinkRenderer;
+  std::unique_ptr<PreviewLightRenderer> m_previewLightRenderer;
 
   enum class Renderer
   {
@@ -120,6 +122,7 @@ private:
   void invalidateEntityDecalRenderer();
   void invalidateEntityLinkRenderer();
   void invalidateGroupLinkRenderer();
+  void invalidatePreviewLightRenderer();
   void reloadEntityModels();
 
 private: // notification

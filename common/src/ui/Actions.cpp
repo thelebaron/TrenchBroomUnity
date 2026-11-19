@@ -951,6 +951,14 @@ void ActionManager::createViewActions()
     [](const auto& context) { return context.hasDocument(); },
   });
   addAction(Action{
+    std::filesystem::path{"Controls/Map view/View Filter > Preview lighting"},
+    QObject::tr("Toggle Preview Lighting"),
+    ActionContext::Any,
+    QKeySequence{},
+    [](auto& context) { context.view().togglePreviewLighting(); },
+    [](const auto& context) { return context.hasDocument(); },
+  });
+  addAction(Action{
     std::filesystem::path{"Controls/Map view/View Filter > Show all entity links"},
     QObject::tr("Show All Entity Links"),
     ActionContext::Any,

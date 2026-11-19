@@ -49,19 +49,19 @@ const ShaderConfig MiniMapEdgeShader = ShaderConfig{
 const ShaderConfig EntityModelShader = ShaderConfig{
   "Entity Model",
   {"EntityModel.vertsh"},
-  {"MapBounds.fragsh", "EntityModel.fragsh"},
+  {"MapBounds.fragsh", "PreviewLighting.fragsh", "EntityModel.fragsh"},
 };
 
 const ShaderConfig FaceShader = ShaderConfig{
   "Face",
   {"Face.vertsh"},
-  {"Grid.fragsh", "MapBounds.fragsh", "Face.fragsh"},
+  {"Grid.fragsh", "MapBounds.fragsh", "PreviewLighting.fragsh", "Face.fragsh"},
 };
 
 const ShaderConfig PatchShader = ShaderConfig{
   "Patch",
   {"Face.vertsh"},
-  {"Grid.fragsh", "MapBounds.fragsh", "Face.fragsh"},
+  {"Grid.fragsh", "MapBounds.fragsh", "PreviewLighting.fragsh", "Face.fragsh"},
 };
 
 const ShaderConfig EdgeShader = ShaderConfig{

@@ -297,6 +297,8 @@ Preference<QString> FaceRenderMode("Map view/Face render mode", "textured");
 Preference<bool> ShadeFaces("Map view/Shade faces", true);
 Preference<bool> ShowFog("Map view/Show fog", false);
 Preference<bool> ShowEdges("Map view/Show edges", true);
+Preference<bool> PreviewLighting("Map view/Preview lighting", false);
+Preference<float> PreviewLightingAmbient("Map view/Preview lighting ambient", 0.15f);
 
 Preference<bool> ShowSoftMapBounds("Map view/Show soft map bounds", true);
 
@@ -343,6 +345,8 @@ Preference<std::vector<std::filesystem::path>> UnityAdditionalTextureFolders(
 // the live link off.
 Preference<QString> UnityLiveLinkSocketName(
   "Unity/Live link socket name", "trenchbroom-unity");
+// Scopa's default map-to-Unity scaling factor (1 / 32 meters per TB unit).
+Preference<float> UnityLightUnitScale("Unity/Light unit scale", 0.03125f);
 
 Preference<int> RoomCreatorMode("Room Creator/Mode", 1);
 Preference<int> RoomCreatorWallThickness("Room Creator/Wall thickness", 16);
@@ -466,6 +470,8 @@ const std::vector<PreferenceBase*>& staticPreferences()
     &ShadeFaces,
     &ShowFog,
     &ShowEdges,
+    &PreviewLighting,
+    &PreviewLightingAmbient,
     &ShowSoftMapBounds,
     &ShowPointEntities,
     &ShowBrushes,
@@ -482,6 +488,7 @@ const std::vector<PreferenceBase*>& staticPreferences()
     &UnityEntityDefinitionsEnabled,
     &UnityAdditionalTextureFolders,
     &UnityLiveLinkSocketName,
+    &UnityLightUnitScale,
     &RoomCreatorMode,
     &RoomCreatorWallThickness,
     &RoomCreatorWallHeight,

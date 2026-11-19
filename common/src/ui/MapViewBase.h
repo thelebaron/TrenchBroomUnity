@@ -287,6 +287,7 @@ public: // view filters
   void toggleShadeFaces();
   void toggleShowFog();
   void toggleShowEdges();
+  void togglePreviewLighting();
   void showAllEntityLinks();
   void showTransitivelySelectedEntityLinks();
   void showDirectlySelectedEntityLinks();

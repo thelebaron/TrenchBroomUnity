@@ -43,9 +43,13 @@
 #include "ui/KeySequenceEdit.h"
 #include "ui/PopupButton.h"
 #include "ui/QtUtils.h"
+#include "ui/SliderWithLabel.h"
 #include "ui/TitledPanel.h"
 #include "ui/ViewConstants.h"
 
+#include <QSignalBlocker>
+
+#include <cmath>
 #include <vector>
 
 namespace tb::ui
@@ -496,6 +500,14 @@ QWidget* ViewEditor::createRendererPanel(QWidget* parent)
   m_shadeFacesCheckBox = new QCheckBox{tr("Shade faces")};
   m_showFogCheckBox = new QCheckBox{tr("Use fog")};
   m_showEdgesCheckBox = new QCheckBox{tr("Show edges")};
+  m_previewLightingCheckBox = new QCheckBox{tr("Preview lighting")};
+  m_previewLightingAmbientSlider = new SliderWithLabel{0, 100};
+
+  auto* ambientLayout = new QHBoxLayout{};
+  ambientLayout->setContentsMargins(LayoutConstants::WideHMargin, 0, 0, 0);
+  ambientLayout->setSpacing(LayoutConstants::MediumHMargin);
+  ambientLayout->addWidget(new QLabel{tr("Ambient")});
+  ambientLayout->addWidget(m_previewLightingAmbientSlider, 1);
 
 
   const auto EntityLinkModes = std::vector<std::tuple<QString, QString>>{
@@ -529,6 +541,16 @@ QWidget* ViewEditor::createRendererPanel(QWidget* parent)
     m_showFogCheckBox, &QAbstractButton::clicked, this, &ViewEditor::showFogChanged);
   connect(
     m_showEdgesCheckBox, &QAbstractButton::clicked, this, &ViewEditor::showEdgesChanged);
+  connect(
+    m_previewLightingCheckBox,
+    &QAbstractButton::clicked,
+    this,
+    &ViewEditor::previewLightingChanged);
+  connect(
+    m_previewLightingAmbientSlider,
+    &SliderWithLabel::valueChanged,
+    this,
+    &ViewEditor::previewLightingAmbientChanged);
 
   connect(
     m_renderModeRadioGroup,
@@ -564,6 +586,8 @@ QWidget* ViewEditor::createRendererPanel(QWidget* parent)
   layout->addWidget(m_shadeFacesCheckBox);
   layout->addWidget(m_showFogCheckBox);
   layout->addWidget(m_showEdgesCheckBox);
+  layout->addWidget(m_previewLightingCheckBox);
+  layout->addLayout(ambientLayout);
 
   for (auto* button : m_entityLinkRadioGroup->buttons())
   {
@@ -624,6 +648,15 @@ void ViewEditor::refreshRendererPanel()
   m_shadeFacesCheckBox->setChecked(pref(Preferences::ShadeFaces));
   m_showFogCheckBox->setChecked(pref(Preferences::ShowFog));
   m_showEdgesCheckBox->setChecked(pref(Preferences::ShowEdges));
+  const auto previewLighting = pref(Preferences::PreviewLighting);
+  m_previewLightingCheckBox->setChecked(previewLighting);
+  {
+    const auto blocker = QSignalBlocker{m_previewLightingAmbientSlider};
+    const auto ambientPercent = static_cast<int>(
+      std::lround(pref(Preferences::PreviewLightingAmbient) * 100.0f));
+    m_previewLightingAmbientSlider->setValue(ambientPercent);
+  }
+  m_previewLightingAmbientSlider->setEnabled(previewLighting);
   checkButtonInGroup(m_entityLinkRadioGroup, pref(Preferences::EntityLinkMode), true);
   m_showSoftBoundsCheckBox->setChecked(pref(Preferences::ShowSoftMapBounds));
 }
@@ -725,6 +758,16 @@ void ViewEditor::showEdgesChanged(const bool checked)
   setPref(Preferences::ShowEdges, checked);
 }
 
+void ViewEditor::previewLightingChanged(const bool checked)
+{
+  setPref(Preferences::PreviewLighting, checked);
+}
+
+void ViewEditor::previewLightingAmbientChanged(const int value)
+{
+  setPref(Preferences::PreviewLightingAmbient, static_cast<float>(value) / 100.0f);
+}
+
 void ViewEditor::entityLinkModeChanged(const int id)
 {
   switch (id)
@@ -761,6 +804,8 @@ void ViewEditor::restoreDefaultsClicked()
   prefs.resetToDefault(Preferences::ShadeFaces);
   prefs.resetToDefault(Preferences::ShowFog);
   prefs.resetToDefault(Preferences::ShowEdges);
+  prefs.resetToDefault(Preferences::PreviewLighting);
+  prefs.resetToDefault(Preferences::PreviewLightingAmbient);
   prefs.resetToDefault(Preferences::ShowSoftMapBounds);
   prefs.resetToDefault(Preferences::ShowPointEntities);
   prefs.resetToDefault(Preferences::ShowBrushes);

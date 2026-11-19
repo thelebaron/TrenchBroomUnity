@@ -284,6 +284,7 @@ set(COMMON_SOURCE
         ${COMMON_SOURCE_DIR}/render/PerspectiveCamera.cpp
         ${COMMON_SOURCE_DIR}/render/PointGuideRenderer.cpp
         ${COMMON_SOURCE_DIR}/render/PointHandleRenderer.cpp
+        ${COMMON_SOURCE_DIR}/render/PreviewLighting.cpp
         ${COMMON_SOURCE_DIR}/render/PrimitiveRenderer.cpp
         ${COMMON_SOURCE_DIR}/render/PrimType.cpp
         ${COMMON_SOURCE_DIR}/render/Renderable.cpp
@@ -862,6 +863,7 @@ set(COMMON_HEADER
         ${COMMON_SOURCE_DIR}/render/PerspectiveCamera.h
         ${COMMON_SOURCE_DIR}/render/PointGuideRenderer.h
         ${COMMON_SOURCE_DIR}/render/PointHandleRenderer.h
+        ${COMMON_SOURCE_DIR}/render/PreviewLighting.h
         ${COMMON_SOURCE_DIR}/render/PrimitiveRenderer.h
         ${COMMON_SOURCE_DIR}/render/PrimType.h
         ${COMMON_SOURCE_DIR}/render/Renderable.h

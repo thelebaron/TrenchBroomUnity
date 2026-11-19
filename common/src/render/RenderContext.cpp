@@ -193,6 +193,36 @@ void RenderContext::setShowFog(const bool showFog)
   m_showFog = showFog;
 }
 
+bool RenderContext::previewLighting() const
+{
+  return m_previewLighting;
+}
+
+void RenderContext::setPreviewLighting(const bool previewLighting)
+{
+  m_previewLighting = previewLighting;
+}
+
+float RenderContext::previewLightingAmbient() const
+{
+  return m_previewLightingAmbient;
+}
+
+void RenderContext::setPreviewLightingAmbient(const float previewLightingAmbient)
+{
+  m_previewLightingAmbient = previewLightingAmbient;
+}
+
+int RenderContext::previewLightCount() const
+{
+  return m_previewLightCount;
+}
+
+void RenderContext::setPreviewLightCount(const int previewLightCount)
+{
+  m_previewLightCount = previewLightCount;
+}
+
 bool RenderContext::showGrid() const
 {
   return m_showGrid;

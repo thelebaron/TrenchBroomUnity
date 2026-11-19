@@ -883,6 +883,11 @@ void MapViewBase::toggleShowEdges()
   togglePref(Preferences::ShowEdges);
 }
 
+void MapViewBase::togglePreviewLighting()
+{
+  togglePref(Preferences::PreviewLighting);
+}
+
 void MapViewBase::showAllEntityLinks()
 {
   setPref(Preferences::FaceRenderMode, Preferences::entityLinkModeAll());
@@ -1023,6 +1028,9 @@ void MapViewBase::renderContents()
   renderContext.setShowBrushEntityBounds(pref(Preferences::ShowBrushEntityBounds));
   renderContext.setShowPointEntityBounds(pref(Preferences::ShowPointEntityBounds));
   renderContext.setShowFog(pref(Preferences::ShowFog));
+  renderContext.setPreviewLighting(
+    renderMode() == render::RenderMode::Render3D && pref(Preferences::PreviewLighting));
+  renderContext.setPreviewLightingAmbient(pref(Preferences::PreviewLightingAmbient));
   renderContext.setShowGrid(grid.visible());
   renderContext.setGridSize(grid.actualSize());
   renderContext.setDpiScale(static_cast<float>(window()->devicePixelRatioF()));

@@ -192,6 +192,8 @@ extern Preference<QString> FaceRenderMode;
 extern Preference<bool> ShadeFaces;
 extern Preference<bool> ShowFog;
 extern Preference<bool> ShowEdges;
+extern Preference<bool> PreviewLighting;
+extern Preference<float> PreviewLightingAmbient;
 
 extern Preference<bool> ShowSoftMapBounds;
 
@@ -218,6 +220,7 @@ extern Preference<bool> UnityTextureFoldersEnabled;
 extern Preference<bool> UnityEntityDefinitionsEnabled;
 extern Preference<std::vector<std::filesystem::path>> UnityAdditionalTextureFolders;
 extern Preference<QString> UnityLiveLinkSocketName;
+extern Preference<float> UnityLightUnitScale;
 
 extern Preference<int> RoomCreatorMode;
 extern Preference<int> RoomCreatorWallThickness;

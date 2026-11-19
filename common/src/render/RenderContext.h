@@ -74,6 +74,10 @@ private:
 
   bool m_showFog = false;
 
+  bool m_previewLighting = false;
+  float m_previewLightingAmbient = 0.15f;
+  int m_previewLightCount = 0;
+
   bool m_showGrid = true;
   double m_gridSize = 4;
   float m_dpiScale = 1.0;
@@ -137,6 +141,15 @@ public:
 
   bool showFog() const;
   void setShowFog(bool showFog);
+
+  bool previewLighting() const;
+  void setPreviewLighting(bool previewLighting);
+
+  float previewLightingAmbient() const;
+  void setPreviewLightingAmbient(float previewLightingAmbient);
+
+  int previewLightCount() const;
+  void setPreviewLightCount(int previewLightCount);
 
   bool showGrid() const;
   void setShowGrid(bool showGrid);

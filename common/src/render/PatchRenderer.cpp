@@ -389,6 +389,10 @@ void PatchRenderer::doRender(RenderContext& context)
   shader.set("CameraPosition", context.camera().position());
   shader.set("ShadeFaces", shadeFaces);
   shader.set("ShowFog", showFog);
+  shader.set("PreviewLighting", context.previewLighting());
+  shader.set("PreviewAmbient", context.previewLightingAmbient());
+  shader.set("PreviewLightCount", context.previewLightCount());
+  shader.set("PreviewLightData", 1);
   shader.set("Alpha", 1.0);
   shader.set("EnableMasked", false);
   shader.set("ShowSoftMapBounds", !context.softMapBounds().is_empty());
