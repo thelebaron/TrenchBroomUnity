@@ -911,6 +911,29 @@ void MapRenderer::editorContextDidChange()
 
 void MapRenderer::preferenceDidChange(const std::filesystem::path& path)
 {
+  const auto isRenderOnlyMapViewPref =
+    path == Preferences::PreviewLighting.path()
+    || path == Preferences::PreviewLightingShadows.path()
+    || path == Preferences::PreviewLightingGI.path()
+    || path == Preferences::PreviewLightingGIBounce.path()
+    || path == Preferences::PreviewLightingAmbient.path()
+    || path == Preferences::ShowEdges.path()
+    || path == Preferences::ShadeFaces.path()
+    || path == Preferences::ShowFog.path();
+
+  if (isRenderOnlyMapViewPref)
+  {
+    // Pure render-time uniforms/flags: do not tear down brush/entity VBOs or
+    // throw away cached shadow maps and baked GI volumes on toggle.
+    return;
+  }
+
+  if (path == Preferences::UnityLightUnitScale.path())
+  {
+    m_previewLightRenderer->invalidateLights();
+    return;
+  }
+
   setupRenderers();
 
   if (m_map.game()->isGamePathPreference(path))
@@ -922,9 +945,7 @@ void MapRenderer::preferenceDidChange(const std::filesystem::path& path)
     invalidatePreviewLightRenderer();
   }
 
-  if (
-    kdl::path_has_prefix(path, "Map view")
-    || path == Preferences::UnityLightUnitScale.path())
+  if (kdl::path_has_prefix(path, "Map view"))
   {
     invalidateRenderers(Renderer::All);
     invalidateEntityLinkRenderer();

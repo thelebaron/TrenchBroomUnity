@@ -498,8 +498,10 @@ private:
       return;
     }
 
-    GLint prevFbo = 0;
-    glAssert(glGetIntegerv(GL_FRAMEBUFFER_BINDING, &prevFbo));
+    GLint prevDrawFbo = 0;
+    GLint prevReadFbo = 0;
+    glAssert(glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &prevDrawFbo));
+    glAssert(glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING, &prevReadFbo));
     GLint prevViewport[4] = {};
     glAssert(glGetIntegerv(GL_VIEWPORT, prevViewport));
     const auto prevScissorTest = glIsEnabled(GL_SCISSOR_TEST);
@@ -543,14 +545,16 @@ private:
     }
     else
     {
-      glAssert(glBindFramebuffer(GL_FRAMEBUFFER, static_cast<GLuint>(prevFbo)));
+      glAssert(glBindFramebuffer(GL_DRAW_FRAMEBUFFER, static_cast<GLuint>(prevDrawFbo)));
+      glAssert(glBindFramebuffer(GL_READ_FRAMEBUFFER, static_cast<GLuint>(prevReadFbo)));
       glAssert(glDeleteFramebuffers(1, &fboId));
       glAssert(glDeleteTextures(1, &textureId));
       fboId = 0;
       textureId = 0;
     }
 
-    glAssert(glBindFramebuffer(GL_FRAMEBUFFER, static_cast<GLuint>(prevFbo)));
+    glAssert(glBindFramebuffer(GL_DRAW_FRAMEBUFFER, static_cast<GLuint>(prevDrawFbo)));
+    glAssert(glBindFramebuffer(GL_READ_FRAMEBUFFER, static_cast<GLuint>(prevReadFbo)));
     glAssert(glViewport(prevViewport[0], prevViewport[1], prevViewport[2], prevViewport[3]));
     glAssert(glDepthMask(prevDepthMask));
     if (prevScissorTest)
@@ -642,8 +646,10 @@ private:
 
   void renderDirtyShadowTiles(RenderContext& renderContext)
   {
-    GLint prevFbo = 0;
-    glAssert(glGetIntegerv(GL_FRAMEBUFFER_BINDING, &prevFbo));
+    GLint prevDrawFbo = 0;
+    GLint prevReadFbo = 0;
+    glAssert(glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &prevDrawFbo));
+    glAssert(glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING, &prevReadFbo));
     GLint prevViewport[4] = {};
     glAssert(glGetIntegerv(GL_VIEWPORT, prevViewport));
     GLboolean prevColorMask[4] = {GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE};
@@ -651,7 +657,13 @@ private:
     GLboolean prevDepthMask = GL_TRUE;
     glAssert(glGetBooleanv(GL_DEPTH_WRITEMASK, &prevDepthMask));
     const auto prevDepthTest = glIsEnabled(GL_DEPTH_TEST);
+    GLint prevDepthFunc = GL_LEQUAL;
+    glAssert(glGetIntegerv(GL_DEPTH_FUNC, &prevDepthFunc));
     const auto prevCullFace = glIsEnabled(GL_CULL_FACE);
+    GLint prevCullFaceMode = GL_BACK;
+    glAssert(glGetIntegerv(GL_CULL_FACE_MODE, &prevCullFaceMode));
+    GLint prevFrontFace = GL_CW;
+    glAssert(glGetIntegerv(GL_FRONT_FACE, &prevFrontFace));
     const auto prevScissorTest = glIsEnabled(GL_SCISSOR_TEST);
     GLint prevScissorBox[4] = {};
     glAssert(glGetIntegerv(GL_SCISSOR_BOX, prevScissorBox));
@@ -718,11 +730,16 @@ private:
     }
 
     glAssert(glBindBuffer(GL_ARRAY_BUFFER, 0));
-    glAssert(glBindFramebuffer(GL_FRAMEBUFFER, static_cast<GLuint>(prevFbo)));
+    glAssert(glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0));
+    glAssert(glBindFramebuffer(GL_DRAW_FRAMEBUFFER, static_cast<GLuint>(prevDrawFbo)));
+    glAssert(glBindFramebuffer(GL_READ_FRAMEBUFFER, static_cast<GLuint>(prevReadFbo)));
     glAssert(glViewport(prevViewport[0], prevViewport[1], prevViewport[2], prevViewport[3]));
     glAssert(glColorMask(
       prevColorMask[0], prevColorMask[1], prevColorMask[2], prevColorMask[3]));
     glAssert(glDepthMask(prevDepthMask));
+    glAssert(glDepthFunc(static_cast<GLenum>(prevDepthFunc)));
+    glAssert(glFrontFace(static_cast<GLenum>(prevFrontFace)));
+    glAssert(glCullFace(static_cast<GLenum>(prevCullFaceMode)));
     if (prevDepthTest)
     {
       glAssert(glEnable(GL_DEPTH_TEST));
@@ -753,8 +770,10 @@ private:
 
   void renderDirectionalShadowMap(RenderContext& renderContext)
   {
-    GLint prevFbo = 0;
-    glAssert(glGetIntegerv(GL_FRAMEBUFFER_BINDING, &prevFbo));
+    GLint prevDrawFbo = 0;
+    GLint prevReadFbo = 0;
+    glAssert(glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &prevDrawFbo));
+    glAssert(glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING, &prevReadFbo));
     GLint prevViewport[4] = {};
     glAssert(glGetIntegerv(GL_VIEWPORT, prevViewport));
     GLboolean prevColorMask[4] = {GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE};
@@ -762,7 +781,13 @@ private:
     GLboolean prevDepthMask = GL_TRUE;
     glAssert(glGetBooleanv(GL_DEPTH_WRITEMASK, &prevDepthMask));
     const auto prevDepthTest = glIsEnabled(GL_DEPTH_TEST);
+    GLint prevDepthFunc = GL_LEQUAL;
+    glAssert(glGetIntegerv(GL_DEPTH_FUNC, &prevDepthFunc));
     const auto prevCullFace = glIsEnabled(GL_CULL_FACE);
+    GLint prevCullFaceMode = GL_BACK;
+    glAssert(glGetIntegerv(GL_CULL_FACE_MODE, &prevCullFaceMode));
+    GLint prevFrontFace = GL_CW;
+    glAssert(glGetIntegerv(GL_FRONT_FACE, &prevFrontFace));
     const auto prevScissorTest = glIsEnabled(GL_SCISSOR_TEST);
 
     glAssert(glBindFramebuffer(GL_FRAMEBUFFER, m_dirShadowFboId));
@@ -804,11 +829,16 @@ private:
     }
 
     glAssert(glBindBuffer(GL_ARRAY_BUFFER, 0));
-    glAssert(glBindFramebuffer(GL_FRAMEBUFFER, static_cast<GLuint>(prevFbo)));
+    glAssert(glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0));
+    glAssert(glBindFramebuffer(GL_DRAW_FRAMEBUFFER, static_cast<GLuint>(prevDrawFbo)));
+    glAssert(glBindFramebuffer(GL_READ_FRAMEBUFFER, static_cast<GLuint>(prevReadFbo)));
     glAssert(glViewport(prevViewport[0], prevViewport[1], prevViewport[2], prevViewport[3]));
     glAssert(glColorMask(
       prevColorMask[0], prevColorMask[1], prevColorMask[2], prevColorMask[3]));
     glAssert(glDepthMask(prevDepthMask));
+    glAssert(glDepthFunc(static_cast<GLenum>(prevDepthFunc)));
+    glAssert(glFrontFace(static_cast<GLenum>(prevFrontFace)));
+    glAssert(glCullFace(static_cast<GLenum>(prevCullFaceMode)));
     if (prevDepthTest)
     {
       glAssert(glEnable(GL_DEPTH_TEST));
