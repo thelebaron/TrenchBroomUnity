@@ -845,6 +845,12 @@ void MapFrame::preferenceDidChange(const std::filesystem::path& path)
       static_cast<MapViewLayout>(pref(Preferences::MapViewLayout)));
   }
 
+  if (
+    path == Preferences::PreviewLighting.path() || path == Preferences::ShowEdges.path())
+  {
+    updateActionStateDelayed();
+  }
+
   updateShortcuts();
 }
 

@@ -944,11 +944,13 @@ void ActionManager::createViewActions()
   });
   addAction(Action{
     std::filesystem::path{"Controls/Map view/View Filter > Show edges"},
-    QObject::tr("Toggle Show Edges"),
+    QObject::tr("Toggle Brush Outlines"),
     ActionContext::Any,
     QKeySequence{},
     [](auto& context) { context.view().toggleShowEdges(); },
     [](const auto& context) { return context.hasDocument(); },
+    [](const auto&) { return pref(Preferences::ShowEdges); },
+    std::filesystem::path{"ShowEdges.svg"},
   });
   addAction(Action{
     std::filesystem::path{"Controls/Map view/View Filter > Preview lighting"},
@@ -957,6 +959,8 @@ void ActionManager::createViewActions()
     QKeySequence{},
     [](auto& context) { context.view().togglePreviewLighting(); },
     [](const auto& context) { return context.hasDocument(); },
+    [](const auto&) { return pref(Preferences::PreviewLighting); },
+    std::filesystem::path{"PreviewLighting.svg"},
   });
   addAction(Action{
     std::filesystem::path{"Controls/Map view/View Filter > Show all entity links"},
@@ -2333,6 +2337,9 @@ void ActionManager::createToolbar()
   m_toolBar.addSeparator();
   m_toolBar.addItem(existingAction("Menu/Edit/Texture Lock"));
   m_toolBar.addItem(existingAction("Menu/Edit/UV Lock"));
+  m_toolBar.addSeparator();
+  m_toolBar.addItem(existingAction("Controls/Map view/View Filter > Preview lighting"));
+  m_toolBar.addItem(existingAction("Controls/Map view/View Filter > Show edges"));
   m_toolBar.addSeparator();
 }
 

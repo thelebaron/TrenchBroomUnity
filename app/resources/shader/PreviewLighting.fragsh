@@ -20,7 +20,6 @@
  */
 
 // Keep in sync with tb::render::MaxPreviewLights and shadow atlas constants
-const int MAX_PREVIEW_LIGHTS = 256;
 const float MAX_PREVIEW_LIGHTS_F = 256.0;
 const float PREVIEW_SHADOW_TILE_SIZE = 256.0;
 const float PREVIEW_SHADOW_ATLAS_COLS = 12.0;
@@ -35,6 +34,12 @@ uniform sampler2D PreviewShadowAtlas;
 uniform bool PreviewDirShadowEnabled;
 uniform mat4 PreviewDirLightViewProj;
 uniform sampler2D PreviewDirShadowMap;
+
+float tapShadowAtlas(vec2 tileOrigin, vec2 uv, vec2 invAtlasTiles, float tileMin, float tileMax, float refDepth) {
+    vec2 atlasUV = (tileOrigin + clamp(uv, vec2(tileMin), vec2(tileMax))) * invAtlasTiles;
+    float storedDepth = texture2D(PreviewShadowAtlas, atlasUV).r;
+    return (refDepth <= storedDepth) ? 1.0 : 0.0;
+}
 
 float samplePreviewShadow(
     int slot,
@@ -101,34 +106,28 @@ float samplePreviewShadow(
 
     int row = slot / 2;
     int colPair = slot - row * 2;
-    float tileX = float(colPair * 6 + face);
-    float tileY = float(row);
+    vec2 tileOrigin = vec2(float(colPair * 6 + face), float(row));
     vec2 invAtlasTiles = vec2(1.0 / PREVIEW_SHADOW_ATLAS_COLS, 1.0 / PREVIEW_SHADOW_ATLAS_ROWS);
 
-    float currentDepth = sampleDist / range;
-    float depthBias = 0.0025;
-
+    float refDepth = sampleDist / range - 0.0025;
+    float center = tapShadowAtlas(tileOrigin, uv, invAtlasTiles, tileMin, tileMax, refDepth);
     if (!soft) {
-        vec2 clampedUV = clamp(uv, vec2(tileMin), vec2(tileMax));
-        vec2 atlasUV = (vec2(tileX, tileY) + clampedUV) * invAtlasTiles;
-        float storedDepth = texture2D(PreviewShadowAtlas, atlasUV).r;
-        return (currentDepth - depthBias <= storedDepth) ? 1.0 : 0.0;
+        return center;
     }
 
-    float texelStep = 1.25 / PREVIEW_SHADOW_TILE_SIZE;
-    float lit = 0.0;
-    for (int ox = -1; ox <= 1; ++ox) {
-        for (int oy = -1; oy <= 1; ++oy) {
-            vec2 sampleUV = clamp(
-                uv + vec2(float(ox), float(oy)) * texelStep,
-                vec2(tileMin),
-                vec2(tileMax));
-            vec2 atlasUV = (vec2(tileX, tileY) + sampleUV) * invAtlasTiles;
-            float storedDepth = texture2D(PreviewShadowAtlas, atlasUV).r;
-            lit += (currentDepth - depthBias <= storedDepth) ? 1.0 : 0.0;
-        }
-    }
-    return lit / 9.0;
+    // 5-tap PCF without nested loops to keep GLSL IR compact for desktop drivers.
+    float step = 1.25 / PREVIEW_SHADOW_TILE_SIZE;
+    float lit = center;
+    lit += tapShadowAtlas(tileOrigin, uv + vec2(-step, -step), invAtlasTiles, tileMin, tileMax, refDepth);
+    lit += tapShadowAtlas(tileOrigin, uv + vec2(step, -step), invAtlasTiles, tileMin, tileMax, refDepth);
+    lit += tapShadowAtlas(tileOrigin, uv + vec2(-step, step), invAtlasTiles, tileMin, tileMax, refDepth);
+    lit += tapShadowAtlas(tileOrigin, uv + vec2(step, step), invAtlasTiles, tileMin, tileMax, refDepth);
+    return lit * 0.2;
+}
+
+float tapDirShadow(vec2 uv, float refDepth) {
+    float storedDepth = texture2D(PreviewDirShadowMap, clamp(uv, vec2(0.0), vec2(1.0))).r;
+    return (refDepth <= storedDepth) ? 1.0 : 0.0;
 }
 
 float samplePreviewDirectionalShadow(bool soft, vec3 worldCoords, vec3 normal) {
@@ -144,25 +143,19 @@ float samplePreviewDirectionalShadow(bool soft, vec3 worldCoords, vec3 normal) {
         return 1.0;
     }
 
-    float depthBias = 0.0015;
+    float refDepth = currentDepth - 0.0015;
+    float center = tapDirShadow(uv, refDepth);
     if (!soft) {
-        float storedDepth = texture2D(PreviewDirShadowMap, uv).r;
-        return (currentDepth - depthBias <= storedDepth) ? 1.0 : 0.0;
+        return center;
     }
 
-    float texelStep = 1.25 / PREVIEW_DIR_SHADOW_MAP_SIZE;
-    float lit = 0.0;
-    for (int ox = -1; ox <= 1; ++ox) {
-        for (int oy = -1; oy <= 1; ++oy) {
-            vec2 sampleUV = clamp(
-                uv + vec2(float(ox), float(oy)) * texelStep,
-                vec2(0.0),
-                vec2(1.0));
-            float storedDepth = texture2D(PreviewDirShadowMap, sampleUV).r;
-            lit += (currentDepth - depthBias <= storedDepth) ? 1.0 : 0.0;
-        }
-    }
-    return lit / 9.0;
+    float step = 1.25 / PREVIEW_DIR_SHADOW_MAP_SIZE;
+    float lit = center;
+    lit += tapDirShadow(uv + vec2(-step, -step), refDepth);
+    lit += tapDirShadow(uv + vec2(step, -step), refDepth);
+    lit += tapDirShadow(uv + vec2(-step, step), refDepth);
+    lit += tapDirShadow(uv + vec2(step, step), refDepth);
+    return lit * 0.2;
 }
 
 // Mirrors cyberjunk's retro shading model:
@@ -173,11 +166,9 @@ float samplePreviewDirectionalShadow(bool soft, vec3 worldCoords, vec3 normal) {
 vec3 applyPreviewLighting(vec3 albedo, vec3 worldCoords, vec3 normal) {
     vec3 totalLight = vec3(PreviewAmbient);
 
-    for (int i = 0; i < MAX_PREVIEW_LIGHTS; ++i) {
-        if (i >= PreviewLightCount) {
-            break;
-        }
-
+    // Use the dynamic uniform upper bound directly so drivers do not attempt to
+    // statically unroll 256 iterations of shadowed lighting at shader link time.
+    for (int i = 0; i < PreviewLightCount; ++i) {
         float u = (float(i) + 0.5) / MAX_PREVIEW_LIGHTS_F;
         vec4 posRange = texture2D(PreviewLightData, vec2(u, 0.125));
         vec4 colorIntensity = texture2D(PreviewLightData, vec2(u, 0.375));
@@ -187,7 +178,6 @@ vec3 applyPreviewLighting(vec3 albedo, vec3 worldCoords, vec3 normal) {
         float shadowMeta = colorIntensity.w;
 
         if (lightType > 1.5) {
-            // Directional light
             vec3 lightDir = normalize(-dirType.xyz);
             float shadowAtten = 1.0;
             if (PreviewShadows && PreviewDirShadowEnabled && abs(shadowMeta) > 0.5) {
@@ -221,7 +211,6 @@ vec3 applyPreviewLighting(vec3 albedo, vec3 worldCoords, vec3 normal) {
         float atten = clamp(1.0 - dist / range, 0.0, 1.0);
 
         if (lightType > 0.5) {
-            // Spot light cone attenuation
             vec4 spotParams = texture2D(PreviewLightData, vec2(u, 0.875));
             float alignment = dot(-dirType.xyz, lightDir);
             float cone = clamp(alignment * spotParams.x + spotParams.y, 0.0, 1.0);
