@@ -503,6 +503,8 @@ QWidget* ViewEditor::createRendererPanel(QWidget* parent)
   m_previewLightingCheckBox = new QCheckBox{tr("Preview lighting")};
   m_previewLightingShadowsCheckBox = new QCheckBox{tr("Preview shadows")};
   m_previewLightingAmbientSlider = new SliderWithLabel{0, 100};
+  m_previewLightingGICheckBox = new QCheckBox{tr("Preview GI")};
+  m_previewLightingGIBounceSlider = new SliderWithLabel{0, 200};
 
   auto* shadowsLayout = new QHBoxLayout{};
   shadowsLayout->setContentsMargins(LayoutConstants::WideHMargin, 0, 0, 0);
@@ -513,6 +515,16 @@ QWidget* ViewEditor::createRendererPanel(QWidget* parent)
   ambientLayout->setSpacing(LayoutConstants::MediumHMargin);
   ambientLayout->addWidget(new QLabel{tr("Ambient")});
   ambientLayout->addWidget(m_previewLightingAmbientSlider, 1);
+
+  auto* giLayout = new QHBoxLayout{};
+  giLayout->setContentsMargins(LayoutConstants::WideHMargin, 0, 0, 0);
+  giLayout->addWidget(m_previewLightingGICheckBox);
+
+  auto* giBounceLayout = new QHBoxLayout{};
+  giBounceLayout->setContentsMargins(LayoutConstants::WideHMargin, 0, 0, 0);
+  giBounceLayout->setSpacing(LayoutConstants::MediumHMargin);
+  giBounceLayout->addWidget(new QLabel{tr("GI Bounce")});
+  giBounceLayout->addWidget(m_previewLightingGIBounceSlider, 1);
 
 
   const auto EntityLinkModes = std::vector<std::tuple<QString, QString>>{
@@ -561,6 +573,16 @@ QWidget* ViewEditor::createRendererPanel(QWidget* parent)
     &SliderWithLabel::valueChanged,
     this,
     &ViewEditor::previewLightingAmbientChanged);
+  connect(
+    m_previewLightingGICheckBox,
+    &QAbstractButton::clicked,
+    this,
+    &ViewEditor::previewLightingGIChanged);
+  connect(
+    m_previewLightingGIBounceSlider,
+    &SliderWithLabel::valueChanged,
+    this,
+    &ViewEditor::previewLightingGIBounceChanged);
 
   connect(
     m_renderModeRadioGroup,
@@ -599,6 +621,8 @@ QWidget* ViewEditor::createRendererPanel(QWidget* parent)
   layout->addWidget(m_previewLightingCheckBox);
   layout->addLayout(shadowsLayout);
   layout->addLayout(ambientLayout);
+  layout->addLayout(giLayout);
+  layout->addLayout(giBounceLayout);
 
   for (auto* button : m_entityLinkRadioGroup->buttons())
   {
@@ -670,6 +694,16 @@ void ViewEditor::refreshRendererPanel()
     m_previewLightingAmbientSlider->setValue(ambientPercent);
   }
   m_previewLightingAmbientSlider->setEnabled(previewLighting);
+  const auto previewLightingGI = pref(Preferences::PreviewLightingGI);
+  m_previewLightingGICheckBox->setChecked(previewLightingGI);
+  m_previewLightingGICheckBox->setEnabled(previewLighting);
+  {
+    const auto blocker = QSignalBlocker{m_previewLightingGIBounceSlider};
+    const auto bouncePercent = static_cast<int>(
+      std::lround(pref(Preferences::PreviewLightingGIBounce) * 100.0f));
+    m_previewLightingGIBounceSlider->setValue(bouncePercent);
+  }
+  m_previewLightingGIBounceSlider->setEnabled(previewLighting && previewLightingGI);
   checkButtonInGroup(m_entityLinkRadioGroup, pref(Preferences::EntityLinkMode), true);
   m_showSoftBoundsCheckBox->setChecked(pref(Preferences::ShowSoftMapBounds));
 }
@@ -786,6 +820,16 @@ void ViewEditor::previewLightingAmbientChanged(const int value)
   setPref(Preferences::PreviewLightingAmbient, static_cast<float>(value) / 100.0f);
 }
 
+void ViewEditor::previewLightingGIChanged(const bool checked)
+{
+  setPref(Preferences::PreviewLightingGI, checked);
+}
+
+void ViewEditor::previewLightingGIBounceChanged(const int value)
+{
+  setPref(Preferences::PreviewLightingGIBounce, static_cast<float>(value) / 100.0f);
+}
+
 void ViewEditor::entityLinkModeChanged(const int id)
 {
   switch (id)
@@ -825,6 +869,8 @@ void ViewEditor::restoreDefaultsClicked()
   prefs.resetToDefault(Preferences::PreviewLighting);
   prefs.resetToDefault(Preferences::PreviewLightingShadows);
   prefs.resetToDefault(Preferences::PreviewLightingAmbient);
+  prefs.resetToDefault(Preferences::PreviewLightingGI);
+  prefs.resetToDefault(Preferences::PreviewLightingGIBounce);
   prefs.resetToDefault(Preferences::ShowSoftMapBounds);
   prefs.resetToDefault(Preferences::ShowPointEntities);
   prefs.resetToDefault(Preferences::ShowBrushes);

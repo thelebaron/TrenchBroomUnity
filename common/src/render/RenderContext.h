@@ -77,10 +77,17 @@ private:
 
   bool m_previewLighting = false;
   bool m_previewLightingShadows = false;
+  bool m_previewLightingGI = false;
+  float m_previewLightingGIBounce = 1.0f;
   float m_previewLightingAmbient = 0.15f;
   int m_previewLightCount = 0;
   bool m_previewDirShadowEnabled = false;
   vm::mat4x4f m_previewDirLightViewProj = vm::mat4x4f::identity();
+  bool m_previewGIReady = false;
+  bool m_previewGIPending = false;
+  vm::vec3f m_previewGIBoundsMin{};
+  vm::vec3f m_previewGIBoundsMax{};
+  vm::vec3f m_previewGIDims{1.0f, 1.0f, 1.0f};
 
   bool m_showGrid = true;
   double m_gridSize = 4;
@@ -152,6 +159,12 @@ public:
   bool previewLightingShadows() const;
   void setPreviewLightingShadows(bool previewLightingShadows);
 
+  bool previewLightingGI() const;
+  void setPreviewLightingGI(bool previewLightingGI);
+
+  float previewLightingGIBounce() const;
+  void setPreviewLightingGIBounce(float previewLightingGIBounce);
+
   float previewLightingAmbient() const;
   void setPreviewLightingAmbient(float previewLightingAmbient);
 
@@ -163,6 +176,18 @@ public:
 
   const vm::mat4x4f& previewDirLightViewProj() const;
   void setPreviewDirLightViewProj(const vm::mat4x4f& previewDirLightViewProj);
+
+  bool previewGIReady() const;
+  void setPreviewGIReady(bool previewGIReady);
+
+  bool previewGIPending() const;
+  void setPreviewGIPending(bool previewGIPending);
+
+  const vm::vec3f& previewGIBoundsMin() const;
+  const vm::vec3f& previewGIBoundsMax() const;
+  const vm::vec3f& previewGIDims() const;
+  void setPreviewGIGrid(
+    const vm::vec3f& boundsMin, const vm::vec3f& boundsMax, const vm::vec3f& dims);
 
   bool showGrid() const;
   void setShowGrid(bool showGrid);

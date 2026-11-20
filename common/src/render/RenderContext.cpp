@@ -213,6 +213,26 @@ void RenderContext::setPreviewLightingShadows(const bool previewLightingShadows)
   m_previewLightingShadows = previewLightingShadows;
 }
 
+bool RenderContext::previewLightingGI() const
+{
+  return m_previewLightingGI;
+}
+
+void RenderContext::setPreviewLightingGI(const bool previewLightingGI)
+{
+  m_previewLightingGI = previewLightingGI;
+}
+
+float RenderContext::previewLightingGIBounce() const
+{
+  return m_previewLightingGIBounce;
+}
+
+void RenderContext::setPreviewLightingGIBounce(const float previewLightingGIBounce)
+{
+  m_previewLightingGIBounce = previewLightingGIBounce;
+}
+
 float RenderContext::previewLightingAmbient() const
 {
   return m_previewLightingAmbient;
@@ -251,6 +271,49 @@ const vm::mat4x4f& RenderContext::previewDirLightViewProj() const
 void RenderContext::setPreviewDirLightViewProj(const vm::mat4x4f& previewDirLightViewProj)
 {
   m_previewDirLightViewProj = previewDirLightViewProj;
+}
+
+bool RenderContext::previewGIReady() const
+{
+  return m_previewGIReady;
+}
+
+void RenderContext::setPreviewGIReady(const bool previewGIReady)
+{
+  m_previewGIReady = previewGIReady;
+}
+
+bool RenderContext::previewGIPending() const
+{
+  return m_previewGIPending;
+}
+
+void RenderContext::setPreviewGIPending(const bool previewGIPending)
+{
+  m_previewGIPending = previewGIPending;
+}
+
+const vm::vec3f& RenderContext::previewGIBoundsMin() const
+{
+  return m_previewGIBoundsMin;
+}
+
+const vm::vec3f& RenderContext::previewGIBoundsMax() const
+{
+  return m_previewGIBoundsMax;
+}
+
+const vm::vec3f& RenderContext::previewGIDims() const
+{
+  return m_previewGIDims;
+}
+
+void RenderContext::setPreviewGIGrid(
+  const vm::vec3f& boundsMin, const vm::vec3f& boundsMax, const vm::vec3f& dims)
+{
+  m_previewGIBoundsMin = boundsMin;
+  m_previewGIBoundsMax = boundsMax;
+  m_previewGIDims = dims;
 }
 
 bool RenderContext::showGrid() const

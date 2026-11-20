@@ -35,13 +35,16 @@
 #include "mdl/GroupNode.h"
 #include "mdl/LayerNode.h"
 #include "mdl/Map.h"
+#include "mdl/Material.h"
 #include "mdl/PatchNode.h"
 #include "mdl/Selection.h"
 #include "mdl/TagAttribute.h"
+#include "mdl/Texture.h"
 #include "mdl/WorldNode.h"
 #include "render/ActiveShader.h"
 #include "render/Camera.h"
 #include "render/MaterialIndexRangeRenderer.h"
+#include "render/PreviewGI.h"
 #include "render/RenderBatch.h"
 #include "render/RenderContext.h"
 #include "render/RenderService.h"
@@ -293,11 +296,14 @@ private:
   GLuint& m_dirShadowFboId;
   GLuint& m_dirShadowTextureId;
   GLuint& m_shadowCasterVboId;
+  GLuint& m_giTextureId;
   bool& m_shadowCasterVboDirty;
 
   std::vector<float> m_lightTexels;
   bool m_shadowsEnabled = false;
   bool m_dirShadowEnabled = false;
+  bool m_giBindEnabled = false;
+  std::optional<GiVolumeData> m_giVolumeUpload;
   std::vector<ShadowPassJob> m_dirtyShadowJobs;
   DirectionalShadowJob m_dirShadowJob;
   const std::vector<vm::vec3f>& m_shadowCasterVertices;
@@ -314,10 +320,13 @@ public:
     GLuint& dirShadowFboId,
     GLuint& dirShadowTextureId,
     GLuint& shadowCasterVboId,
+    GLuint& giTextureId,
     bool& shadowCasterVboDirty,
     std::vector<float> lightTexels,
     const bool shadowsEnabled,
     const bool dirShadowEnabled,
+    const bool giBindEnabled,
+    std::optional<GiVolumeData> giVolumeUpload,
     std::vector<ShadowPassJob> dirtyShadowJobs,
     DirectionalShadowJob dirShadowJob,
     const std::vector<vm::vec3f>& shadowCasterVertices,
@@ -331,10 +340,13 @@ public:
     , m_dirShadowFboId{dirShadowFboId}
     , m_dirShadowTextureId{dirShadowTextureId}
     , m_shadowCasterVboId{shadowCasterVboId}
+    , m_giTextureId{giTextureId}
     , m_shadowCasterVboDirty{shadowCasterVboDirty}
     , m_lightTexels{std::move(lightTexels)}
     , m_shadowsEnabled{shadowsEnabled}
     , m_dirShadowEnabled{dirShadowEnabled}
+    , m_giBindEnabled{giBindEnabled}
+    , m_giVolumeUpload{std::move(giVolumeUpload)}
     , m_dirtyShadowJobs{std::move(dirtyShadowJobs)}
     , m_dirShadowJob{dirShadowJob}
     , m_shadowCasterVertices{shadowCasterVertices}
@@ -394,6 +406,45 @@ private:
         }
       }
     }
+
+    if (m_giVolumeUpload && m_giVolumeUpload->valid())
+    {
+      uploadGiVolumeTexture(*m_giVolumeUpload);
+    }
+
+    if (m_giBindEnabled && m_giTextureId != 0)
+    {
+      glAssert(glActiveTexture(GL_TEXTURE4));
+      glAssert(glBindTexture(GL_TEXTURE_3D, m_giTextureId));
+      glAssert(glActiveTexture(GL_TEXTURE0));
+    }
+  }
+
+  void uploadGiVolumeTexture(const GiVolumeData& volume)
+  {
+    glAssert(glActiveTexture(GL_TEXTURE4));
+    if (m_giTextureId == 0)
+    {
+      glAssert(glGenTextures(1, &m_giTextureId));
+    }
+    glAssert(glBindTexture(GL_TEXTURE_3D, m_giTextureId));
+    glAssert(glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_LINEAR));
+    glAssert(glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_LINEAR));
+    glAssert(glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE));
+    glAssert(glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE));
+    glAssert(glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE));
+    glAssert(glTexImage3D(
+      GL_TEXTURE_3D,
+      0,
+      GL_RGBA16F,
+      volume.dimX,
+      volume.dimY,
+      volume.dimZ * 6,
+      0,
+      GL_RGBA,
+      GL_FLOAT,
+      volume.texels.data()));
+    glAssert(glActiveTexture(GL_TEXTURE0));
   }
 
   void uploadLightDataTexture()
@@ -1341,17 +1392,24 @@ PreviewLightRenderer::~PreviewLightRenderer()
     glAssert(glDeleteBuffers(1, &m_shadowCasterVboId));
     m_shadowCasterVboId = 0;
   }
+  if (m_giTextureId != 0)
+  {
+    glAssert(glDeleteTextures(1, &m_giTextureId));
+    m_giTextureId = 0;
+  }
 }
 
 void PreviewLightRenderer::invalidateLights()
 {
   m_lightsDirty = true;
+  m_giDirty = true;
 }
 
 void PreviewLightRenderer::invalidateGeometry()
 {
   m_geometryDirty = true;
   m_shadowCasterVboDirty = true;
+  m_giDirty = true;
   ++m_geometryGeneration;
 }
 
@@ -1368,9 +1426,16 @@ void PreviewLightRenderer::clear()
   m_shadowBrushVertexCount = 0;
   m_shadowPatchVertexCount = 0;
   m_shadowModelCasters.clear();
+  m_giTriangles.clear();
   m_hasShadowWorldBounds = false;
   m_shadowSlots = {};
   m_dirShadowCache = {};
+  if (m_giBaker)
+  {
+    m_giBaker->cancelAll();
+  }
+  m_giDirty = true;
+  m_giUploaded = false;
   m_lightsDirty = true;
   m_geometryDirty = true;
   m_shadowCasterVboDirty = true;
@@ -1384,6 +1449,8 @@ void PreviewLightRenderer::prepare(
   {
     renderContext.setPreviewLightCount(0);
     renderContext.setPreviewDirShadowEnabled(false);
+    renderContext.setPreviewGIReady(false);
+    renderContext.setPreviewGIPending(false);
     return;
   }
 
@@ -1393,7 +1460,8 @@ void PreviewLightRenderer::prepare(
   }
 
   const auto shadowsEnabled = renderContext.previewLightingShadows();
-  if (shadowsEnabled && m_geometryDirty)
+  const auto giEnabled = renderContext.previewLightingGI();
+  if ((shadowsEnabled || giEnabled) && m_geometryDirty)
   {
     rebuildShadowGeometryCache();
   }
@@ -1452,11 +1520,58 @@ void PreviewLightRenderer::prepare(
     }
   }
 
+  auto giVolumeUpload = std::optional<GiVolumeData>{};
+  auto giBindEnabled = false;
+  auto giPending = false;
+
+  if (giEnabled)
+  {
+    if (!m_giBaker)
+    {
+      m_giBaker = std::make_unique<GiAsyncBaker>();
+    }
+
+    if (m_giDirty)
+    {
+      m_giDirty = false;
+      if (!m_giTriangles.empty())
+      {
+        m_giBaker->schedule(m_giTriangles, m_lights);
+      }
+      else
+      {
+        m_giBaker->cancelAll();
+        m_giUploaded = false;
+      }
+    }
+
+    if (auto readyVolume = m_giBaker->takeReadyResult())
+    {
+      m_giBoundsMin = readyVolume->boundsMin;
+      m_giBoundsMax = readyVolume->boundsMax;
+      m_giDims = vm::vec3f{
+        static_cast<float>(readyVolume->dimX),
+        static_cast<float>(readyVolume->dimY),
+        static_cast<float>(readyVolume->dimZ)};
+      m_giUploaded = true;
+      giVolumeUpload = std::move(readyVolume);
+    }
+
+    giBindEnabled = m_giUploaded;
+    giPending = m_giBaker->isBusy();
+  }
+
   renderContext.setPreviewLightCount(static_cast<int>(activeLights.size()));
   renderContext.setPreviewDirShadowEnabled(dirShadowEnabled);
   if (dirShadowEnabled)
   {
     renderContext.setPreviewDirLightViewProj(m_dirShadowCache.viewProj);
+  }
+  renderContext.setPreviewGIReady(giBindEnabled);
+  renderContext.setPreviewGIPending(giPending);
+  if (giBindEnabled)
+  {
+    renderContext.setPreviewGIGrid(m_giBoundsMin, m_giBoundsMax, m_giDims);
   }
 
   auto texels = packPreviewLightTextureData(activeLights);
@@ -1468,10 +1583,13 @@ void PreviewLightRenderer::prepare(
     m_dirShadowFboId,
     m_dirShadowTextureId,
     m_shadowCasterVboId,
+    m_giTextureId,
     m_shadowCasterVboDirty,
     std::move(texels),
     shadowsEnabled,
     dirShadowEnabled,
+    giBindEnabled,
+    std::move(giVolumeUpload),
     std::move(dirtyJobs),
     dirShadowJob,
     m_shadowCasterVertices,
@@ -1638,6 +1756,7 @@ void PreviewLightRenderer::rebuildShadowGeometryCache()
   m_shadowBrushVertexCount = 0;
   m_shadowPatchVertexCount = 0;
   m_shadowModelCasters.clear();
+  m_giTriangles.clear();
   m_hasShadowWorldBounds = false;
   m_geometryDirty = false;
   m_shadowCasterVboDirty = true;
@@ -1715,6 +1834,14 @@ void PreviewLightRenderer::rebuildShadowGeometryCache()
         {
           continue;
         }
+        auto faceAlbedo = vm::vec3f{0.5f, 0.5f, 0.5f};
+        if (const auto* texture = mdl::getTexture(face.material()))
+        {
+          const auto& avg = texture->averageColor();
+          faceAlbedo = vm::vec3f{avg.r(), avg.g(), avg.b()};
+        }
+        const auto faceNormal = vm::vec3f{face.boundary().normal};
+
         facePolygon.clear();
         const auto& boundary = geom->boundary();
         for (auto it = std::rbegin(boundary), end = std::rend(boundary); it != end; ++it)
@@ -1725,9 +1852,13 @@ void PreviewLightRenderer::rebuildShadowGeometryCache()
         {
           for (size_t i = 1; i + 1 < facePolygon.size(); ++i)
           {
-            m_shadowCasterVertices.push_back(facePolygon[0]);
-            m_shadowCasterVertices.push_back(facePolygon[i]);
-            m_shadowCasterVertices.push_back(facePolygon[i + 1]);
+            const auto& v0 = facePolygon[0];
+            const auto& v1 = facePolygon[i];
+            const auto& v2 = facePolygon[i + 1];
+            m_shadowCasterVertices.push_back(v0);
+            m_shadowCasterVertices.push_back(v1);
+            m_shadowCasterVertices.push_back(v2);
+            m_giTriangles.push_back(GiTriangle{v0, v1, v2, faceNormal, faceAlbedo});
           }
         }
       }
@@ -1738,26 +1869,40 @@ void PreviewLightRenderer::rebuildShadowGeometryCache()
         return;
       }
       boundsBuilder.add(vm::bbox3f{patchNode->logicalBounds()});
+      auto patchAlbedo = vm::vec3f{0.5f, 0.5f, 0.5f};
+      if (const auto* texture = mdl::getTexture(patchNode->patch().material()))
+      {
+        const auto& avg = texture->averageColor();
+        patchAlbedo = vm::vec3f{avg.r(), avg.g(), avg.b()};
+      }
+
       const auto& grid = patchNode->grid();
       const auto pointsPerRow = grid.pointColumnCount;
       for (size_t row = 0u; row < grid.quadRowCount(); ++row)
       {
         for (size_t col = 0u; col < grid.quadColumnCount(); ++col)
         {
-          const auto p0 = vm::vec3f{grid.points[row * pointsPerRow + col].position};
-          const auto p1 = vm::vec3f{grid.points[row * pointsPerRow + col + 1u].position};
-          const auto p2 =
-            vm::vec3f{grid.points[(row + 1u) * pointsPerRow + col + 1u].position};
-          const auto p3 =
-            vm::vec3f{grid.points[(row + 1u) * pointsPerRow + col].position};
+          const auto& g0 = grid.points[row * pointsPerRow + col];
+          const auto& g1 = grid.points[row * pointsPerRow + col + 1u];
+          const auto& g2 = grid.points[(row + 1u) * pointsPerRow + col + 1u];
+          const auto& g3 = grid.points[(row + 1u) * pointsPerRow + col];
+
+          const auto p0 = vm::vec3f{g0.position};
+          const auto p1 = vm::vec3f{g1.position};
+          const auto p2 = vm::vec3f{g2.position};
+          const auto p3 = vm::vec3f{g3.position};
+          const auto n012 = vm::normalize(vm::vec3f{g0.normal + g1.normal + g2.normal});
+          const auto n230 = vm::normalize(vm::vec3f{g2.normal + g3.normal + g0.normal});
 
           patchVertices.push_back(p0);
           patchVertices.push_back(p1);
           patchVertices.push_back(p2);
+          m_giTriangles.push_back(GiTriangle{p0, p1, p2, n012, patchAlbedo});
 
           patchVertices.push_back(p2);
           patchVertices.push_back(p3);
           patchVertices.push_back(p0);
+          m_giTriangles.push_back(GiTriangle{p2, p3, p0, n230, patchAlbedo});
         }
       }
     }));

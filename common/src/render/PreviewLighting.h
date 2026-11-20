@@ -29,6 +29,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <string_view>
 #include <vector>
@@ -41,6 +42,8 @@ class Map;
 
 namespace tb::render
 {
+class GiAsyncBaker;
+struct GiTriangle;
 class MaterialRenderer;
 class RenderBatch;
 class RenderContext;
@@ -166,6 +169,7 @@ private:
   size_t m_shadowBrushVertexCount = 0;
   size_t m_shadowPatchVertexCount = 0;
   std::vector<PreviewShadowModelCaster> m_shadowModelCasters;
+  std::vector<GiTriangle> m_giTriangles;
   vm::bbox3f m_shadowWorldBounds;
   bool m_hasShadowWorldBounds = false;
   bool m_geometryDirty = true;
@@ -175,12 +179,20 @@ private:
   std::array<PreviewShadowSlot, MaxPreviewShadowLights> m_shadowSlots{};
   PreviewDirectionalShadowCache m_dirShadowCache{};
 
+  std::unique_ptr<GiAsyncBaker> m_giBaker;
+  bool m_giDirty = true;
+  bool m_giUploaded = false;
+  vm::vec3f m_giBoundsMin{};
+  vm::vec3f m_giBoundsMax{};
+  vm::vec3f m_giDims{1.0f, 1.0f, 1.0f};
+
   GLuint m_textureId = 0;
   GLuint m_shadowFboId = 0;
   GLuint m_shadowAtlasTextureId = 0;
   GLuint m_dirShadowFboId = 0;
   GLuint m_dirShadowTextureId = 0;
   GLuint m_shadowCasterVboId = 0;
+  GLuint m_giTextureId = 0;
 
 public:
   explicit PreviewLightRenderer(mdl::Map& map);

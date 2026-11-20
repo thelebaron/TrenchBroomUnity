@@ -194,6 +194,8 @@ extern Preference<bool> ShowFog;
 extern Preference<bool> ShowEdges;
 extern Preference<bool> PreviewLighting;
 extern Preference<bool> PreviewLightingShadows;
+extern Preference<bool> PreviewLightingGI;
+extern Preference<float> PreviewLightingGIBounce;
 extern Preference<float> PreviewLightingAmbient;
 
 extern Preference<bool> ShowSoftMapBounds;

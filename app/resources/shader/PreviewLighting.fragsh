@@ -34,6 +34,12 @@ uniform sampler2D PreviewShadowAtlas;
 uniform bool PreviewDirShadowEnabled;
 uniform mat4 PreviewDirLightViewProj;
 uniform sampler2D PreviewDirShadowMap;
+uniform bool PreviewGIEnabled;
+uniform float PreviewGIBounce;
+uniform vec3 PreviewGIBoundsMin;
+uniform vec3 PreviewGIBoundsMax;
+uniform vec3 PreviewGIDims;
+uniform sampler3D PreviewGIVolume;
 
 float tapShadowAtlas(vec2 tileOrigin, vec2 uv, vec2 invAtlasTiles, float tileMin, float tileMax, float refDepth) {
     vec2 atlasUV = (tileOrigin + clamp(uv, vec2(tileMin), vec2(tileMax))) * invAtlasTiles;
@@ -158,6 +164,29 @@ float samplePreviewDirectionalShadow(bool soft, vec3 worldCoords, vec3 normal) {
     return lit * 0.2;
 }
 
+vec4 samplePreviewGI(vec3 worldCoords, vec3 normal) {
+    vec3 gridSpan = max(PreviewGIBoundsMax - PreviewGIBoundsMin, vec3(1.0));
+    vec3 dims = max(PreviewGIDims, vec3(1.0));
+    vec3 cellSize = gridSpan / dims;
+
+    // Nudge slightly along surface normal so trilinear lookup favors room-side probes.
+    vec3 samplePos = worldCoords + normal * (cellSize * 0.35);
+    vec3 uvw = clamp((samplePos - PreviewGIBoundsMin) / gridSpan, vec3(0.0), vec3(1.0));
+
+    vec3 halfTexel = vec3(0.5) / dims;
+    uvw = clamp(uvw, halfTexel, vec3(1.0) - halfTexel);
+
+    vec3 nSq = normal * normal;
+    float fx = (normal.x >= 0.0) ? 0.0 : 1.0;
+    float fy = (normal.y >= 0.0) ? 2.0 : 3.0;
+    float fz = (normal.z >= 0.0) ? 4.0 : 5.0;
+
+    vec4 gx = texture3D(PreviewGIVolume, vec3(uvw.x, uvw.y, (fx + uvw.z) / 6.0));
+    vec4 gy = texture3D(PreviewGIVolume, vec3(uvw.x, uvw.y, (fy + uvw.z) / 6.0));
+    vec4 gz = texture3D(PreviewGIVolume, vec3(uvw.x, uvw.y, (fz + uvw.z) / 6.0));
+    return gx * nSq.x + gy * nSq.y + gz * nSq.z;
+}
+
 // Mirrors cyberjunk's retro shading model:
 // - Linear distance attenuation: clamp(1.0 - dist / range, 0.0, 1.0)
 // - Spot cone attenuation: saturate(dot(-spotForward, lightDir) * x + y)^2
@@ -165,6 +194,10 @@ float samplePreviewDirectionalShadow(bool soft, vec3 worldCoords, vec3 normal) {
 // - Hue-preserving accumulation cap: lit / max(maxChannel(lit), 1.0)
 vec3 applyPreviewLighting(vec3 albedo, vec3 worldCoords, vec3 normal) {
     vec3 totalLight = vec3(PreviewAmbient);
+    if (PreviewGIEnabled) {
+        vec4 gi = samplePreviewGI(worldCoords, normal);
+        totalLight = vec3(PreviewAmbient) * mix(0.35, 1.0, gi.a) + gi.rgb * PreviewGIBounce;
+    }
 
     // Use the dynamic uniform upper bound directly so drivers do not attempt to
     // statically unroll 256 iterations of shadowed lighting at shader link time.

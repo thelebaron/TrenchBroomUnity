@@ -24,6 +24,7 @@
 #include <QMimeData>
 #include <QShortcut>
 #include <QString>
+#include <QTimer>
 #include <QtGlobal>
 
 #include "Logger.h"
@@ -1032,6 +1033,8 @@ void MapViewBase::renderContents()
     renderMode() == render::RenderMode::Render3D && pref(Preferences::PreviewLighting));
   renderContext.setPreviewLightingShadows(pref(Preferences::PreviewLightingShadows));
   renderContext.setPreviewLightingAmbient(pref(Preferences::PreviewLightingAmbient));
+  renderContext.setPreviewLightingGI(pref(Preferences::PreviewLightingGI));
+  renderContext.setPreviewLightingGIBounce(pref(Preferences::PreviewLightingGIBounce));
   renderContext.setShowGrid(grid.visible());
   renderContext.setGridSize(grid.actualSize());
   renderContext.setDpiScale(static_cast<float>(window()->devicePixelRatioF()));
@@ -1061,6 +1064,15 @@ void MapViewBase::renderContents()
   if (map.needsResourceProcessing())
   {
     update();
+  }
+
+  if (renderContext.previewGIPending() && !m_previewGIRepaintScheduled)
+  {
+    m_previewGIRepaintScheduled = true;
+    QTimer::singleShot(33, this, [this]() {
+      m_previewGIRepaintScheduled = false;
+      update();
+    });
   }
 }
 

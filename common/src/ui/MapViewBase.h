@@ -105,6 +105,7 @@ private: // shortcuts
   std::vector<std::pair<QShortcut*, const Action*>> m_shortcuts;
   render::LayerHighlightRenderer m_layerHighlightRenderer;
   bool m_layerHighlightActive = false;
+  bool m_previewGIRepaintScheduled = false;
 
 protected:
   MapViewBase(

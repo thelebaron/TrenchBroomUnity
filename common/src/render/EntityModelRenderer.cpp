@@ -179,6 +179,14 @@ void EntityModelRenderer::doRender(RenderContext& renderContext)
     shader.set("PreviewDirShadowEnabled", renderContext.previewDirShadowEnabled());
     shader.set("PreviewDirLightViewProj", renderContext.previewDirLightViewProj());
     shader.set("PreviewDirShadowMap", 3);
+    shader.set(
+      "PreviewGIEnabled",
+      renderContext.previewLightingGI() && renderContext.previewGIReady());
+    shader.set("PreviewGIBounce", renderContext.previewLightingGIBounce());
+    shader.set("PreviewGIBoundsMin", renderContext.previewGIBoundsMin());
+    shader.set("PreviewGIBoundsMax", renderContext.previewGIBoundsMax());
+    shader.set("PreviewGIDims", renderContext.previewGIDims());
+    shader.set("PreviewGIVolume", 4);
     shader.set("ShowSoftMapBounds", !renderContext.softMapBounds().is_empty());
     shader.set("SoftMapBoundsMin", renderContext.softMapBounds().min);
     shader.set("SoftMapBoundsMax", renderContext.softMapBounds().max);

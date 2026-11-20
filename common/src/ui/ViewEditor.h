@@ -109,6 +109,8 @@ private:
   QCheckBox* m_previewLightingCheckBox = nullptr;
   QCheckBox* m_previewLightingShadowsCheckBox = nullptr;
   SliderWithLabel* m_previewLightingAmbientSlider = nullptr;
+  QCheckBox* m_previewLightingGICheckBox = nullptr;
+  SliderWithLabel* m_previewLightingGIBounceSlider = nullptr;
 
   QButtonGroup* m_entityLinkRadioGroup = nullptr;
 
@@ -162,6 +164,8 @@ private:
   void previewLightingChanged(bool checked);
   void previewLightingShadowsChanged(bool checked);
   void previewLightingAmbientChanged(int value);
+  void previewLightingGIChanged(bool checked);
+  void previewLightingGIBounceChanged(int value);
   void entityLinkModeChanged(int id);
   void showSoftMapBoundsChanged(bool checked);
   void restoreDefaultsClicked();

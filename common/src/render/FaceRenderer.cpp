@@ -173,6 +173,13 @@ void FaceRenderer::doRender(RenderContext& context)
     shader.set("PreviewDirShadowEnabled", context.previewDirShadowEnabled());
     shader.set("PreviewDirLightViewProj", context.previewDirLightViewProj());
     shader.set("PreviewDirShadowMap", 3);
+    shader.set(
+      "PreviewGIEnabled", context.previewLightingGI() && context.previewGIReady());
+    shader.set("PreviewGIBounce", context.previewLightingGIBounce());
+    shader.set("PreviewGIBoundsMin", context.previewGIBoundsMin());
+    shader.set("PreviewGIBoundsMax", context.previewGIBoundsMax());
+    shader.set("PreviewGIDims", context.previewGIDims());
+    shader.set("PreviewGIVolume", 4);
     shader.set("Alpha", m_alpha);
     shader.set("EnableMasked", false);
     shader.set("ShowSoftMapBounds", !context.softMapBounds().is_empty());
