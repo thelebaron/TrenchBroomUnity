@@ -43,42 +43,6 @@ public:
     const vm::bbox3d& bounds, const ShapeParameters& parameters) const override;
 };
 
-/**
- * Draws a room: the dragged box becomes the room's interior. With a single room
- * selected, the box is added to that room instead. The preview shows the finished shell.
- */
-class DrawShapeToolRoomExtension : public DrawShapeToolExtension
-{
-public:
-  explicit DrawShapeToolRoomExtension(mdl::Map& map);
-
-  const std::string& name() const override;
-  const std::filesystem::path& iconPath() const override;
-  DrawShapeToolExtensionPage* createToolPage(
-    ShapeParameters& parameters, QWidget* parent) override;
-  Result<std::vector<mdl::Brush>> createBrushes(
-    const vm::bbox3d& bounds, const ShapeParameters& parameters) const override;
-  bool commitShape(const vm::bbox3d& bounds, const ShapeParameters& parameters) override;
-};
-
-/**
- * Draws a doorway: the dragged box is cut out of the walls of the selected rooms, or of
- * every room whose walls it crosses if no room is selected.
- */
-class DrawShapeToolDoorwayExtension : public DrawShapeToolExtension
-{
-public:
-  explicit DrawShapeToolDoorwayExtension(mdl::Map& map);
-
-  const std::string& name() const override;
-  const std::filesystem::path& iconPath() const override;
-  DrawShapeToolExtensionPage* createToolPage(
-    ShapeParameters& parameters, QWidget* parent) override;
-  Result<std::vector<mdl::Brush>> createBrushes(
-    const vm::bbox3d& bounds, const ShapeParameters& parameters) const override;
-  bool commitShape(const vm::bbox3d& bounds, const ShapeParameters& parameters) override;
-};
-
 class DrawShapeToolAxisAlignedShapeExtensionPage : public DrawShapeToolExtensionPage
 {
 public:

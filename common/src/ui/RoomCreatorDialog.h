@@ -24,6 +24,7 @@ class QComboBox;
 class QGroupBox;
 class QLabel;
 class QPushButton;
+class QSpinBox;
 
 namespace tb::mdl
 {
@@ -84,6 +85,11 @@ private:
   QComboBox* m_corridorWidth = nullptr;
   QComboBox* m_corridorHeight = nullptr;
   QPushButton* m_connectButton = nullptr;
+  QPushButton* m_drawRoomsButton = nullptr;
+  QPushButton* m_clearLayoutButton = nullptr;
+  QSpinBox* m_floorLevel = nullptr;
+  QComboBox* m_doorWidth = nullptr;
+  QComboBox* m_doorHeight = nullptr;
 
   NotifierConnection m_notifierConnection;
   bool m_updating = false;
@@ -95,11 +101,17 @@ public:
   void gridDidChange();
   void mapDidChange();
 
+  /** Keeps the Draw Rooms button in sync when the tool is switched on or off. */
+  void roomDrawToolDidChange();
+
 private slots:
   void generate();
   void addDoorway();
   void clearDoorways();
   void connectRooms();
+  void toggleDrawRooms();
+  void clearLayout();
+  void floorLevelFromSelection();
   void reset();
   void updateModeUi();
   void updateGridStep();

@@ -151,7 +151,7 @@ set(COMMON_TEST_SOURCE
         "${COMMON_TEST_SOURCE_DIR}/ui/tst_ActionContext.cpp"
         "${COMMON_TEST_SOURCE_DIR}/ui/tst_Actions.cpp"
         "${COMMON_TEST_SOURCE_DIR}/ui/tst_ClipTool.cpp"
-        "${COMMON_TEST_SOURCE_DIR}/ui/tst_DrawShapeToolRoomExtensions.cpp"
+        "${COMMON_TEST_SOURCE_DIR}/ui/tst_RoomDrawTool.cpp"
         "${COMMON_TEST_SOURCE_DIR}/ui/tst_ClipToolController.cpp"
         "${COMMON_TEST_SOURCE_DIR}/ui/tst_CompilationRunner.cpp"
         "${COMMON_TEST_SOURCE_DIR}/ui/tst_ExtrudeTool.cpp"

@@ -377,6 +377,23 @@ CreateNodeResult createWorldNode(
 }
 
 /**
+ * Returns whether the given key is one that TrenchBroom writes for layers. All other
+ * keys found on a layer entity are kept as the layer's own properties.
+ */
+bool isReservedLayerProperty(const std::string& key)
+{
+  return key == mdl::EntityPropertyKeys::Classname
+         || key == mdl::EntityPropertyKeys::GroupType
+         || key == mdl::EntityPropertyKeys::LayerName
+         || key == mdl::EntityPropertyKeys::LayerId
+         || key == mdl::EntityPropertyKeys::LayerSortIndex
+         || key == mdl::EntityPropertyKeys::LayerColor
+         || key == mdl::EntityPropertyKeys::LayerLocked
+         || key == mdl::EntityPropertyKeys::LayerHidden
+         || key == mdl::EntityPropertyKeys::LayerOmitFromExport;
+}
+
+/**
  * Creates a layer node for the given entity info. Returns an error if the entity
  * attributes contain missing or invalid information.
  */
@@ -420,6 +437,14 @@ CreateNodeResult createLayerNode(const MapReader::EntityInfo& entityInfo)
     == mdl::EntityPropertyValues::LayerOmitFromExportValue)
   {
     layer.setOmitFromExport(true);
+  }
+
+  for (const auto& property : properties)
+  {
+    if (!isReservedLayerProperty(property.key()))
+    {
+      layer.setProperty(property.key(), property.value());
+    }
   }
 
   auto layerNode = std::make_unique<mdl::LayerNode>(std::move(layer));

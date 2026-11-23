@@ -20,11 +20,14 @@
 #pragma once
 
 #include "Color.h"
+#include "mdl/EntityProperties.h"
 
 #include "kdl/reflection_decl.h"
 
 #include <optional>
 #include <string>
+#include <string_view>
+#include <vector>
 
 namespace tb::mdl
 {
@@ -38,7 +41,14 @@ private:
   std::optional<Color> m_color;
   bool m_omitFromExport = false;
 
-  kdl_reflect_decl(Layer, m_defaultLayer, m_name, m_sortIndex, m_color, m_omitFromExport);
+  /**
+   * Additional properties that are written to the layer's func_group entity. They let
+   * tools attach their own data to a layer (for example the room creator's layout).
+   */
+  std::vector<EntityProperty> m_properties;
+
+  kdl_reflect_decl(
+    Layer, m_defaultLayer, m_name, m_sortIndex, m_color, m_omitFromExport, m_properties);
 
 public:
   explicit Layer(std::string name, bool defaultLayer = false);
@@ -57,6 +67,11 @@ public:
 
   bool omitFromExport() const;
   void setOmitFromExport(bool omitFromExport);
+
+  const std::vector<EntityProperty>& properties() const;
+  const std::string* property(std::string_view key) const;
+  void setProperty(const std::string& key, const std::string& value);
+  void removeProperty(std::string_view key);
 
   static int invalidSortIndex();
   static int defaultLayerSortIndex();

@@ -299,6 +299,9 @@ public:
   bool canToggleMarqueeSelectTool() const;
   bool marqueeSelectToolActive() const;
 
+  void toggleRoomDrawTool();
+  bool roomDrawToolActive() const;
+
   void toggleClipTool();
   bool canToggleClipTool() const;
   bool clipToolActive() const;

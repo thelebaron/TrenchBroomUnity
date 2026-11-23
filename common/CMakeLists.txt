@@ -161,6 +161,7 @@ set(COMMON_SOURCE
         ${COMMON_SOURCE_DIR}/mdl/Map_Entities.cpp
         ${COMMON_SOURCE_DIR}/mdl/Map_Geometry.cpp
         ${COMMON_SOURCE_DIR}/mdl/RoomGenerator.cpp
+        ${COMMON_SOURCE_DIR}/mdl/RoomLayout.cpp
         ${COMMON_SOURCE_DIR}/mdl/Map_Groups.cpp
         ${COMMON_SOURCE_DIR}/mdl/Map_Layers.cpp
         ${COMMON_SOURCE_DIR}/mdl/Map_NodeLocking.cpp
@@ -464,6 +465,7 @@ set(COMMON_SOURCE
         ${COMMON_SOURCE_DIR}/ui/RenderView.cpp
         ${COMMON_SOURCE_DIR}/ui/ReplaceMaterialDialog.cpp
         ${COMMON_SOURCE_DIR}/ui/RoomCreatorDialog.cpp
+        ${COMMON_SOURCE_DIR}/ui/RoomDrawTool.cpp
         ${COMMON_SOURCE_DIR}/ui/RotateHandle.cpp
         ${COMMON_SOURCE_DIR}/ui/RotateTool.cpp
         ${COMMON_SOURCE_DIR}/ui/RotateToolController.cpp
@@ -713,6 +715,7 @@ set(COMMON_HEADER
         ${COMMON_SOURCE_DIR}/mdl/Map_Entities.h
         ${COMMON_SOURCE_DIR}/mdl/Map_Geometry.h
         ${COMMON_SOURCE_DIR}/mdl/RoomGenerator.h
+        ${COMMON_SOURCE_DIR}/mdl/RoomLayout.h
         ${COMMON_SOURCE_DIR}/mdl/Map_Groups.h
         ${COMMON_SOURCE_DIR}/mdl/Map_Layers.h
         ${COMMON_SOURCE_DIR}/mdl/Map_NodeLocking.h
@@ -1047,6 +1050,7 @@ set(COMMON_HEADER
         ${COMMON_SOURCE_DIR}/ui/RenderView.h
         ${COMMON_SOURCE_DIR}/ui/ReplaceMaterialDialog.h
         ${COMMON_SOURCE_DIR}/ui/RoomCreatorDialog.h
+        ${COMMON_SOURCE_DIR}/ui/RoomDrawTool.h
         ${COMMON_SOURCE_DIR}/ui/RotateHandle.h
         ${COMMON_SOURCE_DIR}/ui/RotateTool.h
         ${COMMON_SOURCE_DIR}/ui/RotateToolController.h

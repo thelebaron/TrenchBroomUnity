@@ -308,6 +308,10 @@ std::vector<mdl::EntityProperty> NodeSerializer::layerProperties(
       mdl::EntityPropertyKeys::LayerOmitFromExport,
       mdl::EntityPropertyValues::LayerOmitFromExportValue);
   }
+  for (const auto& property : layer.properties())
+  {
+    result.push_back(property);
+  }
   return result;
 }
 

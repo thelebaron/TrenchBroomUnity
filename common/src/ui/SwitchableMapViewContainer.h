@@ -85,6 +85,9 @@ public:
   bool canToggleMarqueeSelectTool() const;
   void toggleMarqueeSelectTool();
 
+  bool roomDrawToolActive() const;
+  void toggleRoomDrawTool();
+
   bool paintRollerToolActive() const;
   bool canTogglePaintRollerTool() const;
   void togglePaintRollerTool();

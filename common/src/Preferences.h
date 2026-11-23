@@ -239,6 +239,9 @@ extern Preference<bool> RoomCreatorGenerateLights;
 extern Preference<int> RoomCreatorLightSpacing;
 extern Preference<int> RoomCreatorCorridorWidth;
 extern Preference<int> RoomCreatorCorridorHeight;
+extern Preference<int> RoomCreatorFloorLevel;
+extern Preference<int> RoomCreatorDoorWidth;
+extern Preference<int> RoomCreatorDoorHeight;
 
 /**
  * Returns all Preferences declared in this file. Needed for migrating preference formats

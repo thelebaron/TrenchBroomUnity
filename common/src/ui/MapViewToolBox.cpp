@@ -30,6 +30,7 @@
 #include "ui/MarqueeSelectTool.h"
 #include "ui/MoveObjectsTool.h"
 #include "ui/PaintRollerTool.h"
+#include "ui/RoomDrawTool.h"
 #include "ui/RotateTool.h"
 #include "ui/ScaleTool.h"
 #include "ui/ShearTool.h"
@@ -110,6 +111,11 @@ FaceTool& MapViewToolBox::faceTool()
 MarqueeSelectTool& MapViewToolBox::marqueeSelectTool()
 {
   return *m_marqueeSelectTool;
+}
+
+RoomDrawTool& MapViewToolBox::roomDrawTool()
+{
+  return *m_roomDrawTool;
 }
 
 PaintRollerTool& MapViewToolBox::paintRollerTool()
@@ -254,6 +260,16 @@ bool MapViewToolBox::marqueeSelectToolActive() const
   return m_marqueeSelectTool->active();
 }
 
+void MapViewToolBox::toggleRoomDrawTool()
+{
+  toggleTool(roomDrawTool());
+}
+
+bool MapViewToolBox::roomDrawToolActive() const
+{
+  return m_roomDrawTool->active();
+}
+
 void MapViewToolBox::togglePaintRollerTool()
 {
   toggleTool(paintRollerTool());
@@ -267,7 +283,7 @@ bool MapViewToolBox::paintRollerToolActive() const
 bool MapViewToolBox::anyModalToolActive() const
 {
   return rotateToolActive() || scaleToolActive() || shearToolActive()
-         || anyVertexToolActive() || marqueeSelectToolActive()
+         || anyVertexToolActive() || marqueeSelectToolActive() || roomDrawToolActive()
          || paintRollerToolActive();
 }
 
@@ -303,6 +319,7 @@ void MapViewToolBox::createTools(QStackedLayout* bookCtrl)
   m_edgeTool = std::make_unique<EdgeTool>(m_map);
   m_faceTool = std::make_unique<FaceTool>(m_map);
   m_marqueeSelectTool = std::make_unique<MarqueeSelectTool>(m_map);
+  m_roomDrawTool = std::make_unique<RoomDrawTool>(m_map);
   m_paintRollerTool = std::make_unique<PaintRollerTool>(m_map);
 
   addExclusiveToolGroup(
@@ -314,6 +331,7 @@ void MapViewToolBox::createTools(QStackedLayout* bookCtrl)
     faceTool(),
     clipTool(),
     marqueeSelectTool(),
+    roomDrawTool(),
     paintRollerTool());
 
   addExclusiveToolGroup(
@@ -323,6 +341,7 @@ void MapViewToolBox::createTools(QStackedLayout* bookCtrl)
     faceTool(),
     clipTool(),
     marqueeSelectTool(),
+    roomDrawTool(),
     paintRollerTool());
 
   suppressWhileActive(
@@ -338,8 +357,10 @@ void MapViewToolBox::createTools(QStackedLayout* bookCtrl)
     marqueeSelectTool(), moveObjectsTool(), extrudeTool(), drawShapeTool());
   suppressWhileActive(
     paintRollerTool(), moveObjectsTool(), extrudeTool(), drawShapeTool());
+  suppressWhileActive(roomDrawTool(), moveObjectsTool(), extrudeTool(), drawShapeTool());
 
   registerTool(marqueeSelectTool(), bookCtrl);
+  registerTool(roomDrawTool(), bookCtrl);
   registerTool(moveObjectsTool(), bookCtrl);
   registerTool(rotateTool(), bookCtrl);
   registerTool(scaleTool(), bookCtrl);
@@ -416,6 +437,10 @@ void MapViewToolBox::updateToolPage()
   if (marqueeSelectToolActive())
   {
     marqueeSelectTool().showPage();
+  }
+  else if (roomDrawToolActive())
+  {
+    roomDrawTool().showPage();
   }
   else if (rotateToolActive())
   {

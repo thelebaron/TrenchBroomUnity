@@ -185,6 +185,16 @@ void SwitchableMapViewContainer::toggleMarqueeSelectTool()
   m_toolBox->toggleMarqueeSelectTool();
 }
 
+bool SwitchableMapViewContainer::roomDrawToolActive() const
+{
+  return m_toolBox->roomDrawToolActive();
+}
+
+void SwitchableMapViewContainer::toggleRoomDrawTool()
+{
+  m_toolBox->toggleRoomDrawTool();
+}
+
 bool SwitchableMapViewContainer::paintRollerToolActive() const
 {
   return m_toolBox->paintRollerToolActive();

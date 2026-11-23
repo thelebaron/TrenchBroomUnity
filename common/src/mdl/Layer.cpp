@@ -23,6 +23,8 @@
 
 #include "vm/vec_io.h" // IWYU pragma: keep
 
+#include <algorithm>
+
 namespace tb::mdl
 {
 
@@ -97,6 +99,38 @@ int Layer::invalidSortIndex()
 int Layer::defaultLayerSortIndex()
 {
   return -1;
+}
+
+const std::vector<EntityProperty>& Layer::properties() const
+{
+  return m_properties;
+}
+
+const std::string* Layer::property(const std::string_view key) const
+{
+  const auto it = std::ranges::find_if(
+    m_properties, [&](const auto& property) { return property.key() == key; });
+  return it != m_properties.end() ? &it->value() : nullptr;
+}
+
+void Layer::setProperty(const std::string& key, const std::string& value)
+{
+  const auto it = std::ranges::find_if(
+    m_properties, [&](const auto& property) { return property.key() == key; });
+  if (it != m_properties.end())
+  {
+    *it = EntityProperty{key, value};
+  }
+  else
+  {
+    m_properties.emplace_back(key, value);
+  }
+}
+
+void Layer::removeProperty(const std::string_view key)
+{
+  std::erase_if(
+    m_properties, [&](const auto& property) { return property.key() == key; });
 }
 
 } // namespace tb::mdl

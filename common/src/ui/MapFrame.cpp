@@ -872,11 +872,19 @@ void MapFrame::gridDidChange()
 void MapFrame::toolActivated(Tool&)
 {
   updateActionStateDelayed();
+  if (m_roomCreatorDialog)
+  {
+    m_roomCreatorDialog->roomDrawToolDidChange();
+  }
 }
 
 void MapFrame::toolDeactivated(Tool&)
 {
   updateActionStateDelayed();
+  if (m_roomCreatorDialog)
+  {
+    m_roomCreatorDialog->roomDrawToolDidChange();
+  }
 }
 
 void MapFrame::toolHandleSelectionChanged(Tool&)
@@ -1811,6 +1819,16 @@ bool MapFrame::canToggleMarqueeSelectTool() const
 bool MapFrame::marqueeSelectToolActive() const
 {
   return m_mapView->marqueeSelectToolActive();
+}
+
+void MapFrame::toggleRoomDrawTool()
+{
+  m_mapView->toggleRoomDrawTool();
+}
+
+bool MapFrame::roomDrawToolActive() const
+{
+  return m_mapView->roomDrawToolActive();
 }
 
 void MapFrame::togglePaintRollerTool()

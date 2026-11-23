@@ -22,12 +22,14 @@
 #include "io/TestParserStatus.h"
 #include "io/WorldReader.h"
 #include "mdl/Brush.h"
+#include "mdl/BrushBuilder.h"
 #include "mdl/BrushFace.h"
 #include "mdl/BrushNode.h"
 #include "mdl/Entity.h"
 #include "mdl/EntityNode.h"
 #include "mdl/Group.h"
 #include "mdl/GroupNode.h"
+#include "mdl/Layer.h"
 #include "mdl/LayerNode.h"
 #include "mdl/Map.h"
 #include "mdl/Map_Geometry.h"
@@ -35,6 +37,7 @@
 #include "mdl/Map_Selection.h"
 #include "mdl/NodeContents.h"
 #include "mdl/RoomGenerator.h"
+#include "mdl/RoomLayout.h"
 #include "mdl/WorldNode.h"
 
 #include "kdl/task_manager.h"
@@ -314,6 +317,9 @@ TEST_CASE("RoomRecipe")
     recipe.clips = {vm::bbox3d{{-16, -16, -16}, {0, 128, 144}}};
     recipe.generateLights = true;
     recipe.lightSpacing = 192;
+    recipe.autoDoors = true;
+    recipe.doorWidth = 96;
+    recipe.doorHeight = 128;
 
     auto group = Group{"Room"};
     CHECK_FALSE(isRoom(group));
@@ -814,6 +820,195 @@ TEST_CASE("Room lights and connections in the map")
     map.undoCommand();
     CHECK(collectRooms(map).size() == 2u);
     CHECK(readRoomRecipe(roomA->group()).value().doors.empty());
+  }
+}
+
+TEST_CASE("Auto doorways")
+{
+  const auto spaceA = vm::bbox3d{{0, 0, 0}, {256, 256, 128}};
+  const auto autoRecipe = [](std::vector<vm::bbox3d> spaces) {
+    auto recipe = makeRecipe(std::move(spaces));
+    recipe.autoDoors = true;
+    recipe.doorWidth = 64;
+    recipe.doorHeight = 112;
+    return recipe;
+  };
+
+  SECTION("Touching spaces get a wall with a doorway, carved from the later space")
+  {
+    const auto spaceB = vm::bbox3d{{256, 0, 0}, {512, 256, 128}};
+    const auto brushes = buildRoomShell(autoRecipe({spaceA, spaceB})).value();
+
+    // Partition wall at x in [256, 272].
+    CHECK(countBrushesAt(brushes, {264, 40, 64}) == 1u);
+    // Doorway centred on the shared wall: y in [96, 160], z in [0, 112].
+    CHECK(countBrushesAt(brushes, {264, 128, 56}) == 0u);
+    // Lintel above the doorway.
+    CHECK(countBrushesAt(brushes, {264, 128, 120}) == 1u);
+    // The floor continues under the doorway.
+    CHECK(surfaceAt(brushes, {264, 128, -8}) == RoomSurface::Floor);
+
+    auto solids = std::vector<vm::bbox3d>{};
+    for (const auto& brush : brushes)
+    {
+      solids.push_back(brush.bounds);
+    }
+    const auto flood = floodFill(solids, spaceA.center(), spaceB.center());
+    CHECK(flood.reached);
+    CHECK_FALSE(flood.leaked);
+    CHECK(flood.maxOverlap == 1u);
+  }
+
+  SECTION("Spaces up to two wall thicknesses apart get a doorway")
+  {
+    const auto spaceB = vm::bbox3d{{288, 0, 0}, {544, 256, 128}};
+    const auto brushes = buildRoomShell(autoRecipe({spaceA, spaceB})).value();
+
+    CHECK(countBrushesAt(brushes, {272, 40, 64}) == 1u);
+    CHECK(countBrushesAt(brushes, {272, 128, 56}) == 0u);
+  }
+
+  SECTION("Overlapping spaces stay open")
+  {
+    const auto spaceB = vm::bbox3d{{128, 0, 0}, {384, 256, 128}};
+    CHECK(
+      buildRoomShell(autoRecipe({spaceA, spaceB})).value()
+      == buildRoomShell(makeRecipe({spaceA, spaceB})).value());
+  }
+
+  SECTION("A shared stretch narrower than the doorway gets a plain wall")
+  {
+    const auto spaceB = vm::bbox3d{{256, 200, 0}, {512, 456, 128}};
+    const auto brushes = buildRoomShell(autoRecipe({spaceA, spaceB})).value();
+
+    CHECK(countBrushesAt(brushes, {264, 228, 56}) == 1u);
+  }
+
+  SECTION("Without auto doorways touching spaces merge")
+  {
+    const auto spaceB = vm::bbox3d{{256, 0, 0}, {512, 256, 128}};
+    const auto brushes = buildRoomShell(makeRecipe({spaceA, spaceB})).value();
+
+    CHECK(countBrushesAt(brushes, {264, 40, 64}) == 0u);
+  }
+}
+
+TEST_CASE("Room recipes on layers")
+{
+  auto layer = Layer{"walls"};
+  CHECK_FALSE(hasRoomRecipe(layer));
+
+  auto recipe = makeRecipe({vm::bbox3d{{0, 0, 0}, {128, 128, 128}}});
+  recipe.autoDoors = true;
+  recipe.doorWidth = 96;
+  recipe.doorHeight = 128;
+  writeRoomRecipe(layer, recipe);
+  CHECK(hasRoomRecipe(layer));
+  CHECK(readRoomRecipe(layer).value() == recipe);
+
+  removeRoomRecipe(layer);
+  CHECK_FALSE(hasRoomRecipe(layer));
+  CHECK(layer.properties().empty());
+
+  SECTION("Layer properties survive writing and reading the map")
+  {
+    const auto worldBounds = vm::bbox3d{8192.0};
+    auto world = WorldNode{{}, {}, MapFormat::Standard};
+
+    auto customLayer = Layer{"walls"};
+    customLayer.setSortIndex(0);
+    writeRoomRecipe(customLayer, recipe);
+    auto* layerNode = new LayerNode{std::move(customLayer)};
+    world.addChild(layerNode);
+
+    auto taskManager = kdl::task_manager{};
+    auto str = std::stringstream{};
+    auto writer = io::NodeWriter{world, str};
+    writer.writeMap(taskManager);
+
+    const auto mapText = str.str();
+    auto status = io::TestParserStatus{};
+    auto reader = io::WorldReader{mapText, MapFormat::Standard, {}};
+    auto readWorld = reader.read(worldBounds, status, taskManager);
+    REQUIRE(readWorld.is_success());
+
+    const auto layers = readWorld.value()->customLayers();
+    REQUIRE(layers.size() == 1u);
+    CHECK(layers.front()->layer().properties() == layerNode->layer().properties());
+    CHECK(readRoomRecipe(layers.front()->layer()).value() == recipe);
+  }
+}
+
+TEST_CASE("Room layout")
+{
+  auto fixture = MapFixture{};
+  auto& map = fixture.map();
+  fixture.create();
+
+  auto layout = makeRecipe({vm::bbox3d{{0, 0, 0}, {256, 256, 128}}});
+  layout.autoDoors = true;
+
+  const auto brushesIn = [&](const std::string& layerName) {
+    auto result = std::vector<BrushNode*>{};
+    if (auto* layerNode = findLayer(map, layerName))
+    {
+      for (auto* child : layerNode->children())
+      {
+        if (auto* brushNode = dynamic_cast<BrushNode*>(child))
+        {
+          result.push_back(brushNode);
+        }
+      }
+    }
+    return result;
+  };
+
+  CHECK(readRoomLayout(map).value().spaces.empty());
+  REQUIRE(updateRoomLayout(map, layout).is_success());
+
+  SECTION("Brushes go into the walls, floors and ceilings layers")
+  {
+    CHECK(readRoomLayout(map).value() == layout);
+    CHECK(brushesIn(RoomLayoutLayers::Walls).size() == 4u);
+    CHECK(brushesIn(RoomLayoutLayers::Floors).size() == 1u);
+    CHECK(brushesIn(RoomLayoutLayers::Ceilings).size() == 1u);
+    for (const auto* brushNode : brushesIn(RoomLayoutLayers::Floors))
+    {
+      CHECK(brushNode->brush().faces().front().attributes().materialName() == "floor");
+    }
+  }
+
+  SECTION("Adding a space rebuilds the layout and keeps hand-made brushes")
+  {
+    auto* handMade =
+      new BrushNode{BrushBuilder{map.world()->mapFormat(), map.worldBounds()}
+                      .createCuboid(vm::bbox3d{{1024, 1024, 0}, {1088, 1088, 64}}, "hand")
+                      .value()};
+    addNodes(map, {{findLayer(map, RoomLayoutLayers::Walls), {handMade}}});
+
+    auto extended = layout;
+    extended.spaces.push_back(vm::bbox3d{{256, 0, 0}, {512, 256, 128}});
+
+    // The preview only contains what changes.
+    const auto preview = roomLayoutPreview(map, extended).value();
+    CHECK_FALSE(preview.empty());
+    CHECK(preview.size() < buildRoomShell(extended).value().size());
+
+    REQUIRE(updateRoomLayout(map, extended).is_success());
+    CHECK(readRoomLayout(map).value().spaces.size() == 2u);
+    CHECK(handMade->parent() == findLayer(map, RoomLayoutLayers::Walls));
+
+    map.undoCommand();
+    CHECK(readRoomLayout(map).value() == layout);
+    CHECK(brushesIn(RoomLayoutLayers::Walls).size() == 5u);
+  }
+
+  SECTION("Clearing the layout removes what it generated")
+  {
+    REQUIRE(updateRoomLayout(map, RoomRecipe{}).is_success());
+    CHECK(brushesIn(RoomLayoutLayers::Walls).empty());
+    CHECK(brushesIn(RoomLayoutLayers::Floors).empty());
+    CHECK_FALSE(hasRoomRecipe(findLayer(map, RoomLayoutLayers::Walls)->layer()));
   }
 }
 

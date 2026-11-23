@@ -50,6 +50,7 @@ class VertexTool;
 class EdgeTool;
 class FaceTool;
 class MarqueeSelectTool;
+class RoomDrawTool;
 class PaintRollerTool;
 
 class MapViewToolBox : public ToolBox
@@ -70,6 +71,7 @@ private:
   std::unique_ptr<EdgeTool> m_edgeTool;
   std::unique_ptr<FaceTool> m_faceTool;
   std::unique_ptr<MarqueeSelectTool> m_marqueeSelectTool;
+  std::unique_ptr<RoomDrawTool> m_roomDrawTool;
   std::unique_ptr<PaintRollerTool> m_paintRollerTool;
 
   NotifierConnection m_notifierConnection;
@@ -92,6 +94,7 @@ public: // tools
   EdgeTool& edgeTool();
   FaceTool& faceTool();
   MarqueeSelectTool& marqueeSelectTool();
+  RoomDrawTool& roomDrawTool();
   PaintRollerTool& paintRollerTool();
 
   void toggleAssembleBrushTool();
@@ -129,6 +132,9 @@ public: // tools
 
   void toggleMarqueeSelectTool();
   bool marqueeSelectToolActive() const;
+
+  void toggleRoomDrawTool();
+  bool roomDrawToolActive() const;
 
   void togglePaintRollerTool();
   bool paintRollerToolActive() const;

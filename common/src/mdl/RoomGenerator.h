@@ -29,6 +29,7 @@
 
 #include <iosfwd>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace tb::mdl
@@ -36,6 +37,7 @@ namespace tb::mdl
 class Brush;
 class Group;
 class GroupNode;
+class Layer;
 class Map;
 class Node;
 
@@ -74,6 +76,14 @@ struct RoomRecipe
   std::string ceilingMaterial;
   bool generateLights = false;
   int lightSpacing = 256;
+  /**
+   * When set, spaces that touch (or are separated by at most two wall thicknesses) get a
+   * wall between them with a doorway of the given size, instead of merging. Spaces that
+   * overlap still merge into one open space.
+   */
+  bool autoDoors = false;
+  int doorWidth = 64;
+  int doorHeight = 112;
 
   kdl_reflect_decl(
     RoomRecipe,
@@ -87,7 +97,10 @@ struct RoomRecipe
     floorMaterial,
     ceilingMaterial,
     generateLights,
-    lightSpacing);
+    lightSpacing,
+    autoDoors,
+    doorWidth,
+    doorHeight);
 };
 
 struct RoomShellBrush
@@ -116,6 +129,10 @@ Result<std::vector<RoomShellBrush>> buildRoomShell(const RoomRecipe& recipe);
 Result<std::vector<Brush>> buildRoomBrushes(
   const Map& map, const RoomRecipe& recipe, const vm::mat4x4d& transformation);
 
+/** Like buildRoomBrushes, but also returns the surface each brush belongs to. */
+Result<std::vector<std::pair<Brush, RoomSurface>>> buildRoomBrushesBySurface(
+  const Map& map, const RoomRecipe& recipe, const vm::mat4x4d& transformation);
+
 struct RoomLight
 {
   vm::vec3d position;
@@ -138,9 +155,27 @@ struct RoomLightOptions
   double intensity = 1.0;
 };
 
+/** Whether a brush in the map still matches one generated for a room. */
+bool roomBrushMatches(const Brush& actual, const Brush& expected);
+
+/** Creates light_unity entities for the recipe's lights, marked as generated. */
+std::vector<Node*> createRoomLightNodes(
+  const RoomRecipe& recipe,
+  const vm::mat4x4d& transformation,
+  const RoomLightOptions& options);
+
+/** Whether the node is a light generated for a room or layout. */
+bool isGeneratedRoomLight(const Node* node);
+
 bool isRoom(const Group& group);
 Result<RoomRecipe> readRoomRecipe(const Group& group);
 void writeRoomRecipe(Group& group, const RoomRecipe& recipe);
+
+/** A layer can hold a room recipe too; the room layout is stored this way. */
+bool hasRoomRecipe(const Layer& layer);
+Result<RoomRecipe> readRoomRecipe(const Layer& layer);
+void writeRoomRecipe(Layer& layer, const RoomRecipe& recipe);
+void removeRoomRecipe(Layer& layer);
 
 /**
  * Returns the room group that contains the given node, or the node itself if it is a

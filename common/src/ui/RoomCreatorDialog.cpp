@@ -20,6 +20,8 @@
 #include <QLabel>
 #include <QMessageBox>
 #include <QPushButton>
+#include <QSignalBlocker>
+#include <QSpinBox>
 #include <QVBoxLayout>
 
 #include "Logger.h"
@@ -37,6 +39,7 @@
 #include "mdl/Material.h"
 #include "mdl/MaterialManager.h"
 #include "mdl/Node.h"
+#include "mdl/RoomLayout.h"
 #include "mdl/Selection.h"
 #include "mdl/Transaction.h"
 #include "ui/MapDocument.h"
@@ -169,6 +172,61 @@ void RoomCreatorDialog::selectionDidChange(const mdl::SelectionChange&)
 void RoomCreatorDialog::createGui()
 {
   auto* layout = new QVBoxLayout{this};
+
+  auto* draw = new QGroupBox{tr("Draw Rooms"), this};
+  auto* drawLayout = new QVBoxLayout{draw};
+  auto* drawButtons = new QHBoxLayout{};
+  m_drawRoomsButton = new QPushButton{tr("Draw Rooms"), draw};
+  m_drawRoomsButton->setCheckable(true);
+  m_drawRoomsButton->setToolTip(tr(
+    "Drag in the 3D or top view to draw rooms on the floor level below. Rooms that "
+    "touch get a wall with a doorway; overlapping rooms merge into one space. "
+    "Walls, floors and ceilings go into the walls, floors and ceilings layers."));
+  m_clearLayoutButton = new QPushButton{tr("Clear Layout"), draw};
+  m_clearLayoutButton->setToolTip(tr("Removes all drawn rooms."));
+  drawButtons->addWidget(m_drawRoomsButton, 1);
+  drawButtons->addWidget(m_clearLayoutButton);
+  drawLayout->addLayout(drawButtons);
+
+  auto* drawForm = new QFormLayout{};
+  auto* floorRow = new QHBoxLayout{};
+  m_floorLevel = new QSpinBox{draw};
+  m_floorLevel->setRange(-65536, 65536);
+  m_floorLevel->setToolTip(tr("Height of the floor that drawn rooms stand on"));
+  auto* floorFromSelection = new QPushButton{tr("From Selection"), draw};
+  floorFromSelection->setToolTip(tr("Use the bottom of the current selection"));
+  floorRow->addWidget(m_floorLevel, 1);
+  floorRow->addWidget(floorFromSelection);
+  drawForm->addRow(tr("Floor level"), floorRow);
+  m_doorWidth = createValueChoice(draw, {48, 64, 96, 128});
+  m_doorHeight = createValueChoice(draw, {96, 112, 128, 160});
+  drawForm->addRow(tr("Doorway width"), m_doorWidth);
+  drawForm->addRow(tr("Doorway height"), m_doorHeight);
+  drawLayout->addLayout(drawForm);
+  layout->addWidget(draw);
+
+  connect(
+    m_drawRoomsButton, &QPushButton::clicked, this, &RoomCreatorDialog::toggleDrawRooms);
+  connect(
+    m_clearLayoutButton, &QPushButton::clicked, this, &RoomCreatorDialog::clearLayout);
+  connect(
+    floorFromSelection,
+    &QPushButton::clicked,
+    this,
+    &RoomCreatorDialog::floorLevelFromSelection);
+  connect(
+    m_floorLevel,
+    QOverload<int>::of(&QSpinBox::valueChanged),
+    this,
+    &RoomCreatorDialog::saveSettings);
+  for (auto* choice : {m_doorWidth, m_doorHeight})
+  {
+    connect(
+      choice,
+      QOverload<int>::of(&QComboBox::currentIndexChanged),
+      this,
+      &RoomCreatorDialog::saveSettings);
+  }
   auto* form = new QFormLayout{};
 
   m_modeChoice = new QComboBox{this};
@@ -184,7 +242,8 @@ void RoomCreatorDialog::createGui()
   form->addRow(tr("Wall thickness"), m_wallThickness);
 
   m_wallHeight = new QComboBox{this};
-  form->addRow(tr("Wall height"), m_wallHeight);
+  m_wallHeight->setToolTip(tr("Height of drawn rooms and of rooms made in Floor mode"));
+  form->addRow(tr("Room height"), m_wallHeight);
 
   m_generateCeiling = new QCheckBox{tr("Generate ceiling"), this};
   m_generateFloor = new QCheckBox{tr("Generate floor"), this};
@@ -331,6 +390,9 @@ void RoomCreatorDialog::loadSettings()
   selectValue(m_lightSpacing, pref(Preferences::RoomCreatorLightSpacing));
   selectValue(m_corridorWidth, pref(Preferences::RoomCreatorCorridorWidth));
   selectValue(m_corridorHeight, pref(Preferences::RoomCreatorCorridorHeight));
+  m_floorLevel->setValue(pref(Preferences::RoomCreatorFloorLevel));
+  selectValue(m_doorWidth, pref(Preferences::RoomCreatorDoorWidth));
+  selectValue(m_doorHeight, pref(Preferences::RoomCreatorDoorHeight));
   m_updating = false;
 }
 
@@ -373,6 +435,9 @@ void RoomCreatorDialog::saveSettings()
   setPref(Preferences::RoomCreatorGenerateLights, m_generateLights->isChecked());
   setPref(Preferences::RoomCreatorLightSpacing, m_lightSpacing->currentData().toInt());
   setPref(Preferences::RoomCreatorCorridorWidth, m_corridorWidth->currentData().toInt());
+  setPref(Preferences::RoomCreatorFloorLevel, m_floorLevel->value());
+  setPref(Preferences::RoomCreatorDoorWidth, m_doorWidth->currentData().toInt());
+  setPref(Preferences::RoomCreatorDoorHeight, m_doorHeight->currentData().toInt());
   setPref(
     Preferences::RoomCreatorCorridorHeight, m_corridorHeight->currentData().toInt());
 }
@@ -411,13 +476,14 @@ void RoomCreatorDialog::updateGridStep()
   m_updating = true;
   populateDimensionChoice(m_wallThickness, m_wallThickness->currentData().toInt(), true);
   populateDimensionChoice(m_wallHeight, m_wallHeight->currentData().toInt(), false);
+  m_floorLevel->setSingleStep(
+    std::max(1, static_cast<int>(m_frame.document().map().grid().actualSize())));
   m_updating = false;
   saveSettings();
 }
 
 void RoomCreatorDialog::updateModeUi()
 {
-  m_wallHeight->setEnabled(m_modeChoice->currentData().toInt() == FloorMode);
   if (!m_updating)
   {
     saveSettings();
@@ -905,6 +971,9 @@ void RoomCreatorDialog::reset()
   setPref(Preferences::RoomCreatorLightSpacing, 256);
   setPref(Preferences::RoomCreatorCorridorWidth, 64);
   setPref(Preferences::RoomCreatorCorridorHeight, 128);
+  setPref(Preferences::RoomCreatorFloorLevel, 0);
+  setPref(Preferences::RoomCreatorDoorWidth, 64);
+  setPref(Preferences::RoomCreatorDoorHeight, 112);
   loadSettings();
   updateGridStep();
   updateModeUi();
@@ -964,6 +1033,60 @@ void RoomCreatorDialog::connectRooms()
   {
     m_frame.logger().info()
       << "Room creator: the rooms' walls touch, so they were joined with a doorway";
+  }
+}
+
+void RoomCreatorDialog::roomDrawToolDidChange()
+{
+  const auto blocker = QSignalBlocker{m_drawRoomsButton};
+  m_drawRoomsButton->setChecked(m_frame.roomDrawToolActive());
+}
+
+void RoomCreatorDialog::toggleDrawRooms()
+{
+  m_frame.toggleRoomDrawTool();
+  roomDrawToolDidChange();
+}
+
+void RoomCreatorDialog::clearLayout()
+{
+  auto& map = m_frame.document().map();
+  const auto layout = mdl::readRoomLayout(map);
+  if (layout.is_error() || layout.value().spaces.empty())
+  {
+    m_frame.logger().info() << "Room creator: there are no drawn rooms to clear";
+    return;
+  }
+
+  if (
+    QMessageBox::question(
+      this,
+      tr("Room Creator"),
+      tr(
+        "Remove all %n drawn room(s)? You can undo this.",
+        "",
+        int(layout.value().spaces.size())))
+    != QMessageBox::Yes)
+  {
+    return;
+  }
+
+  if (auto result = mdl::updateRoomLayout(map, mdl::RoomRecipe{}); result.is_error())
+  {
+    m_frame.logger().error() << "Room creator: " << std::get<Error>(result.error()).msg;
+  }
+}
+
+void RoomCreatorDialog::floorLevelFromSelection()
+{
+  if (const auto& bounds = m_frame.document().map().selectionBounds())
+  {
+    m_floorLevel->setValue(static_cast<int>(std::lround(bounds->min.z())));
+  }
+  else
+  {
+    m_frame.logger().warn()
+      << "Room creator: select something to take the floor level from";
   }
 }
 

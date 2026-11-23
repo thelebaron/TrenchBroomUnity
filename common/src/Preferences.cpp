@@ -365,6 +365,9 @@ Preference<bool> RoomCreatorGenerateLights("Room Creator/Generate lights", false
 Preference<int> RoomCreatorLightSpacing("Room Creator/Light spacing", 256);
 Preference<int> RoomCreatorCorridorWidth("Room Creator/Corridor width", 64);
 Preference<int> RoomCreatorCorridorHeight("Room Creator/Corridor height", 128);
+Preference<int> RoomCreatorFloorLevel("Room Creator/Floor level", 0);
+Preference<int> RoomCreatorDoorWidth("Room Creator/Door width", 64);
+Preference<int> RoomCreatorDoorHeight("Room Creator/Door height", 112);
 
 const std::vector<PreferenceBase*>& staticPreferences()
 {
@@ -514,7 +517,10 @@ const std::vector<PreferenceBase*>& staticPreferences()
     &RoomCreatorGenerateLights,
     &RoomCreatorLightSpacing,
     &RoomCreatorCorridorWidth,
-    &RoomCreatorCorridorHeight};
+    &RoomCreatorCorridorHeight,
+    &RoomCreatorFloorLevel,
+    &RoomCreatorDoorWidth,
+    &RoomCreatorDoorHeight};
 
   return list;
 }

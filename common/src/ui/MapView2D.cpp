@@ -52,6 +52,7 @@
 #include "ui/MapDocument.h"
 #include "ui/MapViewToolBox.h"
 #include "ui/MarqueeSelectTool.h"
+#include "ui/RoomDrawTool.h"
 #include "ui/MoveObjectsToolController.h"
 #include "ui/PaintRollerTool.h"
 #include "ui/PrefabDropController.h"
@@ -145,6 +146,7 @@ void MapView2D::initializeToolChain(MapViewToolBox& toolBox)
     std::make_unique<PaintRollerToolController>(toolBox.paintRollerTool()));
   addToolController(
     std::make_unique<MarqueeSelectToolController>(toolBox.marqueeSelectTool()));
+  addToolController(std::make_unique<RoomDrawToolController>(toolBox.roomDrawTool()));
   addToolController(std::make_unique<SelectionTool>(map));
   addToolController(
     std::make_unique<DrawShapeToolController2D>(toolBox.drawShapeTool(), map));

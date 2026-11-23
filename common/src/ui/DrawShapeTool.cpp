@@ -45,7 +45,6 @@ DrawShapeTool::DrawShapeTool(mdl::Map& map)
 
 void DrawShapeTool::update(const vm::bbox3d& bounds)
 {
-  m_lastBounds = bounds;
   m_extensionManager.createBrushes(bounds) | kdl::transform([&](auto brushes) {
     updateBrushes(
       brushes | std::views::transform([](auto brush) {
@@ -67,11 +66,6 @@ bool DrawShapeTool::cancel()
   }
 
   return m_extensionManager.setCurrentExtensionIndex(0);
-}
-
-bool DrawShapeTool::doCommitBrushes()
-{
-  return m_lastBounds && m_extensionManager.commitShape(*m_lastBounds);
 }
 
 QWidget* DrawShapeTool::doCreatePage(QWidget* parent)
