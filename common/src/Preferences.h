@@ -40,6 +40,7 @@ extern Preference<bool> AutoCheckForUpdates;
 extern Preference<bool> IncludePreReleaseUpdates;
 
 extern Preference<int> MapViewLayout;
+extern Preference<bool> MapViewInclude3D;
 
 QString systemTheme();
 QString darkTheme();
@@ -192,6 +193,7 @@ extern Preference<QString> FaceRenderMode;
 extern Preference<bool> ShadeFaces;
 extern Preference<bool> ShowFog;
 extern Preference<bool> ShowEdges;
+extern Preference<bool> ShowEditorOverlays;
 extern Preference<bool> PreviewLighting;
 extern Preference<bool> PreviewLightingShadows;
 extern Preference<bool> PreviewLightingGI;

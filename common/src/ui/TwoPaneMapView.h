@@ -33,7 +33,6 @@ namespace tb::ui
 class CyclingMapView;
 class GLContextManager;
 class MapDocument;
-class MapView3D;
 class MapViewToolBox;
 
 class TwoPaneMapView : public MultiPaneMapView
@@ -43,7 +42,7 @@ private:
   MapDocument& m_document;
 
   QSplitter* m_splitter = nullptr;
-  MapView3D* m_mapView3D = nullptr;
+  CyclingMapView* m_primaryView = nullptr;
   CyclingMapView* m_mapView2D = nullptr;
 
 public:
@@ -52,6 +51,7 @@ public:
     MapViewToolBox& toolBox,
     render::MapRenderer& mapRenderer,
     GLContextManager& contextManager,
+    bool include3D,
     QWidget* parent = nullptr);
   ~TwoPaneMapView() override;
 
@@ -59,7 +59,8 @@ private:
   void createGui(
     MapViewToolBox& toolBox,
     render::MapRenderer& mapRenderer,
-    GLContextManager& contextManager);
+    GLContextManager& contextManager,
+    bool include3D);
 
 private: // implement MultiPaneMapView subclassing interface
   void maximizeView(MapView* view) override;

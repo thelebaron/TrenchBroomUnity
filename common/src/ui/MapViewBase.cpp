@@ -998,7 +998,7 @@ void MapViewBase::initializeGL()
 
 bool MapViewBase::shouldRenderFocusIndicator() const
 {
-  return true;
+  return pref(Preferences::ShowEditorOverlays);
 }
 
 void MapViewBase::renderContents()
@@ -1011,6 +1011,7 @@ void MapViewBase::renderContents()
 
   const auto& map = m_document.map();
   const auto& grid = map.grid();
+  const auto showEditorOverlays = pref(Preferences::ShowEditorOverlays);
 
   auto renderContext =
     render::RenderContext{renderMode(), camera(), fontManager(), shaderManager()};
@@ -1021,13 +1022,18 @@ void MapViewBase::renderContents()
   renderContext.setShowFaces(
     pref(Preferences::FaceRenderMode) != Preferences::faceRenderModeSkip());
   renderContext.setShowEdges(pref(Preferences::ShowEdges));
+  renderContext.setShowEditorOverlays(showEditorOverlays);
   renderContext.setShadeFaces(pref(Preferences::ShadeFaces));
   renderContext.setShowPointEntities(pref(Preferences::ShowPointEntities));
   renderContext.setShowPointEntityModels(pref(Preferences::ShowPointEntityModels));
-  renderContext.setShowEntityClassnames(pref(Preferences::ShowEntityClassnames));
-  renderContext.setShowGroupBounds(pref(Preferences::ShowGroupBounds));
-  renderContext.setShowBrushEntityBounds(pref(Preferences::ShowBrushEntityBounds));
-  renderContext.setShowPointEntityBounds(pref(Preferences::ShowPointEntityBounds));
+  renderContext.setShowEntityClassnames(
+    showEditorOverlays && pref(Preferences::ShowEntityClassnames));
+  renderContext.setShowGroupBounds(
+    showEditorOverlays && pref(Preferences::ShowGroupBounds));
+  renderContext.setShowBrushEntityBounds(
+    showEditorOverlays && pref(Preferences::ShowBrushEntityBounds));
+  renderContext.setShowPointEntityBounds(
+    showEditorOverlays && pref(Preferences::ShowPointEntityBounds));
   renderContext.setShowFog(pref(Preferences::ShowFog));
   renderContext.setPreviewLighting(
     renderMode() == render::RenderMode::Render3D && pref(Preferences::PreviewLighting));
@@ -1035,29 +1041,35 @@ void MapViewBase::renderContents()
   renderContext.setPreviewLightingAmbient(pref(Preferences::PreviewLightingAmbient));
   renderContext.setPreviewLightingGI(pref(Preferences::PreviewLightingGI));
   renderContext.setPreviewLightingGIBounce(pref(Preferences::PreviewLightingGIBounce));
-  renderContext.setShowGrid(grid.visible());
+  renderContext.setShowGrid(showEditorOverlays && grid.visible());
   renderContext.setGridSize(grid.actualSize());
   renderContext.setDpiScale(static_cast<float>(window()->devicePixelRatioF()));
   renderContext.setSoftMapBounds(
-    pref(Preferences::ShowSoftMapBounds)
+    showEditorOverlays && pref(Preferences::ShowSoftMapBounds)
       ? vm::bbox3f{softMapBounds(map).bounds.value_or(vm::bbox3d{})}
       : vm::bbox3f{});
 
   setupGL(renderContext);
-  setRenderOptions(renderContext);
 
   auto renderBatch = render::RenderBatch{vboManager()};
 
-  renderGrid(renderContext, renderBatch);
+  if (showEditorOverlays)
+  {
+    setRenderOptions(renderContext);
+    renderGrid(renderContext, renderBatch);
+  }
   renderMap(m_renderer, renderContext, renderBatch);
-  renderTools(m_toolBox, renderContext, renderBatch);
 
-  renderCoordinateSystem(renderContext, renderBatch);
-  renderSoftWorldBounds(renderContext, renderBatch);
-  renderPointFile(renderContext, renderBatch);
-  renderPortalFile(renderContext, renderBatch);
-  renderCompass(renderBatch);
-  renderFPS(renderContext, renderBatch);
+  if (showEditorOverlays)
+  {
+    renderTools(m_toolBox, renderContext, renderBatch);
+    renderCoordinateSystem(renderContext, renderBatch);
+    renderSoftWorldBounds(renderContext, renderBatch);
+    renderPointFile(renderContext, renderBatch);
+    renderPortalFile(renderContext, renderBatch);
+    renderCompass(renderBatch);
+    renderFPS(renderContext, renderBatch);
+  }
 
   renderBatch.render(renderContext);
 
@@ -1191,7 +1203,9 @@ void MapViewBase::renderFPS(
 void MapViewBase::renderLayerHighlight(
   render::RenderContext& renderContext, render::RenderBatch& renderBatch)
 {
-  if (!pref(Preferences::ShowLayerHighlight) || !m_layerHighlightActive)
+  if (
+    !renderContext.showEditorOverlays() || !pref(Preferences::ShowLayerHighlight)
+    || !m_layerHighlightActive)
   {
     return;
   }

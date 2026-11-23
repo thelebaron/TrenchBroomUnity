@@ -24,7 +24,6 @@
 #include "ui/CyclingMapView.h"
 #include "ui/MapDocument.h"
 #include "ui/MapView2D.h"
-#include "ui/MapView3D.h"
 #include "ui/QtUtils.h"
 #include "ui/Splitter.h"
 
@@ -36,11 +35,12 @@ ThreePaneMapView::ThreePaneMapView(
   MapViewToolBox& toolBox,
   render::MapRenderer& mapRenderer,
   GLContextManager& contextManager,
+  const bool include3D,
   QWidget* parent)
   : MultiPaneMapView{parent}
   , m_document{document}
 {
-  createGui(toolBox, mapRenderer, contextManager);
+  createGui(toolBox, mapRenderer, contextManager, include3D);
 }
 
 ThreePaneMapView::~ThreePaneMapView()
@@ -52,7 +52,8 @@ ThreePaneMapView::~ThreePaneMapView()
 void ThreePaneMapView::createGui(
   MapViewToolBox& toolBox,
   render::MapRenderer& mapRenderer,
-  GLContextManager& contextManager)
+  GLContextManager& contextManager,
+  const bool include3D)
 {
   m_hSplitter = new Splitter{DrawKnob::No};
   m_hSplitter->setObjectName("ThreePaneMapView_HorizontalSplitter");
@@ -60,17 +61,22 @@ void ThreePaneMapView::createGui(
   m_vSplitter = new Splitter{Qt::Vertical, DrawKnob::No};
   m_vSplitter->setObjectName("ThreePaneMapView_VerticalSplitter");
 
-  m_mapView3D = new MapView3D{m_document, toolBox, mapRenderer, contextManager};
+  m_primaryView = new CyclingMapView{
+    m_document,
+    toolBox,
+    mapRenderer,
+    contextManager,
+    include3D ? CyclingMapView::View_3D : CyclingMapView::View_YZ};
   m_mapViewXY = new MapView2D{
     m_document, toolBox, mapRenderer, contextManager, MapView2D::ViewPlane::XY};
   m_mapViewZZ = new CyclingMapView{
     m_document, toolBox, mapRenderer, contextManager, CyclingMapView::View_ZZ};
 
-  m_mapView3D->linkCamera(m_linkHelper);
+  m_primaryView->linkCamera(m_linkHelper);
   m_mapViewXY->linkCamera(m_linkHelper);
   m_mapViewZZ->linkCamera(m_linkHelper);
 
-  addMapView(m_mapView3D);
+  addMapView(m_primaryView);
   addMapView(m_mapViewXY);
   addMapView(m_mapViewZZ);
 
@@ -85,13 +91,13 @@ void ThreePaneMapView::createGui(
   m_vSplitter->addWidget(m_mapViewXY);
   m_vSplitter->addWidget(m_mapViewZZ);
 
-  m_hSplitter->addWidget(m_mapView3D);
+  m_hSplitter->addWidget(m_primaryView);
   m_hSplitter->addWidget(m_vSplitter);
 
   // Configure minimum child sizes and initial splitter position at 50%
   m_mapViewXY->setMinimumSize(100, 100);
   m_mapViewZZ->setMinimumSize(100, 100);
-  m_mapView3D->setMinimumSize(100, 100);
+  m_primaryView->setMinimumSize(100, 100);
 
   m_hSplitter->setSizes(QList<int>{1, 1});
   m_vSplitter->setSizes(QList<int>{1, 1});
@@ -102,20 +108,20 @@ void ThreePaneMapView::createGui(
 
 void ThreePaneMapView::maximizeView(MapView* view)
 {
-  assert(view == m_mapView3D || view == m_mapViewXY || view == m_mapViewZZ);
-  if (view == m_mapView3D)
+  assert(view == m_primaryView || view == m_mapViewXY || view == m_mapViewZZ);
+  if (view == m_primaryView)
   {
     m_vSplitter->hide();
   }
   else if (view == m_mapViewXY)
   {
     m_mapViewZZ->hide();
-    m_mapView3D->hide();
+    m_primaryView->hide();
   }
   else if (view == m_mapViewZZ)
   {
     m_mapViewXY->hide();
-    m_mapView3D->hide();
+    m_primaryView->hide();
   }
 }
 

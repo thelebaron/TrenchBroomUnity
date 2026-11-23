@@ -174,6 +174,8 @@ MapFrame::MapFrame(FrameManager& frameManager, std::unique_ptr<MapDocument> docu
 
 MapFrame::~MapFrame()
 {
+  disconnect(qApp, &QApplication::focusChanged, this, &MapFrame::focusChange);
+
   // Stop the autosave timer
   m_autosaveTimer->stop();
 
@@ -839,14 +841,17 @@ void MapFrame::transactionUndone(const std::string& /* name */)
 
 void MapFrame::preferenceDidChange(const std::filesystem::path& path)
 {
-  if (path == Preferences::MapViewLayout.path())
+  if (
+    path == Preferences::MapViewLayout.path()
+    || path == Preferences::MapViewInclude3D.path())
   {
     m_mapView->switchToMapView(
       static_cast<MapViewLayout>(pref(Preferences::MapViewLayout)));
   }
 
   if (
-    path == Preferences::PreviewLighting.path() || path == Preferences::ShowEdges.path())
+    path == Preferences::PreviewLighting.path()
+    || path == Preferences::ShowEditorOverlays.path())
   {
     updateActionStateDelayed();
   }

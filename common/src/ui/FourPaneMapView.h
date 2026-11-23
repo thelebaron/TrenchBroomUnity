@@ -30,10 +30,10 @@ class MapRenderer;
 
 namespace tb::ui
 {
+class CyclingMapView;
 class GLContextManager;
 class MapDocument;
 class MapView2D;
-class MapView3D;
 class MapViewToolBox;
 
 class FourPaneMapView : public MultiPaneMapView
@@ -46,7 +46,7 @@ private:
   QSplitter* m_leftVSplitter = nullptr;
   QSplitter* m_rightVSplitter = nullptr;
 
-  MapView3D* m_mapView3D = nullptr;
+  CyclingMapView* m_primaryView = nullptr;
   MapView2D* m_mapViewXY = nullptr;
   MapView2D* m_mapViewXZ = nullptr;
   MapView2D* m_mapViewYZ = nullptr;
@@ -57,6 +57,7 @@ public:
     MapViewToolBox& toolBox,
     render::MapRenderer& mapRenderer,
     GLContextManager& contextManager,
+    bool include3D,
     QWidget* parent = nullptr);
   ~FourPaneMapView() override;
 
@@ -64,7 +65,8 @@ private:
   void createGui(
     MapViewToolBox& toolBox,
     render::MapRenderer& mapRenderer,
-    GLContextManager& contextManager);
+    GLContextManager& contextManager,
+    bool include3D);
 
 private: // event handlers
   void onSplitterMoved(int pos, int index);

@@ -380,8 +380,9 @@ void PatchRenderer::doRender(RenderContext& context)
   shader.set("GridAlpha", prefs.get(Preferences::GridAlpha));
   shader.set("ApplyMaterial", applyMaterial);
   shader.set("Material", 0);
-  shader.set("ApplyTinting", m_tint);
-  if (m_tint)
+  const auto applyTinting = m_tint && context.showEditorOverlays();
+  shader.set("ApplyTinting", applyTinting);
+  if (applyTinting)
   {
     shader.set("TintColor", m_tintColor);
   }

@@ -31,20 +31,26 @@ OnePaneMapView::OnePaneMapView(
   MapViewToolBox& toolBox,
   render::MapRenderer& mapRenderer,
   GLContextManager& contextManager,
+  const bool include3D,
   QWidget* parent)
   : MultiPaneMapView{parent}
   , m_document{document}
 {
-  createGui(toolBox, mapRenderer, contextManager);
+  createGui(toolBox, mapRenderer, contextManager, include3D);
 }
 
 void OnePaneMapView::createGui(
   MapViewToolBox& toolBox,
   render::MapRenderer& mapRenderer,
-  GLContextManager& contextManager)
+  GLContextManager& contextManager,
+  const bool include3D)
 {
   m_mapView = new CyclingMapView{
-    m_document, toolBox, mapRenderer, contextManager, CyclingMapView::View_ALL};
+    m_document,
+    toolBox,
+    mapRenderer,
+    contextManager,
+    include3D ? CyclingMapView::View_ALL : CyclingMapView::View_2D};
   m_mapView->linkCamera(m_linkHelper);
   addMapView(m_mapView);
 

@@ -60,7 +60,7 @@ inline constexpr int PreviewShadowAtlasWidth =
   PreviewShadowTileSize * PreviewShadowAtlasCols;
 inline constexpr int PreviewShadowAtlasHeight =
   PreviewShadowTileSize * PreviewShadowAtlasRows;
-inline constexpr int PreviewDirectionalShadowMapSize = 2048;
+inline constexpr int PreviewDirectionalShadowMapSize = 4096;
 
 enum class PreviewLightType
 {

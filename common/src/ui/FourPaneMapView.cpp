@@ -20,11 +20,10 @@
 #include "FourPaneMapView.h"
 
 #include <QHBoxLayout>
-#include <QSettings>
 
+#include "ui/CyclingMapView.h"
 #include "ui/MapDocument.h"
 #include "ui/MapView2D.h"
-#include "ui/MapView3D.h"
 #include "ui/QtUtils.h"
 #include "ui/Splitter.h"
 
@@ -35,11 +34,12 @@ FourPaneMapView::FourPaneMapView(
   MapViewToolBox& toolBox,
   render::MapRenderer& mapRenderer,
   GLContextManager& contextManager,
+  const bool include3D,
   QWidget* parent)
   : MultiPaneMapView{parent}
   , m_document{document}
 {
-  createGui(toolBox, mapRenderer, contextManager);
+  createGui(toolBox, mapRenderer, contextManager, include3D);
 }
 
 FourPaneMapView::~FourPaneMapView()
@@ -52,7 +52,8 @@ FourPaneMapView::~FourPaneMapView()
 void FourPaneMapView::createGui(
   MapViewToolBox& toolBox,
   render::MapRenderer& mapRenderer,
-  GLContextManager& contextManager)
+  GLContextManager& contextManager,
+  const bool include3D)
 {
   m_hSplitter = new Splitter{DrawKnob::No};
   m_hSplitter->setObjectName("FourPaneMapView_HorizontalSplitter");
@@ -63,7 +64,12 @@ void FourPaneMapView::createGui(
   m_rightVSplitter = new Splitter{Qt::Vertical, DrawKnob::No};
   m_rightVSplitter->setObjectName("FourPaneMapView_RightVerticalSplitter");
 
-  m_mapView3D = new MapView3D{m_document, toolBox, mapRenderer, contextManager};
+  m_primaryView = new CyclingMapView{
+    m_document,
+    toolBox,
+    mapRenderer,
+    contextManager,
+    include3D ? CyclingMapView::View_3D : CyclingMapView::View_2D};
   m_mapViewXY = new MapView2D{
     m_document, toolBox, mapRenderer, contextManager, MapView2D::ViewPlane::XY};
   m_mapViewXZ = new MapView2D{
@@ -71,12 +77,12 @@ void FourPaneMapView::createGui(
   m_mapViewYZ = new MapView2D{
     m_document, toolBox, mapRenderer, contextManager, MapView2D::ViewPlane::YZ};
 
-  m_mapView3D->linkCamera(m_linkHelper);
+  m_primaryView->linkCamera(m_linkHelper);
   m_mapViewXY->linkCamera(m_linkHelper);
   m_mapViewXZ->linkCamera(m_linkHelper);
   m_mapViewYZ->linkCamera(m_linkHelper);
 
-  addMapView(m_mapView3D);
+  addMapView(m_primaryView);
   addMapView(m_mapViewXY);
   addMapView(m_mapViewXZ);
   addMapView(m_mapViewYZ);
@@ -93,14 +99,14 @@ void FourPaneMapView::createGui(
   m_hSplitter->addWidget(m_rightVSplitter);
 
   // add children
-  m_leftVSplitter->addWidget(m_mapView3D);
+  m_leftVSplitter->addWidget(m_primaryView);
   m_leftVSplitter->addWidget(m_mapViewYZ);
 
   m_rightVSplitter->addWidget(m_mapViewXY);
   m_rightVSplitter->addWidget(m_mapViewXZ);
 
   // Configure minimum child sizes and initial splitter position at 50%
-  m_mapView3D->setMinimumSize(100, 100);
+  m_primaryView->setMinimumSize(100, 100);
   m_mapViewYZ->setMinimumSize(100, 100);
   m_mapViewXY->setMinimumSize(100, 100);
   m_mapViewXZ->setMinimumSize(100, 100);
@@ -134,10 +140,10 @@ void FourPaneMapView::onSplitterMoved(
 void FourPaneMapView::maximizeView(MapView* view)
 {
   assert(
-    view == m_mapView3D || view == m_mapViewXY || view == m_mapViewXZ
+    view == m_primaryView || view == m_mapViewXY || view == m_mapViewXZ
     || view == m_mapViewYZ);
 
-  QWidget* viewAsWidget = dynamic_cast<MapViewBase*>(view);
+  auto* viewAsWidget = dynamic_cast<QWidget*>(view);
   assert(viewAsWidget != nullptr);
 
   const bool inLeft = m_leftVSplitter->isAncestorOf(viewAsWidget);
