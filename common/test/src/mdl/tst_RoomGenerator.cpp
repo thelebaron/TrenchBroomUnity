@@ -186,8 +186,18 @@ TEST_CASE("buildRoomShell")
     CHECK(countSurfaces(brushes, RoomSurface::Floor) == 1u);
     CHECK(countSurfaces(brushes, RoomSurface::Ceiling) == 1u);
     CHECK(surfaceAt(brushes, {64, 64, -8}) == RoomSurface::Floor);
+    CHECK(surfaceAt(brushes, {-8, 64, -8}) == RoomSurface::Floor);
     CHECK(surfaceAt(brushes, {64, 64, 136}) == RoomSurface::Ceiling);
+    CHECK(surfaceAt(brushes, {-8, 64, 136}) == RoomSurface::Ceiling);
     CHECK(surfaceAt(brushes, {-8, 64, 64}) == RoomSurface::Wall);
+    for (const auto& brush : brushes)
+    {
+      if (brush.surface == RoomSurface::Wall)
+      {
+        CHECK(brush.bounds.min.z() == 0.0);
+        CHECK(brush.bounds.max.z() == 128.0);
+      }
+    }
     checkShellMatchesSpaces(recipe, brushes);
   }
 
@@ -267,15 +277,16 @@ TEST_CASE("buildRoomShell")
     CHECK(countBrushesAt(brushes, {128, -8, 48}) == 0u);
     // Lintel above the opening.
     CHECK(countBrushesAt(brushes, {128, -8, 112}) == 1u);
-    // Threshold below the opening, in line with the floor.
+    // Threshold below the opening is part of the floor slab.
     CHECK(countBrushesAt(brushes, {128, -8, -8}) == 1u);
+    CHECK(surfaceAt(brushes, {128, -8, -8}) == RoomSurface::Floor);
     // Floor under the doorway inside the room.
     CHECK(surfaceAt(brushes, {128, 16, -8}) == RoomSurface::Floor);
     // Wall next to the opening.
     CHECK(countBrushesAt(brushes, {64, -8, 48}) == 1u);
 
-    // Left and right of the door, lintel and threshold.
-    CHECK(countSurfaces(brushes, RoomSurface::Wall) == 7u);
+    // Three untouched walls, left and right of the door, and lintel.
+    CHECK(countSurfaces(brushes, RoomSurface::Wall) == 6u);
   }
 
   SECTION("Clips remove all solid, including floor and ceiling")
@@ -489,6 +500,50 @@ TEST_CASE("Room creation and rebuilding")
 
     const auto shells = roomWorldShellBounds(*room).value();
     CHECK(shells.front() == vm::bbox3d{{496, -16, -16}, {656, 144, 144}});
+  }
+
+  SECTION("Wall textures align vertically to the room's floor level")
+  {
+    const auto raisedRecipe = makeRecipe(
+      {vm::bbox3d{{0, 0, 64}, {256, 256, 192}}},
+      {vm::bbox3d{{96, -32, 64}, {160, 32, 176}}});
+    const auto surfaceBrushes =
+      buildRoomBrushesBySurface(map, raisedRecipe, vm::mat4x4d::identity()).value();
+
+    auto checkedWallFaces = size_t{0};
+    auto checkedLintel = false;
+    for (const auto& [brush, surface] : surfaceBrushes)
+    {
+      if (surface != RoomSurface::Wall)
+      {
+        continue;
+      }
+
+      if (brush.bounds().min.z() > 100.0)
+      {
+        checkedLintel = true;
+      }
+      else
+      {
+        CHECK(brush.bounds().min.z() == 64.0);
+        CHECK(brush.bounds().max.z() == 192.0);
+      }
+
+      for (const auto& face : brush.faces())
+      {
+        if (std::abs(face.normal().z()) < 0.01)
+        {
+          // At the floor level (z = 64), V must be 0 so a 128-tall texture starts at the
+          // floor and ends cleanly at z = 192 (even on doorway lintels).
+          const auto scaleY = face.attributes().yScale();
+          const auto expectedOffset = static_cast<float>(64.0 / double(scaleY));
+          CHECK(face.attributes().yOffset() == expectedOffset);
+          ++checkedWallFaces;
+        }
+      }
+    }
+    CHECK(checkedLintel);
+    CHECK(checkedWallFaces > 0u);
   }
 
   SECTION("Rooms rotated by an arbitrary angle reject new spaces")
@@ -777,6 +832,7 @@ TEST_CASE("Room lights and connections in the map")
     CHECK(*lights[0]->entity().property("origin") == "128 128 112");
     CHECK(*lights[0]->entity().property("range") == "192.00");
     CHECK(*lights[0]->entity().property("intensity") == "2");
+    CHECK(*lights[0]->entity().property("shadows") == "0");
 
     auto* handPlaced = new EntityNode{Entity{{{"classname", "light_unity"}}}};
     addNodes(map, {{room, {handPlaced}}});

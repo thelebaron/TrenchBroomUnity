@@ -195,6 +195,20 @@ void SwitchableMapViewContainer::toggleRoomDrawTool()
   m_toolBox->toggleRoomDrawTool();
 }
 
+bool SwitchableMapViewContainer::dollhouseEnabled() const
+{
+  return m_mapRenderer->dollhouseEnabled();
+}
+
+void SwitchableMapViewContainer::setDollhouseEnabled(const bool enabled)
+{
+  if (m_mapRenderer->dollhouseEnabled() != enabled)
+  {
+    m_mapRenderer->setDollhouseEnabled(enabled);
+    refreshViews();
+  }
+}
+
 bool SwitchableMapViewContainer::paintRollerToolActive() const
 {
   return m_toolBox->paintRollerToolActive();

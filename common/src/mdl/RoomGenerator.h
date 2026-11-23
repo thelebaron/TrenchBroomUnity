@@ -153,6 +153,8 @@ struct RoomLightOptions
   /** Map units to Unity meters, used for the light_unity range property. */
   double unitScale = 0.03125;
   double intensity = 1.0;
+  /** Unity LightShadows value (0 = None, 1 = Hard, 2 = Soft). */
+  int shadows = 0;
 };
 
 /** Whether a brush in the map still matches one generated for a room. */

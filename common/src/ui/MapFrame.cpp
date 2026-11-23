@@ -1831,6 +1831,25 @@ bool MapFrame::roomDrawToolActive() const
   return m_mapView->roomDrawToolActive();
 }
 
+void MapFrame::toggleRoomDollhouse()
+{
+  setRoomDollhouseEnabled(!roomDollhouseEnabled());
+}
+
+void MapFrame::setRoomDollhouseEnabled(const bool enabled)
+{
+  if (m_mapView)
+  {
+    m_mapView->setDollhouseEnabled(enabled);
+    updateActionState();
+  }
+}
+
+bool MapFrame::roomDollhouseEnabled() const
+{
+  return m_mapView && m_mapView->dollhouseEnabled();
+}
+
 void MapFrame::togglePaintRollerTool()
 {
   if (canTogglePaintRollerTool())

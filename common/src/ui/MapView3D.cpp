@@ -229,6 +229,20 @@ mdl::PickResult MapView3D::pick(const vm::ray3d& pickRay) const
   auto pickResult = mdl::PickResult::byDistance();
 
   mdl::pick(map, pickRay, pickResult);
+  if (m_renderer.dollhouseEnabled())
+  {
+    auto filtered = mdl::PickResult::byDistance();
+    for (const auto& hit : pickResult.all())
+    {
+      if (const auto faceHandle = mdl::hitToFaceHandle(hit);
+          faceHandle && m_renderer.isDollhouseHidden(*faceHandle->node()))
+      {
+        continue;
+      }
+      filtered.addHit(hit);
+    }
+    return filtered;
+  }
   return pickResult;
 }
 
@@ -253,9 +267,7 @@ vm::vec3d MapView3D::pasteObjectsDelta(
   {
     const auto pickRay =
       vm::ray3d{m_camera->pickRay(float(clientCoords.x()), float(clientCoords.y()))};
-    auto pickResult = mdl::PickResult::byDistance();
-
-    mdl::pick(map, pickRay, pickResult);
+    const auto pickResult = pick(pickRay);
 
     const auto& hit = pickResult.first(type(mdl::BrushNode::BrushHitType));
     if (const auto faceHandle = mdl::hitToFaceHandle(hit))

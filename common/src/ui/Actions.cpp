@@ -973,6 +973,18 @@ void ActionManager::createViewActions()
     std::filesystem::path{"PreviewLighting.svg"},
   });
   addAction(Action{
+    std::filesystem::path{"Controls/Map view/View Filter > Dollhouse cutaway"},
+    QObject::tr("Toggle Dollhouse Cutaway"),
+    ActionContext::Any,
+    QKeySequence{},
+    [](auto& context) { context.frame().toggleRoomDollhouse(); },
+    [](const auto& context) { return context.hasDocument(); },
+    [](const auto& context) {
+      return context.hasDocument() && context.frame().roomDollhouseEnabled();
+    },
+    std::filesystem::path{"DollhouseCutaway.svg"},
+  });
+  addAction(Action{
     std::filesystem::path{"Controls/Map view/View Filter > Show all entity links"},
     QObject::tr("Show All Entity Links"),
     ActionContext::Any,
@@ -2349,6 +2361,7 @@ void ActionManager::createToolbar()
   m_toolBar.addItem(existingAction("Menu/Edit/UV Lock"));
   m_toolBar.addSeparator();
   m_toolBar.addItem(existingAction("Controls/Map view/View Filter > Preview lighting"));
+  m_toolBar.addItem(existingAction("Controls/Map view/View Filter > Dollhouse cutaway"));
   m_toolBar.addItem(
     existingAction("Controls/Map view/View Filter > Show editor overlays"));
   m_toolBar.addSeparator();

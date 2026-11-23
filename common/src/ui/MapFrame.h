@@ -302,6 +302,10 @@ public:
   void toggleRoomDrawTool();
   bool roomDrawToolActive() const;
 
+  void toggleRoomDollhouse();
+  void setRoomDollhouseEnabled(bool enabled);
+  bool roomDollhouseEnabled() const;
+
   void toggleClipTool();
   bool canToggleClipTool() const;
   bool clipToolActive() const;

@@ -22,8 +22,11 @@
 #include "Macros.h"
 #include "NotifierConnection.h"
 
+#include "vm/vec.h"
+
 #include <filesystem>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 namespace tb
@@ -58,9 +61,15 @@ class MapRenderer
 private:
   mdl::Map& m_map;
 
+  bool m_dollhouseEnabled = false;
+  std::unordered_set<const mdl::BrushNode*> m_dollhouseHiddenBrushes;
+
   std::unique_ptr<ObjectRenderer> m_defaultRenderer;
   std::unique_ptr<ObjectRenderer> m_selectionRenderer;
   std::unique_ptr<ObjectRenderer> m_lockedRenderer;
+  std::unique_ptr<ObjectRenderer> m_dollhouse2DDefaultRenderer;
+  std::unique_ptr<ObjectRenderer> m_dollhouse2DSelectionRenderer;
+  std::unique_ptr<ObjectRenderer> m_dollhouse2DLockedRenderer;
   std::unique_ptr<EntityDecalRenderer> m_entityDecalRenderer;
   std::unique_ptr<EntityLinkRenderer> m_entityLinkRenderer;
   std::unique_ptr<GroupLinkRenderer> m_groupLinkRenderer;
@@ -88,10 +97,16 @@ public: // color config
   void overrideSelectionColors(const Color& color, float mix);
   void restoreSelectionColors();
 
+public: // dollhouse cutaway (3D view only)
+  bool dollhouseEnabled() const;
+  void setDollhouseEnabled(bool enabled);
+  bool isDollhouseHidden(const mdl::BrushNode& brushNode) const;
+
 public: // rendering
   void render(RenderContext& renderContext, RenderBatch& renderBatch);
 
 private:
+  void updateDollhouseHiddenBrushes(const vm::vec3d& cameraPosition);
   void reload();
   void clear();
 

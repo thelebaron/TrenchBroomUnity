@@ -34,9 +34,11 @@
 #include "mdl/MaterialManager.h"
 #include "mdl/Node.h"
 #include "mdl/PatchNode.h"
+#include "mdl/RoomLayout.h"
 #include "mdl/SelectionChange.h"
 #include "mdl/WorldNode.h"
 #include "render/BrushRenderer.h"
+#include "render/Camera.h"
 #include "render/EntityDecalRenderer.h"
 #include "render/EntityLinkRenderer.h"
 #include "render/GroupLinkRenderer.h"
@@ -56,16 +58,27 @@ namespace tb::render
 namespace
 {
 
+using ExcludedBrushSet = std::unordered_set<const mdl::BrushNode*>;
+
 class SelectedBrushRendererFilter : public BrushRenderer::DefaultFilter
 {
+private:
+  const ExcludedBrushSet* m_excludedBrushes;
+
 public:
-  explicit SelectedBrushRendererFilter(const mdl::EditorContext& context)
+  explicit SelectedBrushRendererFilter(
+    const mdl::EditorContext& context, const ExcludedBrushSet* excludedBrushes = nullptr)
     : DefaultFilter{context}
+    , m_excludedBrushes{excludedBrushes}
   {
   }
 
   RenderSettings markFaces(const mdl::BrushNode& brushNode) const override
   {
+    if (m_excludedBrushes && m_excludedBrushes->contains(&brushNode))
+    {
+      return renderNothing();
+    }
     if (!(visible(brushNode) && editable(brushNode)))
     {
       return renderNothing();
@@ -83,14 +96,23 @@ public:
 
 class LockedBrushRendererFilter : public BrushRenderer::DefaultFilter
 {
+private:
+  const ExcludedBrushSet* m_excludedBrushes;
+
 public:
-  explicit LockedBrushRendererFilter(const mdl::EditorContext& context)
+  explicit LockedBrushRendererFilter(
+    const mdl::EditorContext& context, const ExcludedBrushSet* excludedBrushes = nullptr)
     : DefaultFilter{context}
+    , m_excludedBrushes{excludedBrushes}
   {
   }
 
   RenderSettings markFaces(const mdl::BrushNode& brushNode) const override
   {
+    if (m_excludedBrushes && m_excludedBrushes->contains(&brushNode))
+    {
+      return renderNothing();
+    }
     if (!visible(brushNode))
     {
       return renderNothing();
@@ -116,14 +138,24 @@ public:
 
 class UnselectedBrushRendererFilter : public BrushRenderer::DefaultFilter
 {
+private:
+  const ExcludedBrushSet* m_excludedBrushes;
+
 public:
-  explicit UnselectedBrushRendererFilter(const mdl::EditorContext& context)
+  explicit UnselectedBrushRendererFilter(
+    const mdl::EditorContext& context, const ExcludedBrushSet* excludedBrushes = nullptr)
     : DefaultFilter{context}
+    , m_excludedBrushes{excludedBrushes}
   {
   }
 
   RenderSettings markFaces(const mdl::BrushNode& brushNode) const override
   {
+    if (m_excludedBrushes && m_excludedBrushes->contains(&brushNode))
+    {
+      return renderNothing();
+    }
+
     const auto brushVisible = visible(brushNode);
     const auto brushEditable = editable(brushNode);
 
@@ -159,31 +191,34 @@ public:
   }
 };
 
-std::unique_ptr<ObjectRenderer> createDefaultRenderer(mdl::Map& map)
+std::unique_ptr<ObjectRenderer> createDefaultRenderer(
+  mdl::Map& map, const ExcludedBrushSet* excludedBrushes = nullptr)
 {
   return std::make_unique<ObjectRenderer>(
     map.logger(),
     map.entityModelManager(),
     map.editorContext(),
-    UnselectedBrushRendererFilter{map.editorContext()});
+    UnselectedBrushRendererFilter{map.editorContext(), excludedBrushes});
 }
 
-std::unique_ptr<ObjectRenderer> createSelectionRenderer(mdl::Map& map)
+std::unique_ptr<ObjectRenderer> createSelectionRenderer(
+  mdl::Map& map, const ExcludedBrushSet* excludedBrushes = nullptr)
 {
   return std::make_unique<ObjectRenderer>(
     map.logger(),
     map.entityModelManager(),
     map.editorContext(),
-    SelectedBrushRendererFilter{map.editorContext()});
+    SelectedBrushRendererFilter{map.editorContext(), excludedBrushes});
 }
 
-std::unique_ptr<ObjectRenderer> createLockRenderer(mdl::Map& map)
+std::unique_ptr<ObjectRenderer> createLockRenderer(
+  mdl::Map& map, const ExcludedBrushSet* excludedBrushes = nullptr)
 {
   return std::make_unique<ObjectRenderer>(
     map.logger(),
     map.entityModelManager(),
     map.editorContext(),
-    LockedBrushRendererFilter{map.editorContext()});
+    LockedBrushRendererFilter{map.editorContext(), excludedBrushes});
 }
 
 std::unique_ptr<EntityDecalRenderer> createEntityDecalRenderer(mdl::Map& map)
@@ -195,9 +230,12 @@ std::unique_ptr<EntityDecalRenderer> createEntityDecalRenderer(mdl::Map& map)
 
 MapRenderer::MapRenderer(mdl::Map& map)
   : m_map{map}
-  , m_defaultRenderer{createDefaultRenderer(m_map)}
-  , m_selectionRenderer{createSelectionRenderer(m_map)}
-  , m_lockedRenderer{createLockRenderer(m_map)}
+  , m_defaultRenderer{createDefaultRenderer(m_map, &m_dollhouseHiddenBrushes)}
+  , m_selectionRenderer{createSelectionRenderer(m_map, &m_dollhouseHiddenBrushes)}
+  , m_lockedRenderer{createLockRenderer(m_map, &m_dollhouseHiddenBrushes)}
+  , m_dollhouse2DDefaultRenderer{createDefaultRenderer(m_map)}
+  , m_dollhouse2DSelectionRenderer{createSelectionRenderer(m_map)}
+  , m_dollhouse2DLockedRenderer{createLockRenderer(m_map)}
   , m_entityDecalRenderer{createEntityDecalRenderer(m_map)}
   , m_entityLinkRenderer{std::make_unique<EntityLinkRenderer>(m_map)}
   , m_groupLinkRenderer{std::make_unique<GroupLinkRenderer>(m_map)}
@@ -218,20 +256,153 @@ void MapRenderer::overrideSelectionColors(const Color& color, const float mix)
   const auto occludedEdgeColor = pref(Preferences::SelectedFaceColor).mixed(color, mix);
   const auto tintColor = pref(Preferences::SelectedFaceColor).mixed(color, mix);
 
-  m_selectionRenderer->setEntityBoundsColor(edgeColor);
-  m_selectionRenderer->setBrushEdgeColor(edgeColor);
-  m_selectionRenderer->setOccludedEdgeColor(occludedEdgeColor);
-  m_selectionRenderer->setTintColor(tintColor);
+  for (auto* renderer :
+       {m_selectionRenderer.get(), m_dollhouse2DSelectionRenderer.get()})
+  {
+    renderer->setEntityBoundsColor(edgeColor);
+    renderer->setBrushEdgeColor(edgeColor);
+    renderer->setOccludedEdgeColor(occludedEdgeColor);
+    renderer->setTintColor(tintColor);
+  }
 }
 
 void MapRenderer::restoreSelectionColors()
 {
   setupSelectionRenderer(*m_selectionRenderer);
+  setupSelectionRenderer(*m_dollhouse2DSelectionRenderer);
+}
+
+bool MapRenderer::dollhouseEnabled() const
+{
+  return m_dollhouseEnabled;
+}
+
+void MapRenderer::setDollhouseEnabled(const bool enabled)
+{
+  if (m_dollhouseEnabled == enabled)
+  {
+    return;
+  }
+
+  m_dollhouseEnabled = enabled;
+  if (!m_dollhouseEnabled && !m_dollhouseHiddenBrushes.empty())
+  {
+    const auto oldHidden = std::move(m_dollhouseHiddenBrushes);
+    m_dollhouseHiddenBrushes.clear();
+    m_dollhouse2DDefaultRenderer->clear();
+    m_dollhouse2DSelectionRenderer->clear();
+    m_dollhouse2DLockedRenderer->clear();
+
+    for (const auto* brush : oldHidden)
+    {
+      auto* node = const_cast<mdl::BrushNode*>(brush);
+      if (const auto it = m_trackedNodes.find(node); it != m_trackedNodes.end())
+      {
+        const auto renderers = it->second;
+        if (renderers & int(Renderer::Default))
+        {
+          m_defaultRenderer->invalidateNode(node);
+        }
+        if (renderers & int(Renderer::Selection))
+        {
+          m_selectionRenderer->invalidateNode(node);
+        }
+        if (renderers & int(Renderer::Locked))
+        {
+          m_lockedRenderer->invalidateNode(node);
+        }
+      }
+    }
+  }
+}
+
+bool MapRenderer::isDollhouseHidden(const mdl::BrushNode& brushNode) const
+{
+  return m_dollhouseEnabled && m_dollhouseHiddenBrushes.contains(&brushNode);
+}
+
+void MapRenderer::updateDollhouseHiddenBrushes(const vm::vec3d& cameraPosition)
+{
+  auto newHidden = mdl::collectDollhouseHiddenBrushes(m_map, cameraPosition);
+  if (newHidden == m_dollhouseHiddenBrushes)
+  {
+    return;
+  }
+
+  auto entering = std::vector<mdl::BrushNode*>{};
+  auto leaving = std::vector<mdl::BrushNode*>{};
+
+  for (const auto* brush : newHidden)
+  {
+    if (!m_dollhouseHiddenBrushes.contains(brush))
+    {
+      entering.push_back(const_cast<mdl::BrushNode*>(brush));
+    }
+  }
+  for (const auto* brush : m_dollhouseHiddenBrushes)
+  {
+    if (!newHidden.contains(brush))
+    {
+      leaving.push_back(const_cast<mdl::BrushNode*>(brush));
+    }
+  }
+
+  m_dollhouseHiddenBrushes = std::move(newHidden);
+
+  for (auto* node : entering)
+  {
+    if (const auto it = m_trackedNodes.find(node); it != m_trackedNodes.end())
+    {
+      const auto renderers = it->second;
+      if (renderers & int(Renderer::Default))
+      {
+        m_defaultRenderer->invalidateNode(node);
+        m_dollhouse2DDefaultRenderer->addNode(node);
+      }
+      if (renderers & int(Renderer::Selection))
+      {
+        m_selectionRenderer->invalidateNode(node);
+        m_dollhouse2DSelectionRenderer->addNode(node);
+      }
+      if (renderers & int(Renderer::Locked))
+      {
+        m_lockedRenderer->invalidateNode(node);
+        m_dollhouse2DLockedRenderer->addNode(node);
+      }
+    }
+  }
+
+  for (auto* node : leaving)
+  {
+    if (const auto it = m_trackedNodes.find(node); it != m_trackedNodes.end())
+    {
+      const auto renderers = it->second;
+      if (renderers & int(Renderer::Default))
+      {
+        m_dollhouse2DDefaultRenderer->removeNode(node);
+        m_defaultRenderer->invalidateNode(node);
+      }
+      if (renderers & int(Renderer::Selection))
+      {
+        m_dollhouse2DSelectionRenderer->removeNode(node);
+        m_selectionRenderer->invalidateNode(node);
+      }
+      if (renderers & int(Renderer::Locked))
+      {
+        m_dollhouse2DLockedRenderer->removeNode(node);
+        m_lockedRenderer->invalidateNode(node);
+      }
+    }
+  }
 }
 
 void MapRenderer::render(RenderContext& renderContext, RenderBatch& renderBatch)
 {
   setupGL(renderBatch);
+  if (renderContext.render3D() && m_dollhouseEnabled)
+  {
+    updateDollhouseHiddenBrushes(vm::vec3d{renderContext.camera().position()});
+  }
   m_previewLightRenderer->prepare(renderContext, renderBatch);
   renderEntityDecals(renderContext, renderBatch);
   if (renderContext.showEditorOverlays())
@@ -264,9 +435,13 @@ void MapRenderer::reload()
 
 void MapRenderer::clear()
 {
+  m_dollhouseHiddenBrushes.clear();
   m_defaultRenderer->clear();
   m_selectionRenderer->clear();
   m_lockedRenderer->clear();
+  m_dollhouse2DDefaultRenderer->clear();
+  m_dollhouse2DSelectionRenderer->clear();
+  m_dollhouse2DLockedRenderer->clear();
   m_entityDecalRenderer->clear();
   m_entityLinkRenderer->invalidate();
   m_groupLinkRenderer->invalidate();
@@ -297,6 +472,11 @@ void MapRenderer::renderDefaultOpaque(
 {
   m_defaultRenderer->setShowOverlays(renderContext.render3D());
   m_defaultRenderer->renderOpaque(renderContext, renderBatch);
+  if (renderContext.render2D() && !m_dollhouseHiddenBrushes.empty())
+  {
+    m_dollhouse2DDefaultRenderer->setShowOverlays(false);
+    m_dollhouse2DDefaultRenderer->renderOpaque(renderContext, renderBatch);
+  }
 }
 
 void MapRenderer::renderDefaultTransparent(
@@ -304,6 +484,11 @@ void MapRenderer::renderDefaultTransparent(
 {
   m_defaultRenderer->setShowOverlays(renderContext.render3D());
   m_defaultRenderer->renderTransparent(renderContext, renderBatch);
+  if (renderContext.render2D() && !m_dollhouseHiddenBrushes.empty())
+  {
+    m_dollhouse2DDefaultRenderer->setShowOverlays(false);
+    m_dollhouse2DDefaultRenderer->renderTransparent(renderContext, renderBatch);
+  }
 }
 
 void MapRenderer::renderSelectionOpaque(
@@ -312,6 +497,10 @@ void MapRenderer::renderSelectionOpaque(
   if (!renderContext.hideSelection())
   {
     m_selectionRenderer->renderOpaque(renderContext, renderBatch);
+    if (renderContext.render2D() && !m_dollhouseHiddenBrushes.empty())
+    {
+      m_dollhouse2DSelectionRenderer->renderOpaque(renderContext, renderBatch);
+    }
   }
 }
 
@@ -321,6 +510,10 @@ void MapRenderer::renderSelectionTransparent(
   if (!renderContext.hideSelection())
   {
     m_selectionRenderer->renderTransparent(renderContext, renderBatch);
+    if (renderContext.render2D() && !m_dollhouseHiddenBrushes.empty())
+    {
+      m_dollhouse2DSelectionRenderer->renderTransparent(renderContext, renderBatch);
+    }
   }
 }
 
@@ -329,6 +522,11 @@ void MapRenderer::renderLockedOpaque(
 {
   m_lockedRenderer->setShowOverlays(renderContext.render3D());
   m_lockedRenderer->renderOpaque(renderContext, renderBatch);
+  if (renderContext.render2D() && !m_dollhouseHiddenBrushes.empty())
+  {
+    m_dollhouse2DLockedRenderer->setShowOverlays(false);
+    m_dollhouse2DLockedRenderer->renderOpaque(renderContext, renderBatch);
+  }
 }
 
 void MapRenderer::renderLockedTransparent(
@@ -336,6 +534,11 @@ void MapRenderer::renderLockedTransparent(
 {
   m_lockedRenderer->setShowOverlays(renderContext.render3D());
   m_lockedRenderer->renderTransparent(renderContext, renderBatch);
+  if (renderContext.render2D() && !m_dollhouseHiddenBrushes.empty())
+  {
+    m_dollhouse2DLockedRenderer->setShowOverlays(false);
+    m_dollhouse2DLockedRenderer->renderTransparent(renderContext, renderBatch);
+  }
 }
 
 void MapRenderer::renderEntityDecals(
@@ -364,6 +567,9 @@ void MapRenderer::setupRenderers()
   setupDefaultRenderer(*m_defaultRenderer);
   setupSelectionRenderer(*m_selectionRenderer);
   setupLockedRenderer(*m_lockedRenderer);
+  setupDefaultRenderer(*m_dollhouse2DDefaultRenderer);
+  setupSelectionRenderer(*m_dollhouse2DSelectionRenderer);
+  setupLockedRenderer(*m_dollhouse2DLockedRenderer);
 }
 
 void MapRenderer::setupDefaultRenderer(ObjectRenderer& renderer)
@@ -536,6 +742,14 @@ void MapRenderer::updateAndInvalidateNode(mdl::Node* node)
   updateForRenderer(Renderer::Selection, m_selectionRenderer.get());
   updateForRenderer(Renderer::Locked, m_lockedRenderer.get());
 
+  if (const auto* brushNode = dynamic_cast<const mdl::BrushNode*>(node);
+      brushNode && m_dollhouseHiddenBrushes.contains(brushNode))
+  {
+    updateForRenderer(Renderer::Default, m_dollhouse2DDefaultRenderer.get());
+    updateForRenderer(Renderer::Selection, m_dollhouse2DSelectionRenderer.get());
+    updateForRenderer(Renderer::Locked, m_dollhouse2DLockedRenderer.get());
+  }
+
   // Update the metadata to reflect the changes that we made above
   m_trackedNodes[node] = desiredRenderers;
 
@@ -587,6 +801,23 @@ void MapRenderer::removeNode(mdl::Node* node)
       m_lockedRenderer->removeNode(node);
     }
 
+    if (const auto* brushNode = dynamic_cast<const mdl::BrushNode*>(node);
+        brushNode && m_dollhouseHiddenBrushes.erase(brushNode) > 0u)
+    {
+      if (renderers & int(Renderer::Default))
+      {
+        m_dollhouse2DDefaultRenderer->removeNode(node);
+      }
+      if (renderers & int(Renderer::Selection))
+      {
+        m_dollhouse2DSelectionRenderer->removeNode(node);
+      }
+      if (renderers & int(Renderer::Locked))
+      {
+        m_dollhouse2DLockedRenderer->removeNode(node);
+      }
+    }
+
     m_trackedNodes.erase(it);
 
     // At this point, none of the default/selection/locked renderers,
@@ -631,14 +862,17 @@ void MapRenderer::invalidateRenderers(const Renderer renderers)
   if (int(renderers) & int(Renderer::Default))
   {
     m_defaultRenderer->invalidate();
+    m_dollhouse2DDefaultRenderer->invalidate();
   }
   if (int(renderers) & int(Renderer::Selection))
   {
     m_selectionRenderer->invalidate();
+    m_dollhouse2DSelectionRenderer->invalidate();
   }
   if (int(renderers) & int(Renderer::Locked))
   {
     m_lockedRenderer->invalidate();
+    m_dollhouse2DLockedRenderer->invalidate();
   }
 }
 
@@ -872,6 +1106,9 @@ void MapRenderer::resourcesWereProcessed(const std::vector<mdl::ResourceId>& res
   m_defaultRenderer->invalidateMaterials(materials);
   m_selectionRenderer->invalidateMaterials(materials);
   m_lockedRenderer->invalidateMaterials(materials);
+  m_dollhouse2DDefaultRenderer->invalidateMaterials(materials);
+  m_dollhouse2DSelectionRenderer->invalidateMaterials(materials);
+  m_dollhouse2DLockedRenderer->invalidateMaterials(materials);
 
   const auto& entityModelManager = m_map.entityModelManager();
   const auto entityModels =

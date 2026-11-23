@@ -22,12 +22,16 @@
 #include "Result.h"
 #include "mdl/RoomGenerator.h"
 
+#include "vm/vec.h"
+
 #include <string>
+#include <unordered_set>
 #include <vector>
 
 namespace tb::mdl
 {
 class Brush;
+class BrushNode;
 class LayerNode;
 class Map;
 
@@ -62,5 +66,13 @@ Result<std::vector<Brush>> roomLayoutPreview(const Map& map, const RoomRecipe& n
  */
 Result<void> updateRoomLayout(
   Map& map, const RoomRecipe& layout, const RoomLightOptions& lightOptions = {});
+
+/**
+ * Computes the set of room creator wall and ceiling brushes that should be peeled away
+ * in dollhouse view for the given 3D camera position so the user can see inside rooms.
+ * Returns an empty set when the camera is inside a room space.
+ */
+std::unordered_set<const BrushNode*> collectDollhouseHiddenBrushes(
+  const Map& map, const vm::vec3d& cameraPosition);
 
 } // namespace tb::mdl

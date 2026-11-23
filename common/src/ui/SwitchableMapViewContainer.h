@@ -88,6 +88,9 @@ public:
   bool roomDrawToolActive() const;
   void toggleRoomDrawTool();
 
+  bool dollhouseEnabled() const;
+  void setDollhouseEnabled(bool enabled);
+
   bool paintRollerToolActive() const;
   bool canTogglePaintRollerTool() const;
   void togglePaintRollerTool();

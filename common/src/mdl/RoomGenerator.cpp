@@ -262,8 +262,10 @@ vm::bbox3d dilate(const vm::bbox3d& space, const RoomRecipe& recipe)
 }
 
 /**
- * A solid cell directly beneath an interior cell (within the wall thickness) is floor;
- * one directly above an interior cell is ceiling. Everything else is wall.
+ * Ensures solid cells directly beneath an interior cell (within the wall thickness) are
+ * floor and those directly above an interior cell are ceiling, while preserving floor /
+ * ceiling slabs that extend under and over exterior walls so wall brushes match the
+ * room's interior height.
  */
 void classifySolidCells(CellGrid& grid, const double thickness)
 {
@@ -303,8 +305,6 @@ void classifySolidCells(CellGrid& grid, const double thickness)
           grid.at(x, y, z) = CellState::Ceiling;
           continue;
         }
-
-        grid.at(x, y, z) = CellState::Wall;
       }
     }
   }
@@ -600,6 +600,54 @@ const std::string& materialFor(const RoomRecipe& recipe, const RoomSurface surfa
   return recipe.wallMaterial;
 }
 
+double floorLevelForWall(const RoomRecipe& recipe, const vm::bbox3d& wallBounds)
+{
+  const auto thickness = static_cast<double>(recipe.wallThickness);
+  auto found = false;
+  auto floorZ = wallBounds.min.z();
+
+  for (const auto& space : recipe.spaces)
+  {
+    const auto overlapZ =
+      std::min(wallBounds.max.z(), space.max.z())
+      - std::max(wallBounds.min.z(), space.min.z());
+    if (overlapZ <= Epsilon)
+    {
+      continue;
+    }
+
+    const auto nearX = wallBounds.max.x() >= space.min.x() - thickness - Epsilon
+                       && wallBounds.min.x() <= space.max.x() + thickness + Epsilon;
+    const auto nearY = wallBounds.max.y() >= space.min.y() - thickness - Epsilon
+                       && wallBounds.min.y() <= space.max.y() + thickness + Epsilon;
+    if (nearX && nearY)
+    {
+      floorZ = found ? std::min(floorZ, space.min.z()) : space.min.z();
+      found = true;
+    }
+  }
+
+  return floorZ;
+}
+
+void alignWallVerticalUVs(Brush& brush, const double worldFloorZ)
+{
+  for (auto& face : brush.faces())
+  {
+    if (std::abs(face.normal().z()) > Epsilon || std::abs(face.vAxis().z()) < 0.99)
+    {
+      continue;
+    }
+
+    auto attributes = face.attributes();
+    const auto yScale =
+      std::abs(attributes.yScale()) > 0.0001f ? double(attributes.yScale()) : 1.0;
+    const auto floorV = vm::dot(vm::vec3d{0.0, 0.0, worldFloorZ}, face.vAxis()) / yScale;
+    attributes.setYOffset(static_cast<float>(vm::correct(-floorV, 4)));
+    face.setAttributes(attributes);
+  }
+}
+
 Result<std::vector<std::pair<Brush, RoomSurface>>> buildSurfaceBrushesImpl(
   const Map& map, const RoomRecipe& recipe, const vm::mat4x4d& transformation)
 {
@@ -637,6 +685,13 @@ Result<std::vector<std::pair<Brush, RoomSurface>>> buildSurfaceBrushesImpl(
       {
         return std::get<Error>(transformResult.error());
       }
+    }
+    if (shellBrush.surface == RoomSurface::Wall)
+    {
+      const auto localFloorZ = floorLevelForWall(recipe, shellBrush.bounds);
+      const auto worldFloorZ =
+        (transformation * vm::vec3d{0.0, 0.0, localFloorZ}).z();
+      alignWallVerticalUVs(brush, worldFloorZ);
     }
     result.emplace_back(std::move(brush), shellBrush.surface);
   }
@@ -763,6 +818,7 @@ std::vector<Node*> createLightNodes(
        fmt::format("{} {} {}", position.x(), position.y(), position.z())},
       {"intensity", fmt::format("{}", options.intensity)},
       {"range", fmt::format("{:.2f}", light.range * options.unitScale)},
+      {"shadows", std::to_string(options.shadows)},
       {RoomKeys::GeneratedLight, "1"},
     }};
     result.push_back(new EntityNode{std::move(entity)});
@@ -985,9 +1041,32 @@ Result<std::vector<RoomShellBrush>> buildRoomShell(const RoomRecipe& recipe)
   auto grid =
     CellGrid{sortedUniqueCoords(xs), sortedUniqueCoords(ys), sortedUniqueCoords(zs)};
 
-  for (const auto& shell : shells)
+  // Fill floor and ceiling slabs across the full wall footprint first, then walls across
+  // each space's interior Z range only, so wall brushes have the exact room height while
+  // floors and ceilings seal underneath and above them.
+  for (const auto& space : recipe.spaces)
   {
-    grid.forEachCell(shell, [](auto& cell) { cell = CellState::Wall; });
+    if (recipe.generateFloor)
+    {
+      const auto floorBox = vm::bbox3d{
+        {space.min.x() - thickness, space.min.y() - thickness, space.min.z() - thickness},
+        {space.max.x() + thickness, space.max.y() + thickness, space.min.z()}};
+      grid.forEachCell(floorBox, [](auto& cell) { cell = CellState::Floor; });
+    }
+    if (recipe.generateCeiling)
+    {
+      const auto ceilingBox = vm::bbox3d{
+        {space.min.x() - thickness, space.min.y() - thickness, space.max.z()},
+        {space.max.x() + thickness, space.max.y() + thickness, space.max.z() + thickness}};
+      grid.forEachCell(ceilingBox, [](auto& cell) { cell = CellState::Ceiling; });
+    }
+  }
+  for (const auto& space : recipe.spaces)
+  {
+    const auto wallBox = vm::bbox3d{
+      {space.min.x() - thickness, space.min.y() - thickness, space.min.z()},
+      {space.max.x() + thickness, space.max.y() + thickness, space.max.z()}};
+    grid.forEachCell(wallBox, [](auto& cell) { cell = CellState::Wall; });
   }
   for (const auto& space : recipe.spaces)
   {
