@@ -19,299 +19,879 @@
 
 #include "RoomGenerator.h"
 
-#include "mdl/AddRemoveNodesCommand.h"
+#include "mdl/Brush.h"
 #include "mdl/BrushBuilder.h"
 #include "mdl/BrushFace.h"
 #include "mdl/BrushNode.h"
 #include "mdl/Game.h"
-#include "mdl/Layer.h"
-#include "mdl/LayerNode.h"
+#include "mdl/Group.h"
+#include "mdl/GroupNode.h"
+#include "mdl/LinkedGroupUtils.h"
 #include "mdl/Map.h"
 #include "mdl/Map_Nodes.h"
-#include "mdl/Map_Selection.h"
 #include "mdl/NodeContents.h"
+#include "mdl/NodeQueries.h"
 #include "mdl/Transaction.h"
 #include "mdl/WorldNode.h"
 
-#include <map>
+#include "kdl/reflection_impl.h"
+#include "kdl/string_utils.h"
+#include "kdl/vector_utils.h"
+
+#include "vm/bbox_io.h" // IWYU pragma: keep
+#include "vm/mat.h"
+#include "vm/mat_ext.h"
+
+#include <fmt/format.h>
+
+#include <algorithm>
+#include <cmath>
+#include <cstdint>
+#include <ostream>
 
 namespace tb::mdl
 {
+
+std::ostream& operator<<(std::ostream& lhs, const RoomSurface rhs)
+{
+  switch (rhs)
+  {
+  case RoomSurface::Wall:
+    return lhs << "Wall";
+  case RoomSurface::Floor:
+    return lhs << "Floor";
+  case RoomSurface::Ceiling:
+    return lhs << "Ceiling";
+  }
+  return lhs;
+}
+
+kdl_reflect_impl(RoomRecipe);
+kdl_reflect_impl(RoomShellBrush);
+
 namespace
 {
 
-LayerNode* findLayer(const Map& map, const std::string& name)
+constexpr auto Epsilon = 0.0001;
+constexpr auto BrushMatchEpsilon = 0.01;
+
+namespace RoomKeys
 {
-  const auto layers = map.world()->allLayers();
-  for (auto* layer : layers)
+const auto Version = std::string{"_tb_room"};
+const auto Spaces = std::string{"_tb_room_spaces"};
+const auto Doors = std::string{"_tb_room_doors"};
+const auto WallThickness = std::string{"_tb_room_thickness"};
+const auto Floor = std::string{"_tb_room_floor"};
+const auto Ceiling = std::string{"_tb_room_ceiling"};
+const auto WallMaterial = std::string{"_tb_room_wall_material"};
+const auto FloorMaterial = std::string{"_tb_room_floor_material"};
+const auto CeilingMaterial = std::string{"_tb_room_ceiling_material"};
+} // namespace RoomKeys
+
+const auto CurrentVersion = std::string{"1"};
+
+// Solver //////////////////////////////////////////////////////////////////////////////
+
+enum class CellState : std::uint8_t
+{
+  Empty,
+  Interior,
+  Wall,
+  Floor,
+  Ceiling,
+};
+
+std::vector<double> sortedUniqueCoords(std::vector<double> coords)
+{
+  std::ranges::sort(coords);
+  auto result = std::vector<double>{};
+  for (const auto coord : coords)
   {
-    if (layer->name() == name)
+    if (result.empty() || coord - result.back() > Epsilon)
     {
-      return layer;
+      result.push_back(coord);
     }
   }
-  return nullptr;
+  return result;
 }
 
-LayerNode* findOrCreateLayer(Map& map, const std::string& name)
+struct CellRange
 {
-  if (auto* layer = findLayer(map, name))
-  {
-    return layer;
-  }
+  size_t begin;
+  size_t end;
+};
 
-  auto* layer = new LayerNode{Layer{name}};
-  if (addNodes(map, {{map.world(), {layer}}}).empty())
-  {
-    delete layer;
-    return nullptr;
-  }
-  return layer;
+/**
+ * Returns the range of cells covered by [min, max]. Cell i spans coords[i] to
+ * coords[i + 1]. Both bounds must be (close to) one of the coordinates.
+ */
+CellRange cellRange(const std::vector<double>& coords, const double min, const double max)
+{
+  const auto index = [&](const double value) {
+    return static_cast<size_t>(
+      std::distance(coords.begin(), std::ranges::lower_bound(coords, value - Epsilon)));
+  };
+  const auto begin = index(min);
+  const auto end = index(max);
+  return {begin, std::max(begin, end)};
 }
 
-Result<BrushNode*> makeBrush(
-  const BrushBuilder& builder,
-  const vm::bbox3d& bounds,
-  const std::string& material)
+class CellGrid
 {
-  auto result = builder.createCuboid(bounds, material);
-  if (result.is_error())
-  {
-    return std::get<Error>(result.error());
-  }
-  return new BrushNode{std::move(result.value())};
-}
+private:
+  std::vector<double> m_x;
+  std::vector<double> m_y;
+  std::vector<double> m_z;
+  size_t m_nx;
+  size_t m_ny;
+  size_t m_nz;
+  std::vector<CellState> m_cells;
 
-Result<void> addBrush(
-  const BrushBuilder& builder,
-  const vm::bbox3d& bounds,
-  const std::string& material,
-  LayerNode* layer,
-  std::map<Node*, std::vector<Node*>>& nodesToAdd,
-  std::vector<BrushNode*>& generatedNodes)
-{
-  auto result = makeBrush(builder, bounds, material);
-  if (result.is_error())
+public:
+  CellGrid(std::vector<double> x, std::vector<double> y, std::vector<double> z)
+    : m_x{std::move(x)}
+    , m_y{std::move(y)}
+    , m_z{std::move(z)}
+    , m_nx{m_x.size() - 1}
+    , m_ny{m_y.size() - 1}
+    , m_nz{m_z.size() - 1}
+    , m_cells(m_nx * m_ny * m_nz, CellState::Empty)
   {
-    return std::get<Error>(result.error());
   }
 
-  auto* brushNode = result.value();
-  nodesToAdd[layer].push_back(brushNode);
-  generatedNodes.push_back(brushNode);
-  return kdl::void_success;
-}
+  size_t nx() const { return m_nx; }
+  size_t ny() const { return m_ny; }
+  size_t nz() const { return m_nz; }
 
-Result<void> addRoom(
-  const BrushBuilder& builder,
-  const RoomGenerationSettings& settings,
-  const RoomGenerationSource& source,
-  LayerNode* wallsLayer,
-  LayerNode* ceilingsLayer,
-  LayerNode* floorsLayer,
-  std::map<Node*, std::vector<Node*>>& nodesToAdd,
-  std::vector<BrushNode*>& generatedNodes)
-{
-  const auto thickness = static_cast<double>(settings.wallThickness);
-  const auto min = source.bounds.min;
-  const auto max = source.bounds.max;
-
-  auto floorMin = min.z();
-  auto ceilingMax = max.z();
-  if (settings.mode == RoomGenerationMode::Floor)
+  size_t index(const size_t x, const size_t y, const size_t z) const
   {
-    floorMin = max.z();
-    ceilingMax = floorMin + static_cast<double>(settings.wallHeight);
+    return (x * m_ny + y) * m_nz + z;
   }
 
-  const auto wallBottom = floorMin;
-  const auto wallTop = ceilingMax;
-  const auto expandedMin = vm::vec3d{min.x() - thickness, min.y() - thickness, wallBottom};
-  const auto expandedMax = vm::vec3d{max.x() + thickness, max.y() + thickness, wallTop};
-
-  // The side walls include the corners. Front and back stop at the inner X bounds so
-  // that every corner remains a simple, non-intersecting pair of brushes.
-  const auto wallBounds = std::vector<vm::bbox3d>{
-    vm::bbox3d{expandedMin, vm::vec3d{min.x(), expandedMax.y(), wallTop}},
-    vm::bbox3d{vm::vec3d{max.x(), expandedMin.y(), wallBottom}, expandedMax},
-    vm::bbox3d{vm::vec3d{min.x(), expandedMin.y(), wallBottom},
-               vm::vec3d{max.x(), min.y(), wallTop}},
-    vm::bbox3d{vm::vec3d{min.x(), max.y(), wallBottom},
-               vm::vec3d{max.x(), expandedMax.y(), wallTop}}};
-
-  for (const auto& bounds : wallBounds)
+  CellState& at(const size_t x, const size_t y, const size_t z)
   {
-    if (auto result = addBrush(
-          builder,
-          bounds,
-          settings.wallMaterial,
-          wallsLayer,
-          nodesToAdd,
-          generatedNodes);
-        result.is_error())
+    return m_cells[index(x, y, z)];
+  }
+
+  CellState at(const size_t x, const size_t y, const size_t z) const
+  {
+    return m_cells[index(x, y, z)];
+  }
+
+  double zMin(const size_t z) const { return m_z[z]; }
+  double zMax(const size_t z) const { return m_z[z + 1]; }
+
+  vm::bbox3d bounds(
+    const size_t x0,
+    const size_t y0,
+    const size_t z0,
+    const size_t x1,
+    const size_t y1,
+    const size_t z1) const
+  {
+    return {{m_x[x0], m_y[y0], m_z[z0]}, {m_x[x1 + 1], m_y[y1 + 1], m_z[z1 + 1]}};
+  }
+
+  template <typename F>
+  void forEachCell(const vm::bbox3d& box, const F& f)
+  {
+    const auto xr = cellRange(m_x, box.min.x(), box.max.x());
+    const auto yr = cellRange(m_y, box.min.y(), box.max.y());
+    const auto zr = cellRange(m_z, box.min.z(), box.max.z());
+    for (auto x = xr.begin; x < xr.end; ++x)
     {
-      return result;
+      for (auto y = yr.begin; y < yr.end; ++y)
+      {
+        for (auto z = zr.begin; z < zr.end; ++z)
+        {
+          f(at(x, y, z));
+        }
+      }
     }
   }
+};
 
-  if (settings.mode == RoomGenerationMode::Box && settings.generateFloor)
-  {
-    if (auto result = addBrush(
-          builder,
-          vm::bbox3d{vm::vec3d{min.x(), min.y(), min.z() - thickness},
-                     vm::vec3d{max.x(), max.y(), min.z()}},
-          settings.floorMaterial,
-          floorsLayer,
-          nodesToAdd,
-          generatedNodes);
-        result.is_error())
-    {
-      return result;
-    }
-  }
-
-  if (settings.generateCeiling)
-  {
-    if (auto result = addBrush(
-          builder,
-          vm::bbox3d{vm::vec3d{min.x(), min.y(), ceilingMax},
-                     vm::vec3d{max.x(), max.y(), ceilingMax + thickness}},
-          settings.ceilingMaterial,
-          ceilingsLayer,
-          nodesToAdd,
-          generatedNodes);
-        result.is_error())
-    {
-      return result;
-    }
-  }
-
-  return kdl::void_success;
+bool isSolid(const CellState state)
+{
+  return state == CellState::Wall || state == CellState::Floor
+         || state == CellState::Ceiling;
 }
 
-void setFloorMaterial(Map& map, BrushNode& floorNode, const std::string& material)
+bool isValidBox(const vm::bbox3d& box)
 {
-  auto brush = floorNode.brush();
-  for (auto& face : brush.faces())
-  {
-    auto attributes = face.attributes();
-    attributes.setMaterialName(material);
-    face.setAttributes(attributes);
-  }
-  updateNodeContents(map, "Set Room Floor Material", {{&floorNode, NodeContents{std::move(brush)}}});
+  return box.max.x() - box.min.x() > Epsilon && box.max.y() - box.min.y() > Epsilon
+         && box.max.z() - box.min.z() > Epsilon;
 }
 
-} // namespace
-
-Result<RoomGenerationResult> generateRooms(
-  Map& map,
-  const RoomGenerationSettings& settings,
-  const std::vector<RoomGenerationSource>& sources,
-  const std::vector<BrushNode*>& previousGeneratedNodes)
+std::optional<vm::bbox3d> intersection(const vm::bbox3d& lhs, const vm::bbox3d& rhs)
 {
-  if (sources.empty())
-  {
-    return Error{"No valid room sources selected"};
-  }
+  const auto min = vm::max(lhs.min, rhs.min);
+  const auto max = vm::min(lhs.max, rhs.max);
+  const auto box = vm::bbox3d{min, max};
+  return isValidBox(box) ? std::optional{box} : std::nullopt;
+}
 
-  if (settings.wallThickness <= 0 || settings.wallHeight <= 0)
-  {
-    return Error{"Room dimensions must be positive"};
-  }
+vm::bbox3d dilate(const vm::bbox3d& space, const RoomRecipe& recipe)
+{
+  const auto t = static_cast<double>(recipe.wallThickness);
+  return {
+    space.min - vm::vec3d{t, t, recipe.generateFloor ? t : 0.0},
+    space.max + vm::vec3d{t, t, recipe.generateCeiling ? t : 0.0}};
+}
 
-  auto* wallsLayer = findOrCreateLayer(map, "walls");
-  auto* ceilingsLayer = settings.generateCeiling ? findOrCreateLayer(map, "ceilings") : nullptr;
-  auto* floorsLayer =
-    (settings.mode == RoomGenerationMode::Floor || settings.generateFloor)
-      ? findOrCreateLayer(map, "floors")
-      : nullptr;
-  if (wallsLayer == nullptr || (settings.generateCeiling && ceilingsLayer == nullptr)
-      || (floorsLayer == nullptr
-          && (settings.mode == RoomGenerationMode::Floor || settings.generateFloor)))
+/**
+ * A solid cell directly beneath an interior cell (within the wall thickness) is floor;
+ * one directly above an interior cell is ceiling. Everything else is wall.
+ */
+void classifySolidCells(CellGrid& grid, const double thickness)
+{
+  for (size_t x = 0; x < grid.nx(); ++x)
   {
-    return Error{"Could not create room output layers"};
+    for (size_t y = 0; y < grid.ny(); ++y)
+    {
+      for (size_t z = 0; z < grid.nz(); ++z)
+      {
+        if (!isSolid(grid.at(x, y, z)))
+        {
+          continue;
+        }
+
+        auto above = z + 1;
+        while (above < grid.nz() && isSolid(grid.at(x, y, above)))
+        {
+          ++above;
+        }
+        if (
+          above < grid.nz() && grid.at(x, y, above) == CellState::Interior
+          && grid.zMin(z) >= grid.zMin(above) - thickness - Epsilon)
+        {
+          grid.at(x, y, z) = CellState::Floor;
+          continue;
+        }
+
+        auto below = z;
+        while (below > 0 && isSolid(grid.at(x, y, below - 1)))
+        {
+          --below;
+        }
+        if (
+          below > 0 && grid.at(x, y, below - 1) == CellState::Interior
+          && grid.zMax(z) <= grid.zMax(below - 1) + thickness + Epsilon)
+        {
+          grid.at(x, y, z) = CellState::Ceiling;
+          continue;
+        }
+
+        grid.at(x, y, z) = CellState::Wall;
+      }
+    }
+  }
+}
+
+RoomSurface toSurface(const CellState state)
+{
+  switch (state)
+  {
+  case CellState::Floor:
+    return RoomSurface::Floor;
+  case CellState::Ceiling:
+    return RoomSurface::Ceiling;
+  case CellState::Wall:
+  case CellState::Empty:
+  case CellState::Interior:
+    break;
+  }
+  return RoomSurface::Wall;
+}
+
+/**
+ * Packs the solid cells into boxes. Each box grows along Z first, then X, then Y. A box
+ * only grows into a neighbouring slab whose run of matching cells ends exactly where the
+ * box ends, so that full height wall columns are not chopped up by lower neighbours such
+ * as door thresholds.
+ */
+std::vector<RoomShellBrush> packSolidCells(const CellGrid& grid)
+{
+  auto visited = std::vector<bool>(grid.nx() * grid.ny() * grid.nz(), false);
+  const auto available =
+    [&](const size_t x, const size_t y, const size_t z, const auto state) {
+      return grid.at(x, y, z) == state && !visited[grid.index(x, y, z)];
+    };
+
+  auto result = std::vector<RoomShellBrush>{};
+  for (size_t x = 0; x < grid.nx(); ++x)
+  {
+    for (size_t y = 0; y < grid.ny(); ++y)
+    {
+      for (size_t z = 0; z < grid.nz(); ++z)
+      {
+        const auto state = grid.at(x, y, z);
+        if (!isSolid(state) || visited[grid.index(x, y, z)])
+        {
+          continue;
+        }
+
+        auto z1 = z;
+        while (z1 + 1 < grid.nz() && available(x, y, z1 + 1, state))
+        {
+          ++z1;
+        }
+
+        // The column at (cx, cy) matches exactly if it holds the box's Z run and nothing
+        // more of the same kind directly above or below.
+        const auto columnMatches = [&](const size_t cx, const size_t cy) {
+          for (auto cz = z; cz <= z1; ++cz)
+          {
+            if (!available(cx, cy, cz, state))
+            {
+              return false;
+            }
+          }
+          return !(z > 0 && available(cx, cy, z - 1, state))
+                 && !(z1 + 1 < grid.nz() && available(cx, cy, z1 + 1, state));
+        };
+
+        auto x1 = x;
+        while (x1 + 1 < grid.nx() && columnMatches(x1 + 1, y))
+        {
+          ++x1;
+        }
+
+        const auto rowMatches = [&](const size_t cy) {
+          for (auto cx = x; cx <= x1; ++cx)
+          {
+            if (!columnMatches(cx, cy))
+            {
+              return false;
+            }
+          }
+          return !(x > 0 && columnMatches(x - 1, cy))
+                 && !(x1 + 1 < grid.nx() && columnMatches(x1 + 1, cy));
+        };
+
+        auto y1 = y;
+        while (y1 + 1 < grid.ny() && rowMatches(y1 + 1))
+        {
+          ++y1;
+        }
+
+        for (auto bx = x; bx <= x1; ++bx)
+        {
+          for (auto by = y; by <= y1; ++by)
+          {
+            for (auto bz = z; bz <= z1; ++bz)
+            {
+              visited[grid.index(bx, by, bz)] = true;
+            }
+          }
+        }
+
+        result.push_back({grid.bounds(x, y, z, x1, y1, z1), toSurface(state)});
+      }
+    }
+  }
+  return result;
+}
+
+// Recipe serialization ////////////////////////////////////////////////////////////////
+
+std::string formatBoxes(const std::vector<vm::bbox3d>& boxes)
+{
+  auto parts = std::vector<std::string>{};
+  parts.reserve(boxes.size());
+  for (const auto& box : boxes)
+  {
+    parts.push_back(
+      fmt::format(
+        "{} {} {} {} {} {}",
+        box.min.x(),
+        box.min.y(),
+        box.min.z(),
+        box.max.x(),
+        box.max.y(),
+        box.max.z()));
+  }
+  return kdl::str_join(parts, ";");
+}
+
+Result<std::vector<vm::bbox3d>> parseBoxes(const std::string& key, const std::string& str)
+{
+  auto result = std::vector<vm::bbox3d>{};
+  for (const auto& part : kdl::str_split(str, ";"))
+  {
+    auto values = std::vector<double>{};
+    for (const auto& token : kdl::str_split(part, " "))
+    {
+      if (token.empty())
+      {
+        continue;
+      }
+      const auto value = kdl::str_to_double(token);
+      if (!value)
+      {
+        return Error{fmt::format("Invalid number '{}' in room property {}", token, key)};
+      }
+      values.push_back(*value);
+    }
+    if (values.empty())
+    {
+      continue;
+    }
+    if (values.size() != 6u)
+    {
+      return Error{fmt::format("Invalid box '{}' in room property {}", part, key)};
+    }
+    result.push_back(
+      vm::bbox3d{{values[0], values[1], values[2]}, {values[3], values[4], values[5]}});
+  }
+  return result;
+}
+
+std::string propertyOrEmpty(const Group& group, const std::string& key)
+{
+  const auto* value = group.property(key);
+  return value ? *value : std::string{};
+}
+
+// Placing the shell in the map ////////////////////////////////////////////////////////
+
+/** Whether the transformation maps axis-aligned boxes to axis-aligned boxes. */
+bool preservesAxes(const vm::mat4x4d& transformation)
+{
+  for (size_t row = 0; row < 3; ++row)
+  {
+    auto nonZero = 0;
+    for (size_t col = 0; col < 3; ++col)
+    {
+      const auto value = std::abs(transformation[col][row]);
+      if (value > Epsilon)
+      {
+        if (std::abs(value - 1.0) > Epsilon)
+        {
+          return false;
+        }
+        ++nonZero;
+      }
+    }
+    if (nonZero != 1)
+    {
+      return false;
+    }
+  }
+  return true;
+}
+
+const std::string& materialFor(const RoomRecipe& recipe, const RoomSurface surface)
+{
+  switch (surface)
+  {
+  case RoomSurface::Floor:
+    return recipe.floorMaterial;
+  case RoomSurface::Ceiling:
+    return recipe.ceilingMaterial;
+  case RoomSurface::Wall:
+    break;
+  }
+  return recipe.wallMaterial;
+}
+
+Result<std::vector<Brush>> buildRoomBrushes(
+  const Map& map, const RoomRecipe& recipe, const vm::mat4x4d& transformation)
+{
+  auto shellResult = buildRoomShell(recipe);
+  if (shellResult.is_error())
+  {
+    return std::get<Error>(shellResult.error());
   }
 
   const auto builder = BrushBuilder{
     map.world()->mapFormat(),
     map.worldBounds(),
     map.game()->config().faceAttribsConfig.defaults};
+  const auto axisAligned = preservesAxes(transformation);
 
-  auto transaction = Transaction{map, "Generate Rooms"};
-
-  if (!previousGeneratedNodes.empty())
+  auto result = std::vector<Brush>{};
+  for (const auto& shellBrush : shellResult.value())
   {
-    removeNodes(map, kdl::vec_static_cast<Node*>(previousGeneratedNodes));
+    const auto& material = materialFor(recipe, shellBrush.surface);
+    const auto bounds =
+      axisAligned ? shellBrush.bounds.transform(transformation) : shellBrush.bounds;
+
+    auto brushResult = builder.createCuboid(bounds, material);
+    if (brushResult.is_error())
+    {
+      return std::get<Error>(brushResult.error());
+    }
+
+    auto brush = std::move(brushResult.value());
+    if (!axisAligned)
+    {
+      if (
+        auto transformResult = brush.transform(map.worldBounds(), transformation, false);
+        transformResult.is_error())
+      {
+        return std::get<Error>(transformResult.error());
+      }
+    }
+    result.push_back(std::move(brush));
+  }
+  return result;
+}
+
+bool brushMatches(const Brush& actual, const Brush& expected)
+{
+  if (
+    actual.faceCount() != expected.faceCount()
+    || !vm::is_equal(actual.bounds(), expected.bounds(), BrushMatchEpsilon))
+  {
+    return false;
   }
 
-  auto sourceNodes = std::vector<BrushNode*>{};
-  for (const auto& source : sources)
+  const auto& material = expected.faces().front().attributes().materialName();
+  return std::ranges::all_of(actual.faces(), [&](const auto& face) {
+    return face.attributes().materialName() == material;
+  });
+}
+
+/**
+ * Splits the room's brush children into those that match the given expected brushes and
+ * those that don't. Each expected brush matches at most one child.
+ */
+std::pair<std::vector<BrushNode*>, std::vector<BrushNode*>> matchRoomBrushes(
+  const GroupNode& room, const std::vector<Brush>& expected)
+{
+  auto used = std::vector<bool>(expected.size(), false);
+  auto matched = std::vector<BrushNode*>{};
+  auto unmatched = std::vector<BrushNode*>{};
+
+  for (auto* child : room.children())
   {
-    if (source.floorNode != nullptr)
+    auto* brushNode = dynamic_cast<BrushNode*>(child);
+    if (brushNode == nullptr)
     {
-      sourceNodes.push_back(source.floorNode);
+      continue;
+    }
+
+    auto found = false;
+    for (size_t i = 0; i < expected.size(); ++i)
+    {
+      if (!used[i] && brushMatches(brushNode->brush(), expected[i]))
+      {
+        used[i] = true;
+        found = true;
+        break;
+      }
+    }
+    (found ? matched : unmatched).push_back(brushNode);
+  }
+
+  return {std::move(matched), std::move(unmatched)};
+}
+
+std::vector<Brush> expectedRoomBrushes(const Map& map, const GroupNode& room)
+{
+  auto recipe = readRoomRecipe(room.group());
+  if (recipe.is_error())
+  {
+    return {};
+  }
+
+  auto brushes = buildRoomBrushes(map, recipe.value(), room.group().transformation());
+  return brushes.is_success() ? std::move(brushes.value()) : std::vector<Brush>{};
+}
+
+std::vector<Node*> toBrushNodes(std::vector<Brush> brushes)
+{
+  auto result = std::vector<Node*>{};
+  result.reserve(brushes.size());
+  for (auto& brush : brushes)
+  {
+    result.push_back(new BrushNode{std::move(brush)});
+  }
+  return result;
+}
+
+} // namespace
+
+Result<std::vector<RoomShellBrush>> buildRoomShell(const RoomRecipe& recipe)
+{
+  if (recipe.wallThickness <= 0)
+  {
+    return Error{"Wall thickness must be positive"};
+  }
+  if (recipe.spaces.empty())
+  {
+    return Error{"Room has no spaces"};
+  }
+  if (!std::ranges::all_of(recipe.spaces, isValidBox))
+  {
+    return Error{"Room spaces must have a positive size"};
+  }
+
+  const auto thickness = static_cast<double>(recipe.wallThickness);
+  auto shells = std::vector<vm::bbox3d>{};
+  for (const auto& space : recipe.spaces)
+  {
+    shells.push_back(dilate(space, recipe));
+  }
+
+  // Doors only cut walls within the height of a space they touch, so that a door box
+  // that reaches into the floor or ceiling cannot open the room to the void.
+  auto doorCuts = std::vector<vm::bbox3d>{};
+  for (const auto& door : recipe.doors)
+  {
+    for (size_t i = 0; i < recipe.spaces.size(); ++i)
+    {
+      const auto& space = recipe.spaces[i];
+      const auto& shell = shells[i];
+      const auto limits = vm::bbox3d{
+        {shell.min.x(), shell.min.y(), space.min.z()},
+        {shell.max.x(), shell.max.y(), space.max.z()}};
+      if (const auto cut = intersection(door, limits))
+      {
+        doorCuts.push_back(*cut);
+      }
     }
   }
 
-  if (settings.mode == RoomGenerationMode::Box)
+  auto xs = std::vector<double>{};
+  auto ys = std::vector<double>{};
+  auto zs = std::vector<double>{};
+  for (const auto& boxes : {recipe.spaces, shells, doorCuts})
   {
-    if (!sourceNodes.empty())
+    for (const auto& box : boxes)
     {
-      removeNodes(map, kdl::vec_static_cast<Node*>(sourceNodes));
-    }
-  }
-  else if (!sourceNodes.empty())
-  {
-    auto floorNodes = std::vector<Node*>{};
-    floorNodes.reserve(sourceNodes.size());
-    for (auto* sourceNode : sourceNodes)
-    {
-      floorNodes.push_back(sourceNode);
-    }
-    std::map<Node*, std::vector<Node*>> nodesToAdd{{floorsLayer, std::move(floorNodes)}};
-    if (!reparentNodes(map, nodesToAdd))
-    {
-      transaction.cancel();
-      return Error{"Could not move floor sources to the floors layer"};
-    }
-    for (auto* floorNode : sourceNodes)
-    {
-      setFloorMaterial(map, *floorNode, settings.floorMaterial);
+      xs.insert(xs.end(), {box.min.x(), box.max.x()});
+      ys.insert(ys.end(), {box.min.y(), box.max.y()});
+      zs.insert(zs.end(), {box.min.z(), box.max.z()});
     }
   }
 
-  auto nodesToAdd = std::map<Node*, std::vector<Node*>>{};
-  auto generatedNodes = std::vector<BrushNode*>{};
-  for (const auto& source : sources)
+  auto grid =
+    CellGrid{sortedUniqueCoords(xs), sortedUniqueCoords(ys), sortedUniqueCoords(zs)};
+
+  for (const auto& shell : shells)
   {
-    if (auto result = addRoom(
-          builder,
-          settings,
-          source,
-          wallsLayer,
-          ceilingsLayer,
-          floorsLayer,
-          nodesToAdd,
-          generatedNodes);
-        result.is_error())
-    {
-      transaction.cancel();
-      return std::get<Error>(result.error());
-    }
+    grid.forEachCell(shell, [](auto& cell) { cell = CellState::Wall; });
+  }
+  for (const auto& space : recipe.spaces)
+  {
+    grid.forEachCell(space, [](auto& cell) { cell = CellState::Interior; });
   }
 
-  if (addNodes(map, nodesToAdd).empty())
+  classifySolidCells(grid, thickness);
+
+  for (const auto& cut : doorCuts)
+  {
+    grid.forEachCell(cut, [](auto& cell) {
+      if (cell == CellState::Wall)
+      {
+        cell = CellState::Empty;
+      }
+    });
+  }
+
+  return packSolidCells(grid);
+}
+
+bool isRoom(const Group& group)
+{
+  return group.property(RoomKeys::Version) != nullptr;
+}
+
+Result<RoomRecipe> readRoomRecipe(const Group& group)
+{
+  if (!isRoom(group))
+  {
+    return Error{fmt::format("Group '{}' is not a room", group.name())};
+  }
+
+  auto spaces = parseBoxes(RoomKeys::Spaces, propertyOrEmpty(group, RoomKeys::Spaces));
+  if (spaces.is_error())
+  {
+    return std::get<Error>(spaces.error());
+  }
+  auto doors = parseBoxes(RoomKeys::Doors, propertyOrEmpty(group, RoomKeys::Doors));
+  if (doors.is_error())
+  {
+    return std::get<Error>(doors.error());
+  }
+
+  const auto thickness = kdl::str_to_int(propertyOrEmpty(group, RoomKeys::WallThickness));
+  if (!thickness || *thickness <= 0)
+  {
+    return Error{fmt::format("Room '{}' has an invalid wall thickness", group.name())};
+  }
+
+  return RoomRecipe{
+    std::move(spaces.value()),
+    std::move(doors.value()),
+    *thickness,
+    propertyOrEmpty(group, RoomKeys::Floor) != "0",
+    propertyOrEmpty(group, RoomKeys::Ceiling) != "0",
+    propertyOrEmpty(group, RoomKeys::WallMaterial),
+    propertyOrEmpty(group, RoomKeys::FloorMaterial),
+    propertyOrEmpty(group, RoomKeys::CeilingMaterial),
+  };
+}
+
+void writeRoomRecipe(Group& group, const RoomRecipe& recipe)
+{
+  group.setProperty(RoomKeys::Version, CurrentVersion);
+  group.setProperty(RoomKeys::Spaces, formatBoxes(recipe.spaces));
+  if (recipe.doors.empty())
+  {
+    group.removeProperty(RoomKeys::Doors);
+  }
+  else
+  {
+    group.setProperty(RoomKeys::Doors, formatBoxes(recipe.doors));
+  }
+  group.setProperty(RoomKeys::WallThickness, std::to_string(recipe.wallThickness));
+  group.setProperty(RoomKeys::Floor, recipe.generateFloor ? "1" : "0");
+  group.setProperty(RoomKeys::Ceiling, recipe.generateCeiling ? "1" : "0");
+  group.setProperty(RoomKeys::WallMaterial, recipe.wallMaterial);
+  group.setProperty(RoomKeys::FloorMaterial, recipe.floorMaterial);
+  group.setProperty(RoomKeys::CeilingMaterial, recipe.ceilingMaterial);
+}
+
+GroupNode* findRoom(Node* node)
+{
+  for (auto* current = node; current != nullptr; current = current->parent())
+  {
+    if (
+      auto* groupNode = dynamic_cast<GroupNode*>(current);
+      groupNode != nullptr && isRoom(groupNode->group()))
+    {
+      return groupNode;
+    }
+  }
+  return nullptr;
+}
+
+std::vector<GroupNode*> collectRooms(const Map& map)
+{
+  return kdl::vec_static_cast<GroupNode*>(collectDescendants(
+    std::vector<Node*>{map.world()},
+    [](const GroupNode* groupNode) { return isRoom(groupNode->group()); }));
+}
+
+Result<vm::bbox3d> roomLocalBounds(const GroupNode& room, const vm::bbox3d& worldBounds)
+{
+  const auto& transformation = room.group().transformation();
+  if (!preservesAxes(transformation))
+  {
+    return Error{fmt::format(
+      "Room '{}' is rotated by an angle that is not a multiple of 90 degrees",
+      room.name())};
+  }
+
+  const auto inverse = vm::invert(transformation);
+  if (!inverse)
+  {
+    return Error{fmt::format("Room '{}' has an invalid transformation", room.name())};
+  }
+  return worldBounds.transform(*inverse);
+}
+
+Result<std::vector<vm::bbox3d>> roomWorldShellBounds(const GroupNode& room)
+{
+  auto recipe = readRoomRecipe(room.group());
+  if (recipe.is_error())
+  {
+    return std::get<Error>(recipe.error());
+  }
+
+  const auto& transformation = room.group().transformation();
+  auto result = std::vector<vm::bbox3d>{};
+  for (const auto& space : recipe.value().spaces)
+  {
+    result.push_back(dilate(space, recipe.value()).transform(transformation));
+  }
+  return result;
+}
+
+size_t countModifiedRoomBrushes(const Map& map, const GroupNode& room)
+{
+  return matchRoomBrushes(room, expectedRoomBrushes(map, room)).second.size();
+}
+
+Result<GroupNode*> createRoom(Map& map, Node* parent, const RoomRecipe& recipe)
+{
+  auto brushes = buildRoomBrushes(map, recipe, vm::mat4x4d::identity());
+  if (brushes.is_error())
+  {
+    return std::get<Error>(brushes.error());
+  }
+
+  auto group = Group{"Room"};
+  writeRoomRecipe(group, recipe);
+
+  auto* room = new GroupNode{std::move(group)};
+  room->addChildren(toBrushNodes(std::move(brushes.value())));
+
+  if (addNodes(map, {{parent, {room}}}).empty())
+  {
+    delete room;
+    return Error{"Could not add room to the map"};
+  }
+  return room;
+}
+
+Result<void> rebuildRoom(
+  Map& map,
+  GroupNode& room,
+  const RoomRecipe& recipe,
+  const ModifiedRoomBrushes modifiedBrushes)
+{
+  auto brushes = buildRoomBrushes(map, recipe, room.group().transformation());
+  if (brushes.is_error())
+  {
+    return std::get<Error>(brushes.error());
+  }
+
+  auto [matched, unmatched] = matchRoomBrushes(room, expectedRoomBrushes(map, room));
+  auto nodesToRemove = kdl::vec_static_cast<Node*>(std::move(matched));
+  if (modifiedBrushes == ModifiedRoomBrushes::Replace)
+  {
+    nodesToRemove = kdl::vec_concat(
+      std::move(nodesToRemove), kdl::vec_static_cast<Node*>(std::move(unmatched)));
+  }
+
+  auto transaction = Transaction{map, "Rebuild Room"};
+
+  // Add the new brushes before removing the old ones so the group never becomes empty,
+  // which would cause it to be removed along with its last child.
+  if (addNodes(map, {{&room, toBrushNodes(std::move(brushes.value()))}}).empty())
   {
     transaction.cancel();
-    return Error{"Could not add generated room brushes"};
+    return Error{"Could not add room brushes"};
+  }
+  if (!nodesToRemove.empty())
+  {
+    removeNodes(map, nodesToRemove);
+  }
+
+  // Linked copies of the room receive the new brushes through the linked group update,
+  // but each copy keeps its own group data, so the recipe is stored on all of them.
+  auto nodesToUpdate = std::vector<std::pair<Node*, NodeContents>>{};
+  for (auto* linkedRoom : collectGroupsWithLinkId({map.world()}, room.linkId()))
+  {
+    auto group = linkedRoom->group();
+    writeRoomRecipe(group, recipe);
+    nodesToUpdate.emplace_back(linkedRoom, NodeContents{std::move(group)});
+  }
+  if (!updateNodeContents(map, "Update Room", std::move(nodesToUpdate)))
+  {
+    transaction.cancel();
+    return Error{"Could not store room recipe"};
   }
 
   if (!transaction.commit())
   {
-    return Error{"Could not commit room generation"};
+    return Error{"Could not commit room update"};
   }
-
-  return RoomGenerationResult{std::move(generatedNodes), sources.size()};
+  return kdl::void_success;
 }
 
 } // namespace tb::mdl

@@ -451,6 +451,21 @@ CreateNodeResult createLayerNode(const MapReader::EntityInfo& entityInfo)
 }
 
 /**
+ * Returns whether the given key is one that TrenchBroom writes for every group. All other
+ * keys found on a group entity are kept as the group's own properties.
+ */
+bool isReservedGroupProperty(const std::string& key)
+{
+  return key == mdl::EntityPropertyKeys::Classname
+         || key == mdl::EntityPropertyKeys::GroupType
+         || key == mdl::EntityPropertyKeys::GroupName
+         || key == mdl::EntityPropertyKeys::GroupId
+         || key == mdl::EntityPropertyKeys::LinkId
+         || key == mdl::EntityPropertyKeys::GroupTransformation
+         || key == mdl::EntityPropertyKeys::Layer || key == mdl::EntityPropertyKeys::Group;
+}
+
+/**
  * Creates a group node for the given entity info. Returns an error if the entity
  * attributes contain missing or invalid information.
  */
@@ -501,6 +516,13 @@ CreateNodeResult createGroupNode(const MapReader::EntityInfo& entityInfo)
   if (transformation)
   {
     group.setTransformation(*transformation);
+  }
+  for (const auto& property : entityInfo.properties)
+  {
+    if (!isReservedGroupProperty(property.key()))
+    {
+      group.setProperty(property.key(), property.value());
+    }
   }
 
   auto groupNode = std::make_unique<mdl::GroupNode>(std::move(group));

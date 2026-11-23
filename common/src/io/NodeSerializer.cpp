@@ -349,6 +349,11 @@ std::vector<mdl::EntityProperty> NodeSerializer::groupProperties(
     result.emplace_back(mdl::EntityPropertyKeys::GroupTransformation, transformationStr);
   }
 
+  for (const auto& property : groupNode->group().properties())
+  {
+    result.push_back(property);
+  }
+
   return result;
 }
 

@@ -23,6 +23,8 @@
 
 #include "vm/mat_io.h" // IWYU pragma: keep
 
+#include <algorithm>
+
 namespace tb::mdl
 {
 
@@ -56,6 +58,38 @@ void Group::setTransformation(const vm::mat4x4d& transformation)
 void Group::transform(const vm::mat4x4d& transformation)
 {
   m_transformation = transformation * m_transformation;
+}
+
+const std::vector<EntityProperty>& Group::properties() const
+{
+  return m_properties;
+}
+
+const std::string* Group::property(const std::string_view key) const
+{
+  const auto it = std::ranges::find_if(
+    m_properties, [&](const auto& property) { return property.key() == key; });
+  return it != m_properties.end() ? &it->value() : nullptr;
+}
+
+void Group::setProperty(const std::string& key, const std::string& value)
+{
+  const auto it = std::ranges::find_if(
+    m_properties, [&](const auto& property) { return property.key() == key; });
+  if (it != m_properties.end())
+  {
+    *it = EntityProperty{key, value};
+  }
+  else
+  {
+    m_properties.emplace_back(key, value);
+  }
+}
+
+void Group::removeProperty(const std::string_view key)
+{
+  std::erase_if(
+    m_properties, [&](const auto& property) { return property.key() == key; });
 }
 
 } // namespace tb::mdl

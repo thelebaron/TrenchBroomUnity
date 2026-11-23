@@ -11,29 +11,39 @@
 
 #include "RoomCreatorDialog.h"
 
-#include "Preferences.h"
-#include "PreferenceManager.h"
-#include "Logger.h"
-#include "mdl/Brush.h"
-#include "mdl/BrushFace.h"
-#include "mdl/BrushNode.h"
-#include "mdl/Grid.h"
-#include "mdl/Map.h"
-#include "mdl/Map_Selection.h"
-#include "mdl/Material.h"
-#include "mdl/MaterialManager.h"
-#include "mdl/Node.h"
-#include "ui/MapFrame.h"
-#include "ui/MapDocument.h"
-
 #include <QCheckBox>
 #include <QComboBox>
 #include <QDialogButtonBox>
 #include <QFormLayout>
 #include <QGroupBox>
+#include <QHBoxLayout>
 #include <QLabel>
+#include <QMessageBox>
 #include <QPushButton>
 #include <QVBoxLayout>
+
+#include "Logger.h"
+#include "PreferenceManager.h"
+#include "Preferences.h"
+#include "mdl/Brush.h"
+#include "mdl/BrushFace.h"
+#include "mdl/BrushNode.h"
+#include "mdl/EditorContext.h"
+#include "mdl/Grid.h"
+#include "mdl/GroupNode.h"
+#include "mdl/Map.h"
+#include "mdl/Map_Nodes.h"
+#include "mdl/Map_Selection.h"
+#include "mdl/Material.h"
+#include "mdl/MaterialManager.h"
+#include "mdl/Node.h"
+#include "mdl/Selection.h"
+#include "mdl/Transaction.h"
+#include "ui/MapDocument.h"
+#include "ui/MapFrame.h"
+#include "ui/MaterialPickerDialog.h"
+
+#include "kdl/vector_utils.h"
 
 #include <algorithm>
 #include <array>
@@ -46,30 +56,62 @@ namespace
 constexpr int DefaultWallThickness = 16;
 constexpr int DefaultWallHeight = 128;
 constexpr int PlayerWidth = 32;
+constexpr int BoxMode = 0;
+constexpr int FloorMode = 1;
 
-QComboBox* createMaterialChoice(QWidget* parent)
+bool isAxisAlignedBox(const mdl::BrushNode& brushNode)
 {
-  auto* choice = new QComboBox{parent};
-  choice->setEditable(true);
-  choice->setInsertPolicy(QComboBox::NoInsert);
-  return choice;
+  const auto& brush = brushNode.brush();
+  if (brush.faceCount() != 6u)
+  {
+    return false;
+  }
+
+  return std::ranges::all_of(brush.faces(), [](const auto& face) {
+    const auto normal = face.normal();
+    const auto components = std::array<double, 3>{
+      std::abs(normal.x()), std::abs(normal.y()), std::abs(normal.z())};
+    return std::ranges::count_if(components, [](const auto c) { return c > 0.001; }) == 1
+           && std::ranges::max(components) > 0.999;
+  });
 }
+
+/** Whether the two boxes share some volume (touching faces don't count). */
+bool overlaps(const vm::bbox3d& lhs, const vm::bbox3d& rhs)
+{
+  constexpr auto Epsilon = 0.0001;
+  for (size_t i = 0; i < 3; ++i)
+  {
+    if (lhs.min[i] >= rhs.max[i] - Epsilon || rhs.min[i] >= lhs.max[i] - Epsilon)
+    {
+      return false;
+    }
+  }
+  return true;
+}
+
+std::vector<mdl::Node*> toNodes(const std::vector<mdl::BrushNode*>& brushes)
+{
+  return kdl::vec_static_cast<mdl::Node*>(brushes);
+}
+
 } // namespace
 
-RoomCreatorDialog::RoomCreatorDialog(MapFrame& frame, QWidget* parent)
+RoomCreatorDialog::RoomCreatorDialog(
+  MapFrame& frame, GLContextManager& contextManager, QWidget* parent)
   : QDialog{parent}
   , m_frame{frame}
+  , m_contextManager{contextManager}
 {
   setWindowTitle(tr("Room Creator"));
   setWindowFlag(Qt::Tool);
   setModal(false);
   createGui();
-  populateMaterials();
   loadSettings();
   updateGridStep();
   updateModeUi();
-  m_notifierConnection += m_frame.document().map().nodesWillBeRemovedNotifier.connect(
-    this, &RoomCreatorDialog::nodesWillBeRemoved);
+  connectObservers();
+  updateSelectionUi();
 }
 
 void RoomCreatorDialog::gridDidChange()
@@ -79,30 +121,29 @@ void RoomCreatorDialog::gridDidChange()
 
 void RoomCreatorDialog::mapDidChange()
 {
-  m_lastSources.clear();
-  m_generatedNodes.clear();
   m_notifierConnection.disconnect();
-  m_notifierConnection += m_frame.document().map().nodesWillBeRemovedNotifier.connect(
-    this, &RoomCreatorDialog::nodesWillBeRemoved);
+  connectObservers();
+  loadSettings();
+  updateGridStep();
+  updateSelectionUi();
 }
 
-void RoomCreatorDialog::nodesWillBeRemoved(const std::vector<mdl::Node*>& nodes)
+void RoomCreatorDialog::connectObservers()
 {
-  for (auto* node : nodes)
-  {
-    if (auto* brush = dynamic_cast<mdl::BrushNode*>(node); brush != nullptr)
-    {
-      m_generatedNodes.erase(
-        std::remove(m_generatedNodes.begin(), m_generatedNodes.end(), brush),
-        m_generatedNodes.end());
-      m_lastSources.erase(
-        std::remove_if(
-          m_lastSources.begin(),
-          m_lastSources.end(),
-          [brush](const auto& source) { return source.floorNode == brush; }),
-        m_lastSources.end());
-    }
-  }
+  auto& map = m_frame.document().map();
+  m_notifierConnection +=
+    map.selectionDidChangeNotifier.connect(this, &RoomCreatorDialog::selectionDidChange);
+
+  // Swatches show a placeholder until their materials have been loaded.
+  m_notifierConnection += map.materialCollectionsDidChangeNotifier.connect(
+    this, &RoomCreatorDialog::refreshMaterialSwatches);
+  m_notifierConnection += map.resourcesWereProcessedNotifier.connect(
+    [this](const auto&) { refreshMaterialSwatches(); });
+}
+
+void RoomCreatorDialog::selectionDidChange(const mdl::SelectionChange&)
+{
+  updateSelectionUi();
 }
 
 void RoomCreatorDialog::createGui()
@@ -111,8 +152,12 @@ void RoomCreatorDialog::createGui()
   auto* form = new QFormLayout{};
 
   m_modeChoice = new QComboBox{this};
-  m_modeChoice->addItem(tr("Box"), static_cast<int>(mdl::RoomGenerationMode::Box));
-  m_modeChoice->addItem(tr("Floor"), static_cast<int>(mdl::RoomGenerationMode::Floor));
+  m_modeChoice->addItem(tr("Box"), BoxMode);
+  m_modeChoice->addItem(tr("Floor"), FloorMode);
+  m_modeChoice->setToolTip(tr(
+    "Box: each selected brush is a room's interior.\n"
+    "Floor: each selected brush is a floor; the interior rises from its top by the "
+    "wall height."));
   form->addRow(tr("Mode"), m_modeChoice);
 
   m_wallThickness = new QComboBox{this};
@@ -122,7 +167,7 @@ void RoomCreatorDialog::createGui()
   form->addRow(tr("Wall height"), m_wallHeight);
 
   m_generateCeiling = new QCheckBox{tr("Generate ceiling"), this};
-  m_generateFloor = new QCheckBox{tr("Generate floor (Box mode)"), this};
+  m_generateFloor = new QCheckBox{tr("Generate floor"), this};
   form->addRow(m_generateCeiling);
   form->addRow(m_generateFloor);
   layout->addLayout(form);
@@ -131,20 +176,49 @@ void RoomCreatorDialog::createGui()
   m_materials->setCheckable(true);
   m_materials->setChecked(true);
   auto* materialForm = new QFormLayout{m_materials};
-  m_wallMaterial = createMaterialChoice(m_materials);
-  m_ceilingMaterial = createMaterialChoice(m_materials);
-  m_floorMaterial = createMaterialChoice(m_materials);
+  auto& document = m_frame.document();
+  m_wallMaterial = new MaterialSwatchButton{
+    document, m_contextManager, tr("Wall Material"), m_materials};
+  m_ceilingMaterial = new MaterialSwatchButton{
+    document, m_contextManager, tr("Ceiling Material"), m_materials};
+  m_floorMaterial = new MaterialSwatchButton{
+    document, m_contextManager, tr("Floor Material"), m_materials};
   materialForm->addRow(tr("Walls"), m_wallMaterial);
   materialForm->addRow(tr("Ceiling"), m_ceilingMaterial);
   materialForm->addRow(tr("Floor"), m_floorMaterial);
   layout->addWidget(m_materials);
 
+  m_status = new QLabel{this};
+  m_status->setWordWrap(true);
+  layout->addWidget(m_status);
+
+  auto* doorwayButtons = new QHBoxLayout{};
+  m_addDoorwayButton = new QPushButton{tr("Add Doorway"), this};
+  m_addDoorwayButton->setToolTip(
+    tr("Turns the selected box brushes into doorways in the room walls they cross."));
+  m_clearDoorwaysButton = new QPushButton{tr("Clear Doorways"), this};
+  m_clearDoorwaysButton->setToolTip(tr("Removes all doorways from the selected rooms."));
+  doorwayButtons->addWidget(m_addDoorwayButton);
+  doorwayButtons->addWidget(m_clearDoorwaysButton);
+  layout->addLayout(doorwayButtons);
+
   auto* buttons = new QDialogButtonBox{this};
   auto* resetButton = buttons->addButton(tr("Reset"), QDialogButtonBox::ResetRole);
-  auto* generateButton = buttons->addButton(tr("Generate"), QDialogButtonBox::AcceptRole);
+  m_generateButton = buttons->addButton(tr("Generate"), QDialogButtonBox::AcceptRole);
+  m_generateButton->setToolTip(tr(
+    "Creates a room from the selected box brushes, or rebuilds the selected rooms "
+    "with the current settings. Select a room together with box brushes to extend "
+    "it."));
   layout->addWidget(buttons);
 
-  connect(generateButton, &QPushButton::clicked, this, &RoomCreatorDialog::generate);
+  connect(m_generateButton, &QPushButton::clicked, this, &RoomCreatorDialog::generate);
+  connect(
+    m_addDoorwayButton, &QPushButton::clicked, this, &RoomCreatorDialog::addDoorway);
+  connect(
+    m_clearDoorwaysButton,
+    &QPushButton::clicked,
+    this,
+    &RoomCreatorDialog::clearDoorways);
   connect(resetButton, &QPushButton::clicked, this, &RoomCreatorDialog::reset);
   connect(
     m_modeChoice,
@@ -163,46 +237,53 @@ void RoomCreatorDialog::createGui()
     &RoomCreatorDialog::saveSettings);
   connect(m_generateCeiling, &QCheckBox::toggled, this, &RoomCreatorDialog::saveSettings);
   connect(m_generateFloor, &QCheckBox::toggled, this, &RoomCreatorDialog::saveSettings);
-  connect(m_wallMaterial, &QComboBox::currentTextChanged, this, &RoomCreatorDialog::saveSettings);
-  connect(
-    m_ceilingMaterial, &QComboBox::currentTextChanged, this, &RoomCreatorDialog::saveSettings);
-  connect(m_floorMaterial, &QComboBox::currentTextChanged, this, &RoomCreatorDialog::saveSettings);
+  for (auto* swatch : {m_wallMaterial, m_ceilingMaterial, m_floorMaterial})
+  {
+    connect(
+      swatch,
+      &MaterialSwatchButton::materialChanged,
+      this,
+      &RoomCreatorDialog::saveSettings);
+  }
 }
 
-void RoomCreatorDialog::populateMaterials()
+void RoomCreatorDialog::refreshMaterialSwatches()
 {
-  const auto& map = m_frame.document().map();
-  const auto& materials = map.materialManager().materials();
-  for (auto* material : materials)
+  for (auto* swatch : {m_wallMaterial, m_ceilingMaterial, m_floorMaterial})
   {
-    const auto name = QString::fromStdString(material->name());
-    m_wallMaterial->addItem(name);
-    m_ceilingMaterial->addItem(name);
-    m_floorMaterial->addItem(name);
-  }
-
-  const auto current = QString::fromStdString(map.currentMaterialName());
-  for (auto* choice : {m_wallMaterial, m_ceilingMaterial, m_floorMaterial})
-  {
-    if (choice->findText(current) < 0)
-    {
-      choice->addItem(current);
-    }
+    swatch->refresh();
   }
 }
 
 void RoomCreatorDialog::loadSettings()
 {
   m_updating = true;
-  m_modeChoice->setCurrentIndex(m_modeChoice->findData(pref(Preferences::RoomCreatorMode)));
+  m_modeChoice->setCurrentIndex(
+    m_modeChoice->findData(pref(Preferences::RoomCreatorMode)));
   populateDimensionChoice(
     m_wallThickness, pref(Preferences::RoomCreatorWallThickness), true);
   populateDimensionChoice(m_wallHeight, pref(Preferences::RoomCreatorWallHeight), false);
   m_generateCeiling->setChecked(pref(Preferences::RoomCreatorGenerateCeiling));
   m_generateFloor->setChecked(pref(Preferences::RoomCreatorGenerateFloor));
-  m_wallMaterial->setCurrentText(pref(Preferences::RoomCreatorWallMaterial));
-  m_ceilingMaterial->setCurrentText(pref(Preferences::RoomCreatorCeilingMaterial));
-  m_floorMaterial->setCurrentText(pref(Preferences::RoomCreatorFloorMaterial));
+  m_wallMaterial->setMaterialName(
+    pref(Preferences::RoomCreatorWallMaterial).toStdString());
+  m_ceilingMaterial->setMaterialName(
+    pref(Preferences::RoomCreatorCeilingMaterial).toStdString());
+  m_floorMaterial->setMaterialName(
+    pref(Preferences::RoomCreatorFloorMaterial).toStdString());
+  m_updating = false;
+}
+
+void RoomCreatorDialog::loadSettingsFromRoom(const mdl::RoomRecipe& recipe)
+{
+  // Show the room's own settings without overwriting the user's preferences.
+  m_updating = true;
+  populateDimensionChoice(m_wallThickness, recipe.wallThickness, true);
+  m_generateCeiling->setChecked(recipe.generateCeiling);
+  m_generateFloor->setChecked(recipe.generateFloor);
+  m_wallMaterial->setMaterialName(recipe.wallMaterial);
+  m_ceilingMaterial->setMaterialName(recipe.ceilingMaterial);
+  m_floorMaterial->setMaterialName(recipe.floorMaterial);
   m_updating = false;
 }
 
@@ -218,19 +299,26 @@ void RoomCreatorDialog::saveSettings()
   setPref(Preferences::RoomCreatorWallHeight, m_wallHeight->currentData().toInt());
   setPref(Preferences::RoomCreatorGenerateCeiling, m_generateCeiling->isChecked());
   setPref(Preferences::RoomCreatorGenerateFloor, m_generateFloor->isChecked());
-  setPref(Preferences::RoomCreatorWallMaterial, m_wallMaterial->currentText());
-  setPref(Preferences::RoomCreatorCeilingMaterial, m_ceilingMaterial->currentText());
-  setPref(Preferences::RoomCreatorFloorMaterial, m_floorMaterial->currentText());
+  setPref(
+    Preferences::RoomCreatorWallMaterial,
+    QString::fromStdString(m_wallMaterial->materialName()));
+  setPref(
+    Preferences::RoomCreatorCeilingMaterial,
+    QString::fromStdString(m_ceilingMaterial->materialName()));
+  setPref(
+    Preferences::RoomCreatorFloorMaterial,
+    QString::fromStdString(m_floorMaterial->materialName()));
 }
 
 void RoomCreatorDialog::populateDimensionChoice(
   QComboBox* choice, const int value, const bool thickness)
 {
-  const auto gridSize = static_cast<int>(m_frame.document().map().grid().actualSize());
+  const auto gridSize =
+    std::max(1, static_cast<int>(m_frame.document().map().grid().actualSize()));
   const auto snapped = std::max(gridSize, (value / gridSize) * gridSize);
   const auto maximum = thickness ? std::max(PlayerWidth, gridSize) : 512;
-  const auto choices = thickness ? std::vector<int>{8, 16, 24, 32} :
-                                   std::vector<int>{64, 96, 128, 160, 192, 256, 384, 512};
+  const auto choices = thickness ? std::vector<int>{8, 16, 24, 32}
+                                 : std::vector<int>{64, 96, 128, 160, 192, 256, 384, 512};
 
   choice->clear();
   for (const auto candidate : choices)
@@ -254,8 +342,7 @@ void RoomCreatorDialog::updateGridStep()
     return;
   }
   m_updating = true;
-  populateDimensionChoice(
-    m_wallThickness, m_wallThickness->currentData().toInt(), true);
+  populateDimensionChoice(m_wallThickness, m_wallThickness->currentData().toInt(), true);
   populateDimensionChoice(m_wallHeight, m_wallHeight->currentData().toInt(), false);
   m_updating = false;
   saveSettings();
@@ -263,126 +350,476 @@ void RoomCreatorDialog::updateGridStep()
 
 void RoomCreatorDialog::updateModeUi()
 {
-  const auto mode = static_cast<mdl::RoomGenerationMode>(m_modeChoice->currentData().toInt());
-  m_wallHeight->setEnabled(mode == mdl::RoomGenerationMode::Floor);
-  m_generateFloor->setEnabled(mode == mdl::RoomGenerationMode::Box);
+  m_wallHeight->setEnabled(m_modeChoice->currentData().toInt() == FloorMode);
   if (!m_updating)
   {
     saveSettings();
   }
 }
 
-bool RoomCreatorDialog::isValidBox(const mdl::BrushNode& brush) const
+void RoomCreatorDialog::updateSelectionUi()
 {
-  const auto& source = brush.brush();
-  if (source.faceCount() != 6u)
-  {
-    return false;
-  }
+  const auto selection = resolveSelection();
+  const auto& rooms = selection.rooms;
+  const auto& boxes = selection.boxes;
 
-  for (const auto& face : source.faces())
+  auto doorCount = 0;
+  auto spaceCount = 0;
+  for (const auto* room : rooms)
   {
-    const auto normal = face.normal();
-    const auto axisComponents = std::array<double, 3>{
-      std::abs(normal.x()), std::abs(normal.y()), std::abs(normal.z())};
-    const auto maxComponent = std::max({axisComponents[0], axisComponents[1], axisComponents[2]});
-    if (maxComponent < 0.999 || std::count_if(
-                                    axisComponents.begin(),
-                                    axisComponents.end(),
-                                    [](const auto component) { return component > 0.001; })
-                                  != 1)
+    if (const auto recipe = mdl::readRoomRecipe(room->group()); recipe.is_success())
     {
-      return false;
+      doorCount += static_cast<int>(recipe.value().doors.size());
+      spaceCount += static_cast<int>(recipe.value().spaces.size());
     }
   }
-  return true;
+
+  if (rooms.size() == 1u && boxes.empty())
+  {
+    if (
+      const auto recipe = mdl::readRoomRecipe(rooms.front()->group());
+      recipe.is_success())
+    {
+      loadSettingsFromRoom(recipe.value());
+    }
+  }
+
+  const auto roomCount = static_cast<int>(rooms.size());
+  const auto boxCount = static_cast<int>(boxes.size());
+
+  auto status = QString{};
+  if (rooms.empty() && boxes.empty())
+  {
+    status = tr("Select box brushes to create a room, or select a room to rebuild it.");
+  }
+  else if (rooms.empty())
+  {
+    status = tr("Generate creates a room from %n box(es).", "", boxCount);
+  }
+  else if (boxes.empty())
+  {
+    status = tr("%n room(s) selected", "", roomCount) + QStringLiteral(": ")
+             + tr("%n space(s), ", "", spaceCount) + tr("%n doorway(s).", "", doorCount)
+             + QStringLiteral(" ") + tr("Generate rebuilds with the current settings.");
+  }
+  else if (rooms.size() == 1u)
+  {
+    status = tr(
+      "Generate adds %n box(es) to the selected room; Add Doorway cuts them "
+      "into its walls instead.",
+      "",
+      boxCount);
+  }
+  else
+  {
+    status = tr("Select a single room to extend it with box brushes.");
+  }
+  m_status->setText(status);
+
+  m_generateButton->setEnabled(
+    !(rooms.empty() && boxes.empty()) && !(rooms.size() > 1u && !boxes.empty()));
+  m_addDoorwayButton->setEnabled(!boxes.empty());
+  m_clearDoorwaysButton->setEnabled(doorCount > 0);
 }
 
-std::vector<mdl::RoomGenerationSource> RoomCreatorDialog::collectSources() const
+RoomCreatorDialog::RoomSelection RoomCreatorDialog::resolveSelection() const
 {
-  const auto mode = static_cast<mdl::RoomGenerationMode>(m_modeChoice->currentData().toInt());
+  auto result = RoomSelection{};
+  for (auto* node : m_frame.document().map().selection().nodes)
+  {
+    if (auto* room = mdl::findRoom(node))
+    {
+      if (std::ranges::find(result.rooms, room) == result.rooms.end())
+      {
+        result.rooms.push_back(room);
+      }
+    }
+    else if (
+      auto* brush = dynamic_cast<mdl::BrushNode*>(node);
+      brush != nullptr && isAxisAlignedBox(*brush))
+    {
+      result.boxes.push_back(brush);
+    }
+  }
+  return result;
+}
+
+std::optional<vm::bbox3d> RoomCreatorDialog::spaceForBox(
+  const mdl::BrushNode& brush) const
+{
+  const auto bounds = brush.brush().bounds();
+  if (m_modeChoice->currentData().toInt() == BoxMode)
+  {
+    return bounds;
+  }
+
   const auto maxFloorThickness = 2.0 * m_frame.document().map().grid().actualSize();
-  auto sources = std::vector<mdl::RoomGenerationSource>{};
-  for (auto* brush : m_frame.document().map().selection().brushes)
+  if (bounds.size().z() > maxFloorThickness)
   {
-    if (std::find(m_generatedNodes.begin(), m_generatedNodes.end(), brush) != m_generatedNodes.end()
-        || !isValidBox(*brush))
-    {
-      continue;
-    }
-
-    const auto bounds = brush->brush().bounds();
-    if (mode == mdl::RoomGenerationMode::Floor && bounds.size().z() > maxFloorThickness)
-    {
-      continue;
-    }
-    sources.push_back({bounds, mode == mdl::RoomGenerationMode::Floor ? brush : nullptr});
+    return std::nullopt;
   }
-  return sources;
+
+  const auto height = static_cast<double>(m_wallHeight->currentData().toInt());
+  return vm::bbox3d{
+    {bounds.min.x(), bounds.min.y(), bounds.max.z()},
+    {bounds.max.x(), bounds.max.y(), bounds.max.z() + height}};
 }
 
-mdl::RoomGenerationSettings RoomCreatorDialog::settings() const
+mdl::RoomRecipe RoomCreatorDialog::recipeFromUi() const
 {
-  const auto materialName = [this](const QComboBox* choice) {
-    const auto material = choice->currentText().trimmed();
-    const auto selected = material.isEmpty()
-                            ? QString::fromStdString(
-                                m_frame.document().map().currentMaterialName())
-                            : material;
-    return selected.toStdString();
+  auto recipe = mdl::RoomRecipe{};
+  applyUiSettings(recipe);
+  return recipe;
+}
+
+void RoomCreatorDialog::applyUiSettings(mdl::RoomRecipe& recipe) const
+{
+  const auto materialName = [this](const MaterialSwatchButton* swatch) {
+    const auto& material = swatch->materialName();
+    return material.empty() ? m_frame.document().map().currentMaterialName() : material;
   };
-  return {
-    static_cast<mdl::RoomGenerationMode>(m_modeChoice->currentData().toInt()),
-    m_wallThickness->currentData().toInt(),
-    m_wallHeight->currentData().toInt(),
-    m_generateCeiling->isChecked(),
-    m_generateFloor->isChecked(),
-    materialName(m_wallMaterial),
-    materialName(m_ceilingMaterial),
-    materialName(m_floorMaterial)};
+
+  recipe.wallThickness = m_wallThickness->currentData().toInt();
+  recipe.generateFloor = m_generateFloor->isChecked();
+  recipe.generateCeiling = m_generateCeiling->isChecked();
+  recipe.wallMaterial = materialName(m_wallMaterial);
+  recipe.floorMaterial = materialName(m_floorMaterial);
+  recipe.ceilingMaterial = materialName(m_ceilingMaterial);
+}
+
+std::optional<mdl::ModifiedRoomBrushes> RoomCreatorDialog::askAboutModifiedBrushes(
+  const std::vector<mdl::GroupNode*>& rooms)
+{
+  auto modified = size_t{0};
+  for (const auto* room : rooms)
+  {
+    modified += mdl::countModifiedRoomBrushes(m_frame.document().map(), *room);
+  }
+  if (modified == 0u)
+  {
+    return mdl::ModifiedRoomBrushes::Replace;
+  }
+
+  auto box = QMessageBox{this};
+  box.setIcon(QMessageBox::Question);
+  box.setWindowTitle(tr("Room Creator"));
+  box.setText(
+    tr("%n brush(es) in the room were edited or added by hand.", "", int(modified)));
+  box.setInformativeText(
+    tr("Replace them with the rebuilt shell, or keep them alongside it?"));
+  auto* replace = box.addButton(tr("Replace"), QMessageBox::DestructiveRole);
+  auto* keep = box.addButton(tr("Keep"), QMessageBox::AcceptRole);
+  box.addButton(QMessageBox::Cancel);
+  box.setDefaultButton(keep);
+  box.exec();
+
+  if (box.clickedButton() == replace)
+  {
+    return mdl::ModifiedRoomBrushes::Replace;
+  }
+  if (box.clickedButton() == keep)
+  {
+    return mdl::ModifiedRoomBrushes::Keep;
+  }
+  return std::nullopt;
+}
+
+void RoomCreatorDialog::selectRooms(const std::vector<mdl::GroupNode*>& rooms)
+{
+  auto& map = m_frame.document().map();
+  const auto* currentGroup = map.editorContext().currentGroup();
+  auto nodes = std::vector<mdl::Node*>{};
+  for (auto* room : rooms)
+  {
+    // Only nodes in the currently open group (or the top level) can be selected.
+    if (room->containingGroup() == currentGroup)
+    {
+      nodes.push_back(room);
+    }
+  }
+  if (!nodes.empty())
+  {
+    mdl::selectNodes(map, nodes);
+  }
 }
 
 void RoomCreatorDialog::generate()
 {
-  const auto currentSources = collectSources();
-  const auto sources = currentSources.empty() ? m_lastSources : currentSources;
-  if (sources.empty())
-  {
-    m_frame.logger().warn() << "Room creator: select one or more axis-aligned box brushes";
-    return;
-  }
+  auto& map = m_frame.document().map();
+  const auto selection = resolveSelection();
 
-  const auto currentSettings = settings();
-  if (currentSettings.wallThickness > PlayerWidth)
+  auto spaces = std::vector<vm::bbox3d>{};
+  auto sourceBoxes = std::vector<mdl::BrushNode*>{};
+  for (auto* box : selection.boxes)
   {
-    m_frame.logger().warn() << "Room creator: wall thickness exceeds player width ("
-                            << PlayerWidth << ")";
-  }
-
-  auto result = mdl::generateRooms(
-    m_frame.document().map(), currentSettings, sources, m_generatedNodes);
-  if (result.is_error())
-  {
-    m_frame.logger().error() << "Room creator: " << std::get<Error>(result.error()).msg;
-    return;
-  }
-
-  m_generatedNodes = std::move(result.value().generatedNodes);
-  m_lastSources = sources;
-  if (currentSettings.mode == mdl::RoomGenerationMode::Box)
-  {
-    for (auto& source : m_lastSources)
+    if (const auto space = spaceForBox(*box))
     {
-      source.floorNode = nullptr;
+      spaces.push_back(*space);
+      sourceBoxes.push_back(box);
     }
   }
-  m_frame.logger().info() << "Room creator: generated " << result.value().generatedRooms
-                          << " room(s)";
+
+  if (selection.rooms.empty())
+  {
+    if (spaces.empty())
+    {
+      m_frame.logger().warn()
+        << "Room creator: select one or more axis-aligned box brushes"
+        << (m_modeChoice->currentData().toInt() == FloorMode
+              ? " (floors may be at most two grid units thick)"
+              : "");
+      return;
+    }
+
+    auto recipe = recipeFromUi();
+    recipe.spaces = spaces;
+    if (recipe.wallThickness > PlayerWidth)
+    {
+      m_frame.logger().warn() << "Room creator: wall thickness exceeds player width ("
+                              << PlayerWidth << ")";
+    }
+
+    auto* parent = mdl::parentForNodes(map, toNodes(sourceBoxes));
+    auto transaction = mdl::Transaction{map, "Create Room"};
+    mdl::deselectAll(map);
+    // Add the room before removing its sources so that their parent group can't become
+    // empty, which would remove it.
+    auto room = mdl::createRoom(map, parent, recipe);
+    if (room.is_error())
+    {
+      transaction.cancel();
+      m_frame.logger().error() << "Room creator: " << std::get<Error>(room.error()).msg;
+      return;
+    }
+    mdl::removeNodes(map, toNodes(sourceBoxes));
+    selectRooms({room.value()});
+    transaction.commit();
+
+    m_frame.logger().info() << "Room creator: created a room from " << spaces.size()
+                            << " space(s)";
+    return;
+  }
+
+  if (!sourceBoxes.empty() && selection.rooms.size() > 1u)
+  {
+    m_frame.logger().warn() << "Room creator: select a single room to extend it";
+    return;
+  }
+
+  const auto policy = askAboutModifiedBrushes(selection.rooms);
+  if (!policy)
+  {
+    return;
+  }
+
+  auto transaction = mdl::Transaction{map, "Rebuild Room"};
+  mdl::deselectAll(map);
+  for (auto* room : selection.rooms)
+  {
+    auto recipeResult = mdl::readRoomRecipe(room->group());
+    if (recipeResult.is_error())
+    {
+      transaction.cancel();
+      m_frame.logger().error() << "Room creator: "
+                               << std::get<Error>(recipeResult.error()).msg;
+      return;
+    }
+
+    auto recipe = std::move(recipeResult).value();
+    applyUiSettings(recipe);
+    for (const auto& space : spaces)
+    {
+      auto localSpace = mdl::roomLocalBounds(*room, space);
+      if (localSpace.is_error())
+      {
+        transaction.cancel();
+        m_frame.logger().error()
+          << "Room creator: " << std::get<Error>(localSpace.error()).msg;
+        return;
+      }
+      recipe.spaces.push_back(localSpace.value());
+    }
+
+    if (auto result = mdl::rebuildRoom(map, *room, recipe, *policy); result.is_error())
+    {
+      transaction.cancel();
+      m_frame.logger().error() << "Room creator: " << std::get<Error>(result.error()).msg;
+      return;
+    }
+  }
+
+  if (!sourceBoxes.empty())
+  {
+    mdl::removeNodes(map, toNodes(sourceBoxes));
+  }
+  selectRooms(selection.rooms);
+  transaction.commit();
+
+  if (sourceBoxes.empty())
+  {
+    m_frame.logger().info() << "Room creator: rebuilt " << selection.rooms.size()
+                            << " room(s)";
+  }
+  else
+  {
+    m_frame.logger().info() << "Room creator: added " << sourceBoxes.size()
+                            << " space(s) to the room";
+  }
+}
+
+void RoomCreatorDialog::addDoorway()
+{
+  auto& map = m_frame.document().map();
+  const auto selection = resolveSelection();
+  if (selection.boxes.empty())
+  {
+    m_frame.logger().warn()
+      << "Room creator: select box brushes that cross a room's walls";
+    return;
+  }
+
+  // Without a selected room, a doorway applies to every room whose walls it crosses, so
+  // a doorway between two rooms opens both walls.
+  const auto candidates =
+    selection.rooms.empty() ? mdl::collectRooms(map) : selection.rooms;
+
+  auto affectedRooms = std::vector<mdl::GroupNode*>{};
+  auto recipes = std::vector<mdl::RoomRecipe>{};
+  auto usedBoxes = std::vector<mdl::BrushNode*>{};
+  for (auto* room : candidates)
+  {
+    auto recipeResult = mdl::readRoomRecipe(room->group());
+    auto shells = mdl::roomWorldShellBounds(*room);
+    if (recipeResult.is_error() || shells.is_error())
+    {
+      continue;
+    }
+    auto recipe = std::move(recipeResult).value();
+
+    auto touched = false;
+    for (auto* box : selection.boxes)
+    {
+      const auto bounds = box->brush().bounds();
+      if (!std::ranges::any_of(
+            shells.value(), [&](const auto& shell) { return overlaps(shell, bounds); }))
+      {
+        continue;
+      }
+
+      auto localDoor = mdl::roomLocalBounds(*room, bounds);
+      if (localDoor.is_error())
+      {
+        m_frame.logger().warn()
+          << "Room creator: " << std::get<Error>(localDoor.error()).msg;
+        continue;
+      }
+
+      recipe.doors.push_back(localDoor.value());
+      touched = true;
+      if (std::ranges::find(usedBoxes, box) == usedBoxes.end())
+      {
+        usedBoxes.push_back(box);
+      }
+    }
+
+    if (touched)
+    {
+      affectedRooms.push_back(room);
+      recipes.push_back(std::move(recipe));
+    }
+  }
+
+  if (affectedRooms.empty())
+  {
+    m_frame.logger().warn()
+      << "Room creator: the selected boxes don't cross any room's walls";
+    return;
+  }
+
+  const auto policy = askAboutModifiedBrushes(affectedRooms);
+  if (!policy)
+  {
+    return;
+  }
+
+  auto transaction = mdl::Transaction{map, "Add Doorway"};
+  mdl::deselectAll(map);
+  for (size_t i = 0; i < affectedRooms.size(); ++i)
+  {
+    if (
+      auto result = mdl::rebuildRoom(map, *affectedRooms[i], recipes[i], *policy);
+      result.is_error())
+    {
+      transaction.cancel();
+      m_frame.logger().error() << "Room creator: " << std::get<Error>(result.error()).msg;
+      return;
+    }
+  }
+  mdl::removeNodes(map, toNodes(usedBoxes));
+  selectRooms(affectedRooms);
+  transaction.commit();
+
+  m_frame.logger().info() << "Room creator: added " << usedBoxes.size()
+                          << " doorway(s) to " << affectedRooms.size() << " room(s)";
+  if (usedBoxes.size() < selection.boxes.size())
+  {
+    m_frame.logger().warn()
+      << "Room creator: " << selection.boxes.size() - usedBoxes.size()
+      << " box(es) don't cross any room's walls and were left as is";
+  }
+}
+
+void RoomCreatorDialog::clearDoorways()
+{
+  auto& map = m_frame.document().map();
+  const auto selection = resolveSelection();
+
+  auto rooms = std::vector<mdl::GroupNode*>{};
+  auto recipes = std::vector<mdl::RoomRecipe>{};
+  for (auto* room : selection.rooms)
+  {
+    auto recipeResult = mdl::readRoomRecipe(room->group());
+    if (recipeResult.is_success() && !recipeResult.value().doors.empty())
+    {
+      auto recipe = std::move(recipeResult).value();
+      recipe.doors.clear();
+      rooms.push_back(room);
+      recipes.push_back(std::move(recipe));
+    }
+  }
+
+  if (rooms.empty())
+  {
+    m_frame.logger().warn() << "Room creator: the selected rooms have no doorways";
+    return;
+  }
+
+  const auto policy = askAboutModifiedBrushes(rooms);
+  if (!policy)
+  {
+    return;
+  }
+
+  auto transaction = mdl::Transaction{map, "Clear Doorways"};
+  mdl::deselectAll(map);
+  for (size_t i = 0; i < rooms.size(); ++i)
+  {
+    if (
+      auto result = mdl::rebuildRoom(map, *rooms[i], recipes[i], *policy);
+      result.is_error())
+    {
+      transaction.cancel();
+      m_frame.logger().error() << "Room creator: " << std::get<Error>(result.error()).msg;
+      return;
+    }
+  }
+  selectRooms(rooms);
+  transaction.commit();
 }
 
 void RoomCreatorDialog::reset()
 {
-  setPref(Preferences::RoomCreatorMode, 1);
+  setPref(Preferences::RoomCreatorMode, FloorMode);
   setPref(Preferences::RoomCreatorWallThickness, DefaultWallThickness);
   setPref(Preferences::RoomCreatorWallHeight, DefaultWallHeight);
   setPref(Preferences::RoomCreatorGenerateCeiling, true);

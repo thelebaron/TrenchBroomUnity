@@ -2259,7 +2259,7 @@ void MapFrame::toggleRoomCreator()
 {
   if (!m_roomCreatorDialog)
   {
-    m_roomCreatorDialog = new RoomCreatorDialog{*this, this};
+    m_roomCreatorDialog = new RoomCreatorDialog{*this, *m_contextManager, this};
   }
 
   if (m_roomCreatorDialog->isVisible())

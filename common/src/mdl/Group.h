@@ -19,12 +19,15 @@
 
 #pragma once
 
+#include "mdl/EntityProperties.h"
 
 #include "kdl/reflection_decl.h"
 
 #include "vm/mat.h"
 
 #include <string>
+#include <string_view>
+#include <vector>
 
 namespace tb::mdl
 {
@@ -36,7 +39,13 @@ private:
 
   vm::mat4x4d m_transformation;
 
-  kdl_reflect_decl(Group, m_name, m_transformation);
+  /**
+   * Additional properties that are written to the group's func_group entity. They let
+   * tools attach their own data to a group (for example the room creator's recipe).
+   */
+  std::vector<EntityProperty> m_properties;
+
+  kdl_reflect_decl(Group, m_name, m_transformation, m_properties);
 
 public:
   explicit Group(std::string name);
@@ -47,6 +56,11 @@ public:
   const vm::mat4x4d& transformation() const;
   void setTransformation(const vm::mat4x4d& transformation);
   void transform(const vm::mat4x4d& transformation);
+
+  const std::vector<EntityProperty>& properties() const;
+  const std::string* property(std::string_view key) const;
+  void setProperty(const std::string& key, const std::string& value);
+  void removeProperty(std::string_view key);
 };
 
 } // namespace tb::mdl
