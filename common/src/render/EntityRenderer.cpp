@@ -229,7 +229,9 @@ void EntityRenderer::renderBounds(RenderContext& renderContext, RenderBatch& ren
     renderBrushEntityWireframeBounds(renderBatch);
   }
 
-  if (m_showHiddenEntities || renderContext.showPointEntities())
+  if (
+    renderContext.showEditorOverlays()
+    && (m_showHiddenEntities || renderContext.showPointEntities()))
   {
     renderSolidBounds(renderBatch);
   }
@@ -317,7 +319,7 @@ void EntityRenderer::renderAngles(RenderContext& renderContext, RenderBatch& ren
 {
   static constexpr auto maxDistance2 = 500.0f * 500.0f;
 
-  if (m_showAngles)
+  if (m_showAngles && renderContext.showEditorOverlays())
   {
     const auto arrow = arrowHead(9.0f, 6.0f);
 

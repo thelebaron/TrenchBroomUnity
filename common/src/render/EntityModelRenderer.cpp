@@ -166,7 +166,7 @@ void EntityModelRenderer::doRender(RenderContext& renderContext)
 
     auto shader = ActiveShader{renderContext.shaderManager(), Shaders::EntityModelShader};
     shader.set("Brightness", prefs.get(Preferences::Brightness));
-    shader.set("ApplyTinting", m_applyTinting);
+    shader.set("ApplyTinting", m_applyTinting && renderContext.showEditorOverlays());
     shader.set("TintColor", m_tintColor);
     shader.set("GrayScale", false);
     shader.set("Material", 0);

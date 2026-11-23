@@ -63,6 +63,7 @@ private:
   bool m_showMaterials = true;
   bool m_showFaces = true;
   bool m_showEdges = true;
+  bool m_showEditorOverlays = true;
   bool m_shadeFaces = true;
 
   bool m_showPointEntities = true;
@@ -128,6 +129,9 @@ public:
 
   bool showEdges() const;
   void setShowEdges(bool showEdges);
+
+  bool showEditorOverlays() const;
+  void setShowEditorOverlays(bool showEditorOverlays);
 
   bool shadeFaces() const;
   void setShadeFaces(bool shadeFaces);

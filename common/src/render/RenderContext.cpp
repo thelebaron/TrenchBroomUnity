@@ -105,12 +105,22 @@ void RenderContext::setShowFaces(const bool showFaces)
 
 bool RenderContext::showEdges() const
 {
-  return m_renderMode == RenderMode::Render2D || m_showEdges;
+  return m_showEditorOverlays && (m_renderMode == RenderMode::Render2D || m_showEdges);
 }
 
 void RenderContext::setShowEdges(const bool showEdges)
 {
   m_showEdges = showEdges;
+}
+
+bool RenderContext::showEditorOverlays() const
+{
+  return m_showEditorOverlays;
+}
+
+void RenderContext::setShowEditorOverlays(const bool showEditorOverlays)
+{
+  m_showEditorOverlays = showEditorOverlays;
 }
 
 bool RenderContext::shadeFaces() const

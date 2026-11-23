@@ -35,6 +35,7 @@ Preference<bool> IncludePreReleaseUpdates("updater/Include pre-releases", false)
 
 Preference<int> MapViewLayout(
   "Views/Map view layout", static_cast<int>(ui::MapViewLayout::OnePane));
+Preference<bool> MapViewInclude3D("Views/Include 3D view", true);
 
 QString systemTheme()
 {
@@ -297,6 +298,7 @@ Preference<QString> FaceRenderMode("Map view/Face render mode", "textured");
 Preference<bool> ShadeFaces("Map view/Shade faces", true);
 Preference<bool> ShowFog("Map view/Show fog", false);
 Preference<bool> ShowEdges("Map view/Show edges", true);
+Preference<bool> ShowEditorOverlays("Map view/Show editor overlays", true);
 Preference<bool> PreviewLighting("Map view/Preview lighting", false);
 Preference<bool> PreviewLightingShadows("Map view/Preview lighting shadows", true);
 Preference<bool> PreviewLightingGI("Map view/Preview lighting GI", true);
@@ -364,6 +366,7 @@ const std::vector<PreferenceBase*>& staticPreferences()
 {
   static const std::vector<PreferenceBase*> list{
     &MapViewLayout,
+    &MapViewInclude3D,
     &Theme,
     &ShowAxes,
     &BackgroundColor,
@@ -473,6 +476,7 @@ const std::vector<PreferenceBase*>& staticPreferences()
     &ShadeFaces,
     &ShowFog,
     &ShowEdges,
+    &ShowEditorOverlays,
     &PreviewLighting,
     &PreviewLightingShadows,
     &PreviewLightingGI,

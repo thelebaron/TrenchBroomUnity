@@ -24,7 +24,7 @@ const float MAX_PREVIEW_LIGHTS_F = 256.0;
 const float PREVIEW_SHADOW_TILE_SIZE = 256.0;
 const float PREVIEW_SHADOW_ATLAS_COLS = 12.0;
 const float PREVIEW_SHADOW_ATLAS_ROWS = 8.0;
-const float PREVIEW_DIR_SHADOW_MAP_SIZE = 2048.0;
+const float PREVIEW_DIR_SHADOW_MAP_SIZE = 4096.0;
 
 uniform float PreviewAmbient;
 uniform int PreviewLightCount;

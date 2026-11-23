@@ -36,7 +36,6 @@ class GLContextManager;
 class MapDocument;
 class MapViewBase;
 class MapView2D;
-class MapView3D;
 class MapViewToolBox;
 
 class ThreePaneMapView : public MultiPaneMapView
@@ -47,7 +46,7 @@ private:
 
   QSplitter* m_hSplitter = nullptr;
   QSplitter* m_vSplitter = nullptr;
-  MapView3D* m_mapView3D = nullptr;
+  CyclingMapView* m_primaryView = nullptr;
   MapView2D* m_mapViewXY = nullptr;
   CyclingMapView* m_mapViewZZ = nullptr;
 
@@ -57,6 +56,7 @@ public:
     MapViewToolBox& toolBox,
     render::MapRenderer& mapRenderer,
     GLContextManager& contextManager,
+    bool include3D,
     QWidget* parent = nullptr);
   ~ThreePaneMapView() override;
 
@@ -64,7 +64,8 @@ private:
   void createGui(
     MapViewToolBox& toolBox,
     render::MapRenderer& mapRenderer,
-    GLContextManager& contextManager);
+    GLContextManager& contextManager,
+    bool include3D);
 
 private: // implement MultiPaneMapView subclassing interface
   void maximizeView(MapView* view) override;

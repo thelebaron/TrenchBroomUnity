@@ -33,6 +33,7 @@
 #include "ui/MapDocument.h"
 #include "ui/MapViewActivationTracker.h"
 #include "ui/MapViewBar.h"
+#include "ui/MapViewBase.h"
 #include "ui/MapViewContainer.h"
 #include "ui/MapViewLayout.h"
 #include "ui/MapViewToolBox.h"
@@ -56,6 +57,13 @@ SwitchableMapViewContainer::SwitchableMapViewContainer(
   , m_activationTracker{std::make_unique<MapViewActivationTracker>()}
 {
   setObjectName("SwitchableMapViewContainer");
+
+  auto* layout = new QVBoxLayout{};
+  layout->setContentsMargins(0, 0, 0, 0);
+  layout->setSpacing(0);
+  layout->addWidget(m_mapViewBar);
+  setLayout(layout);
+
   switchToMapView(static_cast<MapViewLayout>(pref(Preferences::MapViewLayout)));
   connectObservers();
 }
@@ -94,46 +102,45 @@ bool SwitchableMapViewContainer::active() const
 
 void SwitchableMapViewContainer::switchToMapView(const MapViewLayout viewId)
 {
+  if (m_mapView)
+  {
+    m_mapView->cancelMouseDrag();
+  }
   m_activationTracker->clear();
 
-  // NOTE: not all widgets are deleted so we can't use deleteChildWidgetsAndLayout()
-  delete m_mapView;
-  m_mapView = nullptr;
+  if (m_mapView)
+  {
+    m_mapView->hide();
+    delete m_mapView;
+    m_mapView = nullptr;
+  }
 
-  delete layout();
-
+  const auto include3D = pref(Preferences::MapViewInclude3D);
   switch (viewId)
   {
   case MapViewLayout::OnePane:
-    m_mapView =
-      new OnePaneMapView{m_document, *m_toolBox, *m_mapRenderer, m_contextManager};
+    m_mapView = new OnePaneMapView{
+      m_document, *m_toolBox, *m_mapRenderer, m_contextManager, include3D};
     break;
   case MapViewLayout::TwoPanes:
-    m_mapView =
-      new TwoPaneMapView{m_document, *m_toolBox, *m_mapRenderer, m_contextManager};
+    m_mapView = new TwoPaneMapView{
+      m_document, *m_toolBox, *m_mapRenderer, m_contextManager, include3D};
     break;
   case MapViewLayout::ThreePanes:
-    m_mapView =
-      new ThreePaneMapView{m_document, *m_toolBox, *m_mapRenderer, m_contextManager};
+    m_mapView = new ThreePaneMapView{
+      m_document, *m_toolBox, *m_mapRenderer, m_contextManager, include3D};
     break;
   case MapViewLayout::FourPanes:
-    m_mapView =
-      new FourPaneMapView{m_document, *m_toolBox, *m_mapRenderer, m_contextManager};
+    m_mapView = new FourPaneMapView{
+      m_document, *m_toolBox, *m_mapRenderer, m_contextManager, include3D};
     break;
     switchDefault();
   }
 
   installActivationTracker(*m_activationTracker);
 
-  auto* layout = new QVBoxLayout{};
-  layout->setContentsMargins(0, 0, 0, 0);
-  layout->setSpacing(0);
-
-  layout->addWidget(m_mapViewBar);
-  layout->addWidget(m_mapView, 1);
-  setLayout(layout);
-
-  m_mapView->setFocus();
+  static_cast<QVBoxLayout*>(layout())->addWidget(m_mapView, 1);
+  m_mapView->firstMapViewBase()->setFocus();
 }
 
 bool SwitchableMapViewContainer::anyModalToolActive() const

@@ -212,6 +212,11 @@ void CyclingMapView::linkCamera(CameraLinkHelper& helper)
 
 void CyclingMapView::cycleChildMapView(MapView* after)
 {
+  if (m_mapViews.size() < 2)
+  {
+    return;
+  }
+
   for (size_t i = 0; i < m_mapViews.size(); ++i)
   {
     if (after == m_mapViews[i])

@@ -48,8 +48,8 @@ void CameraLinkHelper::updateCameras(const render::Camera* masterCamera)
       camera->setZoom(masterCamera->zoom());
 
       const auto oldPosition = camera->position();
-      const auto factors = vm::vec3f{1, 1, 1} - vm::abs(masterCamera->direction())
-                           - vm::abs(camera->direction());
+      const auto factors = (vm::vec3f{1, 1, 1} - vm::abs(masterCamera->direction()))
+                           * (vm::vec3f{1, 1, 1} - vm::abs(camera->direction()));
       const auto newPosition =
         (vm::vec3f{1, 1, 1} - factors) * oldPosition + factors * masterCamera->position();
       camera->moveTo(newPosition);

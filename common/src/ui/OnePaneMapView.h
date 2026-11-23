@@ -46,13 +46,15 @@ public:
     MapViewToolBox& toolBox,
     render::MapRenderer& mapRenderer,
     GLContextManager& contextManager,
+    bool include3D,
     QWidget* parent = nullptr);
 
 private:
   void createGui(
     MapViewToolBox& toolBox,
     render::MapRenderer& mapRenderer,
-    GLContextManager& contextManager);
+    GLContextManager& contextManager,
+    bool include3D);
 
 private: // implement MultiPaneMapView subclassing interface
   void maximizeView(MapView* view) override;

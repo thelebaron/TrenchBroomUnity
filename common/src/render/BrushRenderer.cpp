@@ -329,7 +329,7 @@ void BrushRenderer::renderOpaque(RenderContext& renderContext, RenderBatch& rend
     {
       renderOpaqueFaces(renderBatch);
     }
-    if (renderContext.showEdges() || m_showEdges)
+    if (renderContext.showEditorOverlays() && (renderContext.showEdges() || m_showEdges))
     {
       renderEdges(renderBatch);
     }

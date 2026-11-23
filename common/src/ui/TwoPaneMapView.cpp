@@ -23,7 +23,6 @@
 
 #include "ui/CyclingMapView.h"
 #include "ui/MapDocument.h"
-#include "ui/MapView3D.h"
 #include "ui/QtUtils.h"
 #include "ui/Splitter.h"
 
@@ -34,11 +33,12 @@ TwoPaneMapView::TwoPaneMapView(
   MapViewToolBox& toolBox,
   render::MapRenderer& mapRenderer,
   GLContextManager& contextManager,
+  const bool include3D,
   QWidget* parent)
   : MultiPaneMapView{parent}
   , m_document{document}
 {
-  createGui(toolBox, mapRenderer, contextManager);
+  createGui(toolBox, mapRenderer, contextManager, include3D);
 }
 
 TwoPaneMapView::~TwoPaneMapView()
@@ -49,7 +49,8 @@ TwoPaneMapView::~TwoPaneMapView()
 void TwoPaneMapView::createGui(
   MapViewToolBox& toolBox,
   render::MapRenderer& mapRenderer,
-  GLContextManager& contextManager)
+  GLContextManager& contextManager,
+  const bool include3D)
 {
   // See comment in CyclingMapView::createGui
   m_splitter = new Splitter{DrawKnob::No};
@@ -61,22 +62,31 @@ void TwoPaneMapView::createGui(
   setLayout(layout);
   layout->addWidget(m_splitter);
 
-  m_mapView3D = new MapView3D{m_document, toolBox, mapRenderer, contextManager};
+  m_primaryView = new CyclingMapView{
+    m_document,
+    toolBox,
+    mapRenderer,
+    contextManager,
+    include3D ? CyclingMapView::View_3D : CyclingMapView::View_XY};
   m_mapView2D = new CyclingMapView{
-    m_document, toolBox, mapRenderer, contextManager, CyclingMapView::View_2D};
+    m_document,
+    toolBox,
+    mapRenderer,
+    contextManager,
+    include3D ? CyclingMapView::View_2D : CyclingMapView::View_ZZ};
 
-  m_mapView3D->linkCamera(m_linkHelper);
+  m_primaryView->linkCamera(m_linkHelper);
   m_mapView2D->linkCamera(m_linkHelper);
 
-  addMapView(m_mapView3D);
+  addMapView(m_primaryView);
   addMapView(m_mapView2D);
 
-  m_splitter->addWidget(m_mapView3D);
+  m_splitter->addWidget(m_primaryView);
   m_splitter->addWidget(m_mapView2D);
 
   // Configure minimum child sizes and initial splitter position at 50%
   m_mapView2D->setMinimumSize(100, 100);
-  m_mapView3D->setMinimumSize(100, 100);
+  m_primaryView->setMinimumSize(100, 100);
   m_splitter->setSizes(QList<int>{1, 1});
 
   restoreWindowState(m_splitter);
@@ -84,12 +94,12 @@ void TwoPaneMapView::createGui(
 
 void TwoPaneMapView::maximizeView(MapView* view)
 {
-  assert(view == m_mapView2D || view == m_mapView3D);
+  assert(view == m_mapView2D || view == m_primaryView);
   if (view == m_mapView2D)
   {
-    m_mapView3D->hide();
+    m_primaryView->hide();
   }
-  if (view == m_mapView3D)
+  if (view == m_primaryView)
   {
     m_mapView2D->hide();
   }
@@ -97,7 +107,7 @@ void TwoPaneMapView::maximizeView(MapView* view)
 
 void TwoPaneMapView::restoreViews()
 {
-  m_mapView3D->show();
+  m_primaryView->show();
   m_mapView2D->show();
 }
 

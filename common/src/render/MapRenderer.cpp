@@ -234,8 +234,11 @@ void MapRenderer::render(RenderContext& renderContext, RenderBatch& renderBatch)
   setupGL(renderBatch);
   m_previewLightRenderer->prepare(renderContext, renderBatch);
   renderEntityDecals(renderContext, renderBatch);
-  renderEntityLinks(renderContext, renderBatch);
-  renderGroupLinks(renderContext, renderBatch);
+  if (renderContext.showEditorOverlays())
+  {
+    renderEntityLinks(renderContext, renderBatch);
+    renderGroupLinks(renderContext, renderBatch);
+  }
 
   renderDefaultOpaque(renderContext, renderBatch);
   renderLockedOpaque(renderContext, renderBatch);
@@ -245,7 +248,10 @@ void MapRenderer::render(RenderContext& renderContext, RenderBatch& renderBatch)
   renderLockedTransparent(renderContext, renderBatch);
   renderSelectionTransparent(renderContext, renderBatch);
 
-  m_previewLightRenderer->renderGizmos(renderContext, renderBatch);
+  if (renderContext.showEditorOverlays())
+  {
+    m_previewLightRenderer->renderGizmos(renderContext, renderBatch);
+  }
 }
 
 void MapRenderer::reload()
@@ -918,8 +924,8 @@ void MapRenderer::preferenceDidChange(const std::filesystem::path& path)
     || path == Preferences::PreviewLightingGIBounce.path()
     || path == Preferences::PreviewLightingAmbient.path()
     || path == Preferences::ShowEdges.path()
-    || path == Preferences::ShadeFaces.path()
-    || path == Preferences::ShowFog.path();
+    || path == Preferences::ShowEditorOverlays.path()
+    || path == Preferences::ShadeFaces.path() || path == Preferences::ShowFog.path();
 
   if (isRenderOnlyMapViewPref)
   {
