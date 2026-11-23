@@ -21,6 +21,7 @@
 #include "PreferenceManager.h"
 #include "Preferences.h"
 #include "mdl/Brush.h"
+#include "mdl/BrushFace.h"
 #include "mdl/BrushNode.h"
 #include "mdl/Grid.h"
 #include "mdl/LayerNode.h"
@@ -142,7 +143,7 @@ TEST_CASE("RoomDrawTool")
     CHECK(mdl::readRoomLayout(map).value().spaces.empty());
   }
 
-  SECTION("Dollhouse cutaway peels ceilings and camera-facing exterior walls")
+  SECTION("Dollhouse cutaway hides ceilings and cuts camera-facing walls to 1/4 stubs")
   {
     const auto first = vm::bbox3d{{0, 0, 64}, {256, 256, 192}};
     tool.update(first);
@@ -183,80 +184,130 @@ TEST_CASE("RoomDrawTool")
     REQUIRE(ceilingBrush != nullptr);
     REQUIRE(floorBrush != nullptr);
 
-    // Looking from South-West above ceiling: peels ceiling + south & west walls only.
+    // 1/4 of a 128-unit room starting at z = 64 -> stub top at z = 96.
+    constexpr auto expectedStubTopZ = 96.0;
+
+    // Looking from South-West above ceiling: hides ceiling, cuts south & west walls to 1/4.
     {
-      const auto hidden = mdl::collectDollhouseHiddenBrushes(map, {-200.0, -200.0, 300.0});
-      CHECK(hidden.contains(ceilingBrush));
-      CHECK(hidden.contains(southWall));
-      CHECK(hidden.contains(westWall));
-      CHECK_FALSE(hidden.contains(northWall));
-      CHECK_FALSE(hidden.contains(eastWall));
-      CHECK_FALSE(hidden.contains(floorBrush));
+      const auto cutaway = mdl::collectDollhouseCutaway(map, {-200.0, -200.0, 300.0});
+      REQUIRE(cutaway.contains(ceilingBrush));
+      CHECK_FALSE(cutaway.at(ceilingBrush).has_value());
+      REQUIRE(cutaway.contains(southWall));
+      CHECK(cutaway.at(southWall) == expectedStubTopZ);
+      REQUIRE(cutaway.contains(westWall));
+      CHECK(cutaway.at(westWall) == expectedStubTopZ);
+      CHECK_FALSE(cutaway.contains(northWall));
+      CHECK_FALSE(cutaway.contains(eastWall));
+      CHECK_FALSE(cutaway.contains(floorBrush));
+
+      const auto stub = mdl::createDollhouseWallStub(map, *southWall, expectedStubTopZ);
+      REQUIRE(stub.is_success());
+      CHECK(stub.value().bounds().min.z() == 64.0);
+      CHECK(stub.value().bounds().max.z() == expectedStubTopZ);
+      CHECK(stub.value().faceCount() == 6u);
+      auto expectedYOffset = 0.0f;
+      for (const auto& face : southWall->brush().faces())
+      {
+        if (std::abs(face.normal().z()) < 0.01)
+        {
+          expectedYOffset = face.attributes().yOffset();
+          break;
+        }
+      }
+      for (const auto& face : stub.value().faces())
+      {
+        if (std::abs(face.normal().z()) < 0.01)
+        {
+          CHECK(face.attributes().yOffset() == expectedYOffset);
+        }
+      }
     }
 
-    // Looking from North-East above ceiling: peels ceiling + north & east walls only.
+    // Looking from North-East above ceiling: hides ceiling, cuts north & east walls to 1/4.
     {
-      const auto hidden = mdl::collectDollhouseHiddenBrushes(map, {500.0, 500.0, 300.0});
-      CHECK(hidden.contains(ceilingBrush));
-      CHECK(hidden.contains(northWall));
-      CHECK(hidden.contains(eastWall));
-      CHECK_FALSE(hidden.contains(southWall));
-      CHECK_FALSE(hidden.contains(westWall));
-      CHECK_FALSE(hidden.contains(floorBrush));
+      const auto cutaway = mdl::collectDollhouseCutaway(map, {500.0, 500.0, 300.0});
+      REQUIRE(cutaway.contains(ceilingBrush));
+      CHECK_FALSE(cutaway.at(ceilingBrush).has_value());
+      REQUIRE(cutaway.contains(northWall));
+      CHECK(cutaway.at(northWall) == expectedStubTopZ);
+      REQUIRE(cutaway.contains(eastWall));
+      CHECK(cutaway.at(eastWall) == expectedStubTopZ);
+      CHECK_FALSE(cutaway.contains(southWall));
+      CHECK_FALSE(cutaway.contains(westWall));
+      CHECK_FALSE(cutaway.contains(floorBrush));
     }
 
-    // Looking horizontally from South below ceiling: peels south wall only, keeps ceiling.
+    // Looking horizontally from South below ceiling: cuts south wall only, keeps ceiling.
     {
-      const auto hidden = mdl::collectDollhouseHiddenBrushes(map, {128.0, -200.0, 120.0});
-      CHECK_FALSE(hidden.contains(ceilingBrush));
-      CHECK(hidden.contains(southWall));
-      CHECK_FALSE(hidden.contains(northWall));
-      CHECK_FALSE(hidden.contains(westWall));
-      CHECK_FALSE(hidden.contains(eastWall));
+      const auto cutaway = mdl::collectDollhouseCutaway(map, {128.0, -200.0, 120.0});
+      CHECK_FALSE(cutaway.contains(ceilingBrush));
+      REQUIRE(cutaway.contains(southWall));
+      CHECK(cutaway.at(southWall) == expectedStubTopZ);
+      CHECK_FALSE(cutaway.contains(northWall));
+      CHECK_FALSE(cutaway.contains(westWall));
+      CHECK_FALSE(cutaway.contains(eastWall));
     }
 
-    // Directly overhead: peels ceiling only, keeps all four walls.
+    // Directly overhead: hides ceiling only, keeps all four walls full height.
     {
-      const auto hidden = mdl::collectDollhouseHiddenBrushes(map, {128.0, 128.0, 400.0});
-      CHECK(hidden.contains(ceilingBrush));
-      CHECK_FALSE(hidden.contains(southWall));
-      CHECK_FALSE(hidden.contains(northWall));
-      CHECK_FALSE(hidden.contains(westWall));
-      CHECK_FALSE(hidden.contains(eastWall));
+      const auto cutaway = mdl::collectDollhouseCutaway(map, {128.0, 128.0, 400.0});
+      REQUIRE(cutaway.contains(ceilingBrush));
+      CHECK_FALSE(cutaway.at(ceilingBrush).has_value());
+      CHECK_FALSE(cutaway.contains(southWall));
+      CHECK_FALSE(cutaway.contains(northWall));
+      CHECK_FALSE(cutaway.contains(westWall));
+      CHECK_FALSE(cutaway.contains(eastWall));
     }
 
-    // Camera inside the room: peels nothing.
+    // Camera inside the room: cuts nothing.
     {
-      const auto hidden = mdl::collectDollhouseHiddenBrushes(map, {128.0, 128.0, 128.0});
-      CHECK(hidden.empty());
+      const auto cutaway = mdl::collectDollhouseCutaway(map, {128.0, 128.0, 128.0});
+      CHECK(cutaway.empty());
     }
 
-    // Directly selecting a wall keeps it visible even from the camera-facing side.
+    // Directly selecting a wall keeps it full height even from the camera-facing side.
     {
       mdl::selectNodes(map, {const_cast<mdl::BrushNode*>(southWall)});
-      const auto hidden = mdl::collectDollhouseHiddenBrushes(map, {-200.0, -200.0, 300.0});
-      CHECK_FALSE(hidden.contains(southWall));
-      CHECK(hidden.contains(westWall));
-      CHECK(hidden.contains(ceilingBrush));
+      const auto cutaway = mdl::collectDollhouseCutaway(map, {-200.0, -200.0, 300.0});
+      CHECK_FALSE(cutaway.contains(southWall));
+      CHECK(cutaway.contains(westWall));
+      CHECK(cutaway.contains(ceilingBrush));
       mdl::deselectAll(map);
     }
 
-    // Touching room adds an interior partition wall which stays visible.
+    // Doorway lintels on a peeled exterior wall hide completely (no floating lintels).
+    {
+      auto layoutWithDoor = mdl::readRoomLayout(map).value();
+      layoutWithDoor.doors.push_back(vm::bbox3d{{96, -32, 64}, {160, 32, 176}});
+      REQUIRE(mdl::updateRoomLayout(map, layoutWithDoor).is_success());
+
+      const auto cutaway = mdl::collectDollhouseCutaway(map, {-200.0, -200.0, 300.0});
+      const auto* lintel = findWall([](const auto& b) {
+        return b.max.y() <= 0.01 && b.min.z() >= 175.99;
+      });
+      REQUIRE(lintel != nullptr);
+      REQUIRE(cutaway.contains(lintel));
+      CHECK_FALSE(cutaway.at(lintel).has_value());
+    }
+
+    // Touching room adds an interior partition wall which stays full height.
     const auto second = vm::bbox3d{{256, 0, 64}, {512, 256, 192}};
     tool.update(second);
     tool.createBrushes();
 
-    const auto hidden = mdl::collectDollhouseHiddenBrushes(map, {-200.0, -200.0, 300.0});
+    const auto cutaway = mdl::collectDollhouseCutaway(map, {-200.0, -200.0, 300.0});
     auto foundPartitionWall = false;
     for (const auto* child : wallsLayer->children())
     {
       if (const auto* brush = dynamic_cast<const mdl::BrushNode*>(child))
       {
         const auto& b = brush->logicalBounds();
-        if (b.min.x() >= 255.99 && b.max.x() <= 272.01 && b.min.y() >= -0.01 && b.max.y() <= 256.01)
+        if (
+          b.min.x() >= 255.99 && b.max.x() <= 272.01 && b.min.y() >= -0.01
+          && b.max.y() <= 256.01)
         {
           foundPartitionWall = true;
-          CHECK_FALSE(hidden.contains(brush));
+          CHECK_FALSE(cutaway.contains(brush));
         }
       }
     }

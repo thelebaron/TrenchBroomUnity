@@ -234,8 +234,9 @@ mdl::PickResult MapView3D::pick(const vm::ray3d& pickRay) const
     auto filtered = mdl::PickResult::byDistance();
     for (const auto& hit : pickResult.all())
     {
-      if (const auto faceHandle = mdl::hitToFaceHandle(hit);
-          faceHandle && m_renderer.isDollhouseHidden(*faceHandle->node()))
+      if (
+        const auto faceHandle = mdl::hitToFaceHandle(hit);
+        faceHandle && m_renderer.isDollhouseCutAway(*faceHandle->node(), hit.hitPoint()))
       {
         continue;
       }

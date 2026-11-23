@@ -21,10 +21,12 @@
 
 #include "Macros.h"
 #include "NotifierConnection.h"
+#include "mdl/RoomLayout.h"
 
 #include "vm/vec.h"
 
 #include <filesystem>
+#include <memory>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
@@ -48,6 +50,7 @@ struct SelectionChange;
 
 namespace tb::render
 {
+class BrushRenderer;
 class EntityDecalRenderer;
 class EntityLinkRenderer;
 class GroupLinkRenderer;
@@ -62,7 +65,16 @@ private:
   mdl::Map& m_map;
 
   bool m_dollhouseEnabled = false;
+  bool m_dollhouseStubsDirty = false;
+  mdl::DollhouseCutawayMap m_dollhouseCutaway;
   std::unordered_set<const mdl::BrushNode*> m_dollhouseHiddenBrushes;
+
+  struct DollhouseStubEntry
+  {
+    std::unique_ptr<mdl::BrushNode> node;
+    int renderers = 0;
+  };
+  std::unordered_map<const mdl::BrushNode*, DollhouseStubEntry> m_dollhouseStubs;
 
   std::unique_ptr<ObjectRenderer> m_defaultRenderer;
   std::unique_ptr<ObjectRenderer> m_selectionRenderer;
@@ -70,6 +82,9 @@ private:
   std::unique_ptr<ObjectRenderer> m_dollhouse2DDefaultRenderer;
   std::unique_ptr<ObjectRenderer> m_dollhouse2DSelectionRenderer;
   std::unique_ptr<ObjectRenderer> m_dollhouse2DLockedRenderer;
+  std::unique_ptr<BrushRenderer> m_dollhouse3DStubDefaultRenderer;
+  std::unique_ptr<BrushRenderer> m_dollhouse3DStubSelectionRenderer;
+  std::unique_ptr<BrushRenderer> m_dollhouse3DStubLockedRenderer;
   std::unique_ptr<EntityDecalRenderer> m_entityDecalRenderer;
   std::unique_ptr<EntityLinkRenderer> m_entityLinkRenderer;
   std::unique_ptr<GroupLinkRenderer> m_groupLinkRenderer;
@@ -100,13 +115,18 @@ public: // color config
 public: // dollhouse cutaway (3D view only)
   bool dollhouseEnabled() const;
   void setDollhouseEnabled(bool enabled);
-  bool isDollhouseHidden(const mdl::BrushNode& brushNode) const;
+  bool isDollhouseCutAway(
+    const mdl::BrushNode& brushNode, const vm::vec3d& hitPoint) const;
 
 public: // rendering
   void render(RenderContext& renderContext, RenderBatch& renderBatch);
 
 private:
   void updateDollhouseHiddenBrushes(const vm::vec3d& cameraPosition);
+  void clearDollhouseStubs();
+  void removeDollhouseStub(const mdl::BrushNode* brushNode);
+  void rebuildDollhouseStubs();
+  void setupStubRenderers();
   void reload();
   void clear();
 

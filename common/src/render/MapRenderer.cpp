@@ -236,6 +236,9 @@ MapRenderer::MapRenderer(mdl::Map& map)
   , m_dollhouse2DDefaultRenderer{createDefaultRenderer(m_map)}
   , m_dollhouse2DSelectionRenderer{createSelectionRenderer(m_map)}
   , m_dollhouse2DLockedRenderer{createLockRenderer(m_map)}
+  , m_dollhouse3DStubDefaultRenderer{std::make_unique<BrushRenderer>()}
+  , m_dollhouse3DStubSelectionRenderer{std::make_unique<BrushRenderer>()}
+  , m_dollhouse3DStubLockedRenderer{std::make_unique<BrushRenderer>()}
   , m_entityDecalRenderer{createEntityDecalRenderer(m_map)}
   , m_entityLinkRenderer{std::make_unique<EntityLinkRenderer>(m_map)}
   , m_groupLinkRenderer{std::make_unique<GroupLinkRenderer>(m_map)}
@@ -264,12 +267,16 @@ void MapRenderer::overrideSelectionColors(const Color& color, const float mix)
     renderer->setOccludedEdgeColor(occludedEdgeColor);
     renderer->setTintColor(tintColor);
   }
+  m_dollhouse3DStubSelectionRenderer->setEdgeColor(edgeColor);
+  m_dollhouse3DStubSelectionRenderer->setOccludedEdgeColor(occludedEdgeColor);
+  m_dollhouse3DStubSelectionRenderer->setTintColor(tintColor);
 }
 
 void MapRenderer::restoreSelectionColors()
 {
   setupSelectionRenderer(*m_selectionRenderer);
   setupSelectionRenderer(*m_dollhouse2DSelectionRenderer);
+  setupStubRenderers();
 }
 
 bool MapRenderer::dollhouseEnabled() const
@@ -285,48 +292,190 @@ void MapRenderer::setDollhouseEnabled(const bool enabled)
   }
 
   m_dollhouseEnabled = enabled;
-  if (!m_dollhouseEnabled && !m_dollhouseHiddenBrushes.empty())
+  if (!m_dollhouseEnabled)
   {
-    const auto oldHidden = std::move(m_dollhouseHiddenBrushes);
-    m_dollhouseHiddenBrushes.clear();
-    m_dollhouse2DDefaultRenderer->clear();
-    m_dollhouse2DSelectionRenderer->clear();
-    m_dollhouse2DLockedRenderer->clear();
+    m_dollhouseStubsDirty = false;
+    m_dollhouseCutaway.clear();
+    clearDollhouseStubs();
 
-    for (const auto* brush : oldHidden)
+    if (!m_dollhouseHiddenBrushes.empty())
     {
-      auto* node = const_cast<mdl::BrushNode*>(brush);
-      if (const auto it = m_trackedNodes.find(node); it != m_trackedNodes.end())
+      const auto oldHidden = std::move(m_dollhouseHiddenBrushes);
+      m_dollhouseHiddenBrushes.clear();
+      m_dollhouse2DDefaultRenderer->clear();
+      m_dollhouse2DSelectionRenderer->clear();
+      m_dollhouse2DLockedRenderer->clear();
+
+      for (const auto* brush : oldHidden)
       {
-        const auto renderers = it->second;
-        if (renderers & int(Renderer::Default))
+        auto* node = const_cast<mdl::BrushNode*>(brush);
+        if (const auto it = m_trackedNodes.find(node); it != m_trackedNodes.end())
         {
-          m_defaultRenderer->invalidateNode(node);
-        }
-        if (renderers & int(Renderer::Selection))
-        {
-          m_selectionRenderer->invalidateNode(node);
-        }
-        if (renderers & int(Renderer::Locked))
-        {
-          m_lockedRenderer->invalidateNode(node);
+          const auto renderers = it->second;
+          if (renderers & int(Renderer::Default))
+          {
+            m_defaultRenderer->invalidateNode(node);
+          }
+          if (renderers & int(Renderer::Selection))
+          {
+            m_selectionRenderer->invalidateNode(node);
+          }
+          if (renderers & int(Renderer::Locked))
+          {
+            m_lockedRenderer->invalidateNode(node);
+          }
         }
       }
     }
   }
+  else
+  {
+    m_dollhouseStubsDirty = true;
+  }
 }
 
-bool MapRenderer::isDollhouseHidden(const mdl::BrushNode& brushNode) const
+bool MapRenderer::isDollhouseCutAway(
+  const mdl::BrushNode& brushNode, const vm::vec3d& hitPoint) const
 {
-  return m_dollhouseEnabled && m_dollhouseHiddenBrushes.contains(&brushNode);
+  if (!m_dollhouseEnabled)
+  {
+    return false;
+  }
+  const auto it = m_dollhouseCutaway.find(&brushNode);
+  if (it == m_dollhouseCutaway.end())
+  {
+    return false;
+  }
+  if (!it->second)
+  {
+    return true;
+  }
+  return hitPoint.z() > *it->second + 0.01;
+}
+
+void MapRenderer::clearDollhouseStubs()
+{
+  m_dollhouse3DStubDefaultRenderer->clear();
+  m_dollhouse3DStubSelectionRenderer->clear();
+  m_dollhouse3DStubLockedRenderer->clear();
+  m_dollhouseStubs.clear();
+}
+
+void MapRenderer::removeDollhouseStub(const mdl::BrushNode* brushNode)
+{
+  if (const auto it = m_dollhouseStubs.find(brushNode); it != m_dollhouseStubs.end())
+  {
+    const auto* stubNode = it->second.node.get();
+    const auto renderers = it->second.renderers;
+    if (renderers & int(Renderer::Default))
+    {
+      m_dollhouse3DStubDefaultRenderer->removeBrush(stubNode);
+    }
+    if (renderers & int(Renderer::Selection))
+    {
+      m_dollhouse3DStubSelectionRenderer->removeBrush(stubNode);
+    }
+    if (renderers & int(Renderer::Locked))
+    {
+      m_dollhouse3DStubLockedRenderer->removeBrush(stubNode);
+    }
+    m_dollhouseStubs.erase(it);
+  }
+}
+
+void MapRenderer::rebuildDollhouseStubs()
+{
+  clearDollhouseStubs();
+  m_dollhouseStubsDirty = false;
+  if (!m_dollhouseEnabled)
+  {
+    return;
+  }
+
+  const auto& editorContext = m_map.editorContext();
+  for (const auto& [brushNode, stubTopZ] : m_dollhouseCutaway)
+  {
+    if (!stubTopZ || !editorContext.visible(*brushNode))
+    {
+      continue;
+    }
+
+    auto* mutableNode = const_cast<mdl::BrushNode*>(brushNode);
+    const auto it = m_trackedNodes.find(mutableNode);
+    if (it == m_trackedNodes.end() || it->second == 0)
+    {
+      continue;
+    }
+
+    auto stubBrush = mdl::createDollhouseWallStub(m_map, *brushNode, *stubTopZ);
+    if (stubBrush.is_error())
+    {
+      continue;
+    }
+
+    auto stubNode = std::make_unique<mdl::BrushNode>(std::move(stubBrush).value());
+    const auto renderers = it->second;
+    if (renderers & int(Renderer::Default))
+    {
+      m_dollhouse3DStubDefaultRenderer->addBrush(stubNode.get());
+    }
+    if (renderers & int(Renderer::Selection))
+    {
+      m_dollhouse3DStubSelectionRenderer->addBrush(stubNode.get());
+    }
+    if (renderers & int(Renderer::Locked))
+    {
+      m_dollhouse3DStubLockedRenderer->addBrush(stubNode.get());
+    }
+    m_dollhouseStubs.emplace(
+      brushNode, DollhouseStubEntry{std::move(stubNode), renderers});
+  }
+}
+
+void MapRenderer::setupStubRenderers()
+{
+  m_dollhouse3DStubDefaultRenderer->setFaceColor(pref(Preferences::FaceColor));
+  m_dollhouse3DStubDefaultRenderer->setEdgeColor(pref(Preferences::EdgeColor));
+  m_dollhouse3DStubDefaultRenderer->setShowEdges(false);
+  m_dollhouse3DStubDefaultRenderer->setTint(false);
+  m_dollhouse3DStubDefaultRenderer->setTransparencyAlpha(
+    pref(Preferences::TransparentFaceAlpha));
+
+  m_dollhouse3DStubSelectionRenderer->setFaceColor(pref(Preferences::FaceColor));
+  m_dollhouse3DStubSelectionRenderer->setEdgeColor(pref(Preferences::SelectedEdgeColor));
+  m_dollhouse3DStubSelectionRenderer->setShowEdges(true);
+  m_dollhouse3DStubSelectionRenderer->setShowOccludedEdges(true);
+  m_dollhouse3DStubSelectionRenderer->setOccludedEdgeColor(Color(
+    pref(Preferences::SelectedEdgeColor), pref(Preferences::OccludedSelectedEdgeAlpha)));
+  m_dollhouse3DStubSelectionRenderer->setTint(true);
+  m_dollhouse3DStubSelectionRenderer->setTintColor(pref(Preferences::SelectedFaceColor));
+
+  m_dollhouse3DStubLockedRenderer->setFaceColor(pref(Preferences::FaceColor));
+  m_dollhouse3DStubLockedRenderer->setEdgeColor(pref(Preferences::LockedEdgeColor));
+  m_dollhouse3DStubLockedRenderer->setShowOccludedEdges(false);
+  m_dollhouse3DStubLockedRenderer->setTint(true);
+  m_dollhouse3DStubLockedRenderer->setTintColor(pref(Preferences::LockedFaceColor));
+  m_dollhouse3DStubLockedRenderer->setTransparencyAlpha(
+    pref(Preferences::TransparentFaceAlpha));
 }
 
 void MapRenderer::updateDollhouseHiddenBrushes(const vm::vec3d& cameraPosition)
 {
-  auto newHidden = mdl::collectDollhouseHiddenBrushes(m_map, cameraPosition);
-  if (newHidden == m_dollhouseHiddenBrushes)
+  auto newCutaway = mdl::collectDollhouseCutaway(m_map, cameraPosition);
+  if (newCutaway == m_dollhouseCutaway)
   {
+    if (m_dollhouseStubsDirty)
+    {
+      rebuildDollhouseStubs();
+    }
     return;
+  }
+
+  auto newHidden = std::unordered_set<const mdl::BrushNode*>{};
+  newHidden.reserve(newCutaway.size());
+  for (const auto& [brush, stubTopZ] : newCutaway)
+  {
+    newHidden.insert(brush);
   }
 
   auto entering = std::vector<mdl::BrushNode*>{};
@@ -347,6 +496,7 @@ void MapRenderer::updateDollhouseHiddenBrushes(const vm::vec3d& cameraPosition)
     }
   }
 
+  m_dollhouseCutaway = std::move(newCutaway);
   m_dollhouseHiddenBrushes = std::move(newHidden);
 
   for (auto* node : entering)
@@ -394,6 +544,8 @@ void MapRenderer::updateDollhouseHiddenBrushes(const vm::vec3d& cameraPosition)
       }
     }
   }
+
+  rebuildDollhouseStubs();
 }
 
 void MapRenderer::render(RenderContext& renderContext, RenderBatch& renderBatch)
@@ -435,7 +587,10 @@ void MapRenderer::reload()
 
 void MapRenderer::clear()
 {
+  m_dollhouseStubsDirty = false;
+  m_dollhouseCutaway.clear();
   m_dollhouseHiddenBrushes.clear();
+  clearDollhouseStubs();
   m_defaultRenderer->clear();
   m_selectionRenderer->clear();
   m_lockedRenderer->clear();
@@ -472,7 +627,11 @@ void MapRenderer::renderDefaultOpaque(
 {
   m_defaultRenderer->setShowOverlays(renderContext.render3D());
   m_defaultRenderer->renderOpaque(renderContext, renderBatch);
-  if (renderContext.render2D() && !m_dollhouseHiddenBrushes.empty())
+  if (renderContext.render3D() && !m_dollhouseStubs.empty())
+  {
+    m_dollhouse3DStubDefaultRenderer->renderOpaque(renderContext, renderBatch);
+  }
+  else if (renderContext.render2D() && !m_dollhouseHiddenBrushes.empty())
   {
     m_dollhouse2DDefaultRenderer->setShowOverlays(false);
     m_dollhouse2DDefaultRenderer->renderOpaque(renderContext, renderBatch);
@@ -484,7 +643,11 @@ void MapRenderer::renderDefaultTransparent(
 {
   m_defaultRenderer->setShowOverlays(renderContext.render3D());
   m_defaultRenderer->renderTransparent(renderContext, renderBatch);
-  if (renderContext.render2D() && !m_dollhouseHiddenBrushes.empty())
+  if (renderContext.render3D() && !m_dollhouseStubs.empty())
+  {
+    m_dollhouse3DStubDefaultRenderer->renderTransparent(renderContext, renderBatch);
+  }
+  else if (renderContext.render2D() && !m_dollhouseHiddenBrushes.empty())
   {
     m_dollhouse2DDefaultRenderer->setShowOverlays(false);
     m_dollhouse2DDefaultRenderer->renderTransparent(renderContext, renderBatch);
@@ -497,7 +660,11 @@ void MapRenderer::renderSelectionOpaque(
   if (!renderContext.hideSelection())
   {
     m_selectionRenderer->renderOpaque(renderContext, renderBatch);
-    if (renderContext.render2D() && !m_dollhouseHiddenBrushes.empty())
+    if (renderContext.render3D() && !m_dollhouseStubs.empty())
+    {
+      m_dollhouse3DStubSelectionRenderer->renderOpaque(renderContext, renderBatch);
+    }
+    else if (renderContext.render2D() && !m_dollhouseHiddenBrushes.empty())
     {
       m_dollhouse2DSelectionRenderer->renderOpaque(renderContext, renderBatch);
     }
@@ -510,7 +677,11 @@ void MapRenderer::renderSelectionTransparent(
   if (!renderContext.hideSelection())
   {
     m_selectionRenderer->renderTransparent(renderContext, renderBatch);
-    if (renderContext.render2D() && !m_dollhouseHiddenBrushes.empty())
+    if (renderContext.render3D() && !m_dollhouseStubs.empty())
+    {
+      m_dollhouse3DStubSelectionRenderer->renderTransparent(renderContext, renderBatch);
+    }
+    else if (renderContext.render2D() && !m_dollhouseHiddenBrushes.empty())
     {
       m_dollhouse2DSelectionRenderer->renderTransparent(renderContext, renderBatch);
     }
@@ -522,7 +693,11 @@ void MapRenderer::renderLockedOpaque(
 {
   m_lockedRenderer->setShowOverlays(renderContext.render3D());
   m_lockedRenderer->renderOpaque(renderContext, renderBatch);
-  if (renderContext.render2D() && !m_dollhouseHiddenBrushes.empty())
+  if (renderContext.render3D() && !m_dollhouseStubs.empty())
+  {
+    m_dollhouse3DStubLockedRenderer->renderOpaque(renderContext, renderBatch);
+  }
+  else if (renderContext.render2D() && !m_dollhouseHiddenBrushes.empty())
   {
     m_dollhouse2DLockedRenderer->setShowOverlays(false);
     m_dollhouse2DLockedRenderer->renderOpaque(renderContext, renderBatch);
@@ -534,7 +709,11 @@ void MapRenderer::renderLockedTransparent(
 {
   m_lockedRenderer->setShowOverlays(renderContext.render3D());
   m_lockedRenderer->renderTransparent(renderContext, renderBatch);
-  if (renderContext.render2D() && !m_dollhouseHiddenBrushes.empty())
+  if (renderContext.render3D() && !m_dollhouseStubs.empty())
+  {
+    m_dollhouse3DStubLockedRenderer->renderTransparent(renderContext, renderBatch);
+  }
+  else if (renderContext.render2D() && !m_dollhouseHiddenBrushes.empty())
   {
     m_dollhouse2DLockedRenderer->setShowOverlays(false);
     m_dollhouse2DLockedRenderer->renderTransparent(renderContext, renderBatch);
@@ -570,6 +749,7 @@ void MapRenderer::setupRenderers()
   setupDefaultRenderer(*m_dollhouse2DDefaultRenderer);
   setupSelectionRenderer(*m_dollhouse2DSelectionRenderer);
   setupLockedRenderer(*m_dollhouse2DLockedRenderer);
+  setupStubRenderers();
 }
 
 void MapRenderer::setupDefaultRenderer(ObjectRenderer& renderer)
@@ -748,6 +928,7 @@ void MapRenderer::updateAndInvalidateNode(mdl::Node* node)
     updateForRenderer(Renderer::Default, m_dollhouse2DDefaultRenderer.get());
     updateForRenderer(Renderer::Selection, m_dollhouse2DSelectionRenderer.get());
     updateForRenderer(Renderer::Locked, m_dollhouse2DLockedRenderer.get());
+    m_dollhouseStubsDirty = true;
   }
 
   // Update the metadata to reflect the changes that we made above
@@ -804,6 +985,8 @@ void MapRenderer::removeNode(mdl::Node* node)
     if (const auto* brushNode = dynamic_cast<const mdl::BrushNode*>(node);
         brushNode && m_dollhouseHiddenBrushes.erase(brushNode) > 0u)
     {
+      m_dollhouseCutaway.erase(brushNode);
+      removeDollhouseStub(brushNode);
       if (renderers & int(Renderer::Default))
       {
         m_dollhouse2DDefaultRenderer->removeNode(node);
@@ -863,16 +1046,19 @@ void MapRenderer::invalidateRenderers(const Renderer renderers)
   {
     m_defaultRenderer->invalidate();
     m_dollhouse2DDefaultRenderer->invalidate();
+    m_dollhouse3DStubDefaultRenderer->invalidate();
   }
   if (int(renderers) & int(Renderer::Selection))
   {
     m_selectionRenderer->invalidate();
     m_dollhouse2DSelectionRenderer->invalidate();
+    m_dollhouse3DStubSelectionRenderer->invalidate();
   }
   if (int(renderers) & int(Renderer::Locked))
   {
     m_lockedRenderer->invalidate();
     m_dollhouse2DLockedRenderer->invalidate();
+    m_dollhouse3DStubLockedRenderer->invalidate();
   }
 }
 
@@ -1109,6 +1295,9 @@ void MapRenderer::resourcesWereProcessed(const std::vector<mdl::ResourceId>& res
   m_dollhouse2DDefaultRenderer->invalidateMaterials(materials);
   m_dollhouse2DSelectionRenderer->invalidateMaterials(materials);
   m_dollhouse2DLockedRenderer->invalidateMaterials(materials);
+  m_dollhouse3DStubDefaultRenderer->invalidateMaterials(materials);
+  m_dollhouse3DStubSelectionRenderer->invalidateMaterials(materials);
+  m_dollhouse3DStubLockedRenderer->invalidateMaterials(materials);
 
   const auto& entityModelManager = m_map.entityModelManager();
   const auto entityModels =
@@ -1124,6 +1313,8 @@ void MapRenderer::resourcesWereProcessed(const std::vector<mdl::ResourceId>& res
 
 void MapRenderer::materialCollectionsWillChange()
 {
+  clearDollhouseStubs();
+  m_dollhouseStubsDirty = true;
   invalidateRenderers(Renderer::All);
   m_previewLightRenderer->invalidateGeometry();
 }
@@ -1146,6 +1337,7 @@ void MapRenderer::modsDidChange()
 
 void MapRenderer::editorContextDidChange()
 {
+  m_dollhouseStubsDirty = true;
   invalidateRenderers(Renderer::All);
   invalidateEntityLinkRenderer();
   invalidateGroupLinkRenderer();

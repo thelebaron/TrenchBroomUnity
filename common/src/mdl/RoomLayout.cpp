@@ -20,6 +20,7 @@
 #include "RoomLayout.h"
 
 #include "mdl/Brush.h"
+#include "mdl/BrushFace.h"
 #include "mdl/BrushNode.h"
 #include "mdl/EntityNode.h"
 #include "mdl/Group.h"
@@ -361,6 +362,7 @@ namespace
 
 constexpr auto DollhouseEpsilon = 0.01;
 constexpr auto DollhouseProbe = 0.5;
+constexpr auto DollhouseWallStubFraction = 0.25;
 
 bool overlaps1D(
   const double aMin, const double aMax, const double bMin, const double bMax)
@@ -522,12 +524,50 @@ bool shouldPeelCeiling(const vm::bbox3d& ceiling, const vm::vec3d& cameraPositio
   return cameraPosition.z() > ceiling.min.z() + DollhouseEpsilon;
 }
 
+std::optional<double> stubTopZForWall(
+  const std::vector<vm::bbox3d>& spaces, const vm::bbox3d& wall)
+{
+  auto found = false;
+  auto stubTopZ = 0.0;
+
+  for (const auto& space : spaces)
+  {
+    if (!overlaps1D(wall.min.z(), wall.max.z(), space.min.z(), space.max.z()))
+    {
+      continue;
+    }
+
+    const auto nearX = wall.max.x() >= space.min.x() - DollhouseEpsilon
+                       && wall.min.x() <= space.max.x() + DollhouseEpsilon;
+    const auto nearY = wall.max.y() >= space.min.y() - DollhouseEpsilon
+                       && wall.min.y() <= space.max.y() + DollhouseEpsilon;
+    if (nearX && nearY)
+    {
+      const auto candidate =
+        space.min.z() + (space.max.z() - space.min.z()) * DollhouseWallStubFraction;
+      stubTopZ = found ? std::min(stubTopZ, candidate) : candidate;
+      found = true;
+    }
+  }
+
+  if (!found)
+  {
+    stubTopZ = wall.min.z() + (wall.max.z() - wall.min.z()) * DollhouseWallStubFraction;
+  }
+
+  if (wall.min.z() >= stubTopZ - DollhouseEpsilon)
+  {
+    return std::nullopt;
+  }
+  return stubTopZ;
+}
+
 } // namespace
 
-std::unordered_set<const BrushNode*> collectDollhouseHiddenBrushes(
+DollhouseCutawayMap collectDollhouseCutaway(
   const Map& map, const vm::vec3d& cameraPosition)
 {
-  auto result = std::unordered_set<const BrushNode*>{};
+  auto result = DollhouseCutawayMap{};
   const auto* world = map.world();
   if (!world)
   {
@@ -667,30 +707,87 @@ std::unordered_set<const BrushNode*> collectDollhouseHiddenBrushes(
   {
     if (shouldPeelCeiling(brushNode->logicalBounds(), cameraPosition))
     {
-      result.insert(brushNode);
+      result.emplace(brushNode, std::nullopt);
     }
   }
 
+  const auto addWallCutaway =
+    [&](const std::vector<vm::bbox3d>& spaces, const BrushNode* brushNode) {
+      const auto& bounds = brushNode->logicalBounds();
+      if (!shouldPeelWall(spaces, bounds, cameraPosition))
+      {
+        return;
+      }
+
+      const auto stubTopZ = stubTopZForWall(spaces, bounds);
+      if (stubTopZ && bounds.max.z() <= *stubTopZ + DollhouseEpsilon)
+      {
+        // Already at or below the 1/4 stub height; keep unmodified.
+        return;
+      }
+      result.emplace(brushNode, stubTopZ);
+    };
+
   for (const auto* brushNode : layoutWallBrushes)
   {
-    if (shouldPeelWall(layoutSpaces, brushNode->logicalBounds(), cameraPosition))
-    {
-      result.insert(brushNode);
-    }
+    addWallCutaway(layoutSpaces, brushNode);
   }
 
   for (const auto& group : roomGroups)
   {
     for (const auto* brushNode : group.walls)
     {
-      if (shouldPeelWall(group.spaces, brushNode->logicalBounds(), cameraPosition))
-      {
-        result.insert(brushNode);
-      }
+      addWallCutaway(group.spaces, brushNode);
     }
   }
 
   return result;
+}
+
+Result<Brush> createDollhouseWallStub(
+  const Map& map, const BrushNode& brushNode, const double stubTopZ)
+{
+  const auto& original = brushNode.brush();
+  const auto bounds = brushNode.logicalBounds();
+  if (
+    stubTopZ <= bounds.min.z() + DollhouseEpsilon
+    || stubTopZ >= bounds.max.z() - DollhouseEpsilon)
+  {
+    return Error{"Dollhouse stub height is outside the brush's Z range"};
+  }
+
+  const auto* sourceFace = &original.faces().front();
+  for (const auto& face : original.faces())
+  {
+    if (face.normal().z() > 0.99)
+    {
+      sourceFace = &face;
+      break;
+    }
+  }
+
+  auto topFaceResult = BrushFace::create(
+    vm::vec3d{0.0, 0.0, stubTopZ},
+    vm::vec3d{0.0, 1.0, stubTopZ},
+    vm::vec3d{1.0, 0.0, stubTopZ},
+    sourceFace->attributes(),
+    map.world()->mapFormat());
+  if (topFaceResult.is_error())
+  {
+    return std::get<Error>(topFaceResult.error());
+  }
+
+  auto topFace = std::move(topFaceResult).value();
+  topFace.setMaterial(const_cast<Material*>(sourceFace->material()));
+
+  auto stub = original;
+  if (auto clipResult = stub.clip(map.worldBounds(), std::move(topFace));
+      clipResult.is_error())
+  {
+    return std::get<Error>(clipResult.error());
+  }
+
+  return stub;
 }
 
 } // namespace tb::mdl

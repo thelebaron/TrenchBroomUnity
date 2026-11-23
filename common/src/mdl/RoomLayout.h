@@ -24,8 +24,9 @@
 
 #include "vm/vec.h"
 
+#include <optional>
 #include <string>
-#include <unordered_set>
+#include <unordered_map>
 #include <vector>
 
 namespace tb::mdl
@@ -68,11 +69,26 @@ Result<void> updateRoomLayout(
   Map& map, const RoomRecipe& layout, const RoomLightOptions& lightOptions = {});
 
 /**
- * Computes the set of room creator wall and ceiling brushes that should be peeled away
- * in dollhouse view for the given 3D camera position so the user can see inside rooms.
- * Returns an empty set when the camera is inside a room space.
+ * Per-brush cutaway result for 3D dollhouse mode:
+ * - `std::nullopt` hides the brush completely (ceilings, upper doorway lintels).
+ * - A world Z value clips the wall brush down to a Sims-style 1/4-height stub up to that
+ *   Z coordinate.
  */
-std::unordered_set<const BrushNode*> collectDollhouseHiddenBrushes(
+using DollhouseCutawayMap = std::unordered_map<const BrushNode*, std::optional<double>>;
+
+/**
+ * Computes the room creator wall and ceiling brushes that should be cut away in 3D
+ * dollhouse mode for the given camera position. Returns an empty map when the camera is
+ * inside a room space.
+ */
+DollhouseCutawayMap collectDollhouseCutaway(
   const Map& map, const vm::vec3d& cameraPosition);
+
+/**
+ * Returns a solid copy of the given wall brush clipped horizontally at `stubTopZ`,
+ * preserving its side materials and UVs with a capped top face.
+ */
+Result<Brush> createDollhouseWallStub(
+  const Map& map, const BrushNode& brushNode, double stubTopZ);
 
 } // namespace tb::mdl
