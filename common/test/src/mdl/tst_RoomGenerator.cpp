@@ -24,6 +24,8 @@
 #include "mdl/Brush.h"
 #include "mdl/BrushFace.h"
 #include "mdl/BrushNode.h"
+#include "mdl/Entity.h"
+#include "mdl/EntityNode.h"
 #include "mdl/Group.h"
 #include "mdl/GroupNode.h"
 #include "mdl/LayerNode.h"
@@ -42,6 +44,7 @@
 #include "vm/scalar.h"
 
 #include <algorithm>
+#include <array>
 #include <ranges>
 #include <sstream>
 
@@ -272,6 +275,22 @@ TEST_CASE("buildRoomShell")
     CHECK(countSurfaces(brushes, RoomSurface::Wall) == 7u);
   }
 
+  SECTION("Clips remove all solid, including floor and ceiling")
+  {
+    auto recipe = makeRecipe({vm::bbox3d{{0, 0, 0}, {128, 128, 128}}});
+    recipe.clips = {vm::bbox3d{{-64, -64, -64}, {192, 32, 192}}};
+    const auto brushes = buildRoomShell(recipe).value();
+
+    // The front wall and the front strip of floor and ceiling are gone.
+    CHECK(countBrushesAt(brushes, {64, -8, 64}) == 0u);
+    CHECK(countBrushesAt(brushes, {64, 16, -8}) == 0u);
+    CHECK(countBrushesAt(brushes, {64, 16, 136}) == 0u);
+    // Everything else is still there.
+    CHECK(countBrushesAt(brushes, {64, 64, -8}) == 1u);
+    CHECK(countBrushesAt(brushes, {-8, 64, 64}) == 1u);
+    CHECK(countBrushesAt(brushes, {64, 136, 64}) == 1u);
+  }
+
   SECTION("Doorway away from the walls has no effect")
   {
     const auto withoutDoor = makeRecipe({vm::bbox3d{{0, 0, 0}, {256, 256, 128}}});
@@ -292,6 +311,9 @@ TEST_CASE("RoomRecipe")
       {vm::bbox3d{{32, -32, 0}, {96, 16, 112}}});
     recipe.wallThickness = 24;
     recipe.generateCeiling = false;
+    recipe.clips = {vm::bbox3d{{-16, -16, -16}, {0, 128, 144}}};
+    recipe.generateLights = true;
+    recipe.lightSpacing = 192;
 
     auto group = Group{"Room"};
     CHECK_FALSE(isRoom(group));
@@ -315,6 +337,12 @@ TEST_CASE("RoomRecipe")
     SECTION("Bad box")
     {
       group.setProperty("_tb_room_spaces", "0 0 0 128 128");
+      CHECK(readRoomRecipe(group).is_error());
+    }
+
+    SECTION("Inverted box")
+    {
+      group.setProperty("_tb_room_spaces", "128 0 0 0 128 128");
       CHECK(readRoomRecipe(group).is_error());
     }
 
@@ -464,6 +492,328 @@ TEST_CASE("Room creation and rebuilding")
     deselectAll(map);
 
     CHECK(roomLocalBounds(*room, vm::bbox3d{{0, 0, 0}, {64, 64, 64}}).is_error());
+  }
+}
+
+namespace
+{
+
+std::vector<vm::bbox3d> shellBounds(const RoomRecipe& recipe)
+{
+  // Keep the result alive while iterating; a range-for over the value of a temporary
+  // would dangle.
+  const auto brushes = buildRoomShell(recipe).value();
+  auto result = std::vector<vm::bbox3d>{};
+  for (const auto& brush : brushes)
+  {
+    result.push_back(brush.bounds);
+  }
+  return result;
+}
+
+struct FloodResult
+{
+  bool leaked = false;
+  bool reached = false;
+  size_t maxOverlap = 0;
+};
+
+/**
+ * Flood fills the open space on an 8 unit lattice, starting at from. The lattice
+ * extends 32 units beyond all solids, so reaching its border means the space leaks.
+ */
+FloodResult floodFill(
+  const std::vector<vm::bbox3d>& solids, const vm::vec3d& from, const vm::vec3d& to)
+{
+  auto bounds = solids.front();
+  for (const auto& solid : solids)
+  {
+    bounds = vm::merge(bounds, solid);
+  }
+  bounds = bounds.expand(32.0);
+
+  const auto count = [&](const size_t i) {
+    return static_cast<size_t>((bounds.max[i] - bounds.min[i]) / 8.0);
+  };
+  const auto nx = count(0);
+  const auto ny = count(1);
+  const auto nz = count(2);
+  const auto point = [&](const size_t x, const size_t y, const size_t z) {
+    return bounds.min
+           + vm::vec3d{
+             double(x) * 8.0 + 4.0, double(y) * 8.0 + 4.0, double(z) * 8.0 + 4.0};
+  };
+  const auto cellOf = [&](const vm::vec3d& p) {
+    return std::array<size_t, 3>{
+      static_cast<size_t>((p.x() - bounds.min.x()) / 8.0),
+      static_cast<size_t>((p.y() - bounds.min.y()) / 8.0),
+      static_cast<size_t>((p.z() - bounds.min.z()) / 8.0)};
+  };
+  const auto solidCount = [&](const vm::vec3d& p) {
+    return static_cast<size_t>(std::ranges::count_if(
+      solids, [&](const auto& solid) { return strictlyContains(solid, p); }));
+  };
+
+  auto result = FloodResult{};
+  auto visited = std::vector<bool>(nx * ny * nz, false);
+  const auto index = [&](const auto& c) { return (c[0] * ny + c[1]) * nz + c[2]; };
+
+  for (size_t x = 0; x < nx; ++x)
+  {
+    for (size_t y = 0; y < ny; ++y)
+    {
+      for (size_t z = 0; z < nz; ++z)
+      {
+        result.maxOverlap = std::max(result.maxOverlap, solidCount(point(x, y, z)));
+      }
+    }
+  }
+
+  auto queue = std::vector<std::array<size_t, 3>>{cellOf(from)};
+  visited[index(queue.front())] = true;
+  const auto target = cellOf(to);
+  while (!queue.empty())
+  {
+    const auto cell = queue.back();
+    queue.pop_back();
+    if (cell == target)
+    {
+      result.reached = true;
+    }
+    if (
+      cell[0] == 0 || cell[1] == 0 || cell[2] == 0 || cell[0] + 1 == nx
+      || cell[1] + 1 == ny || cell[2] + 1 == nz)
+    {
+      result.leaked = true;
+      continue;
+    }
+
+    for (const auto& [dx, dy, dz] : std::array<std::array<int, 3>, 6>{
+           {{1, 0, 0}, {-1, 0, 0}, {0, 1, 0}, {0, -1, 0}, {0, 0, 1}, {0, 0, -1}}})
+    {
+      const auto next = std::array<size_t, 3>{
+        size_t(int(cell[0]) + dx), size_t(int(cell[1]) + dy), size_t(int(cell[2]) + dz)};
+      if (!visited[index(next)] && solidCount(point(next[0], next[1], next[2])) == 0)
+      {
+        visited[index(next)] = true;
+        queue.push_back(next);
+      }
+    }
+  }
+  return result;
+}
+
+RoomFootprint footprintOf(const vm::bbox3d& space)
+{
+  return RoomFootprint{{space}, 16.0, true, true};
+}
+
+/** Builds both rooms with their doorways and the corridor, then floods from A to B. */
+FloodResult checkConnection(
+  const vm::bbox3d& spaceA, const vm::bbox3d& spaceB, const CorridorPlan& plan)
+{
+  auto solids = shellBounds(makeRecipe({spaceA}, {plan.doorA}));
+  for (const auto& box : shellBounds(makeRecipe({spaceB}, {plan.doorB})))
+  {
+    solids.push_back(box);
+  }
+  if (!plan.spaces.empty())
+  {
+    auto corridor = makeRecipe(plan.spaces);
+    corridor.clips = plan.clips;
+    for (const auto& box : shellBounds(corridor))
+    {
+      solids.push_back(box);
+    }
+  }
+  return floodFill(solids, spaceA.center(), spaceB.center());
+}
+
+} // namespace
+
+TEST_CASE("planCorridor")
+{
+  const auto options = CorridorOptions{64.0, 112.0, 16.0, 16.0, true, true};
+  const auto spaceA = vm::bbox3d{{0, 0, 0}, {256, 256, 128}};
+
+  SECTION("Straight corridor between rooms facing each other")
+  {
+    const auto spaceB = vm::bbox3d{{0, 512, 0}, {256, 768, 128}};
+    const auto plan =
+      planCorridor(footprintOf(spaceA), footprintOf(spaceB), options).value();
+
+    CHECK(plan.spaces == std::vector{vm::bbox3d{{96, 272, 0}, {160, 496, 112}}});
+    CHECK(plan.doorA == vm::bbox3d{{96, 240, 0}, {160, 272, 112}});
+    CHECK(plan.doorB == vm::bbox3d{{96, 496, 0}, {160, 528, 112}});
+
+    const auto flood = checkConnection(spaceA, spaceB, plan);
+    CHECK(flood.reached);
+    CHECK_FALSE(flood.leaked);
+    CHECK(flood.maxOverlap == 1u);
+  }
+
+  SECTION("Rooms whose walls touch only get doorways")
+  {
+    const auto spaceB = vm::bbox3d{{288, 0, 0}, {544, 256, 128}};
+    const auto plan =
+      planCorridor(footprintOf(spaceA), footprintOf(spaceB), options).value();
+
+    CHECK(plan.spaces.empty());
+    const auto flood = checkConnection(spaceA, spaceB, plan);
+    CHECK(flood.reached);
+    CHECK_FALSE(flood.leaked);
+  }
+
+  SECTION("L-shaped corridor between diagonally placed rooms")
+  {
+    const auto spaceB = vm::bbox3d{{512, 512, 0}, {768, 768, 128}};
+    const auto plan =
+      planCorridor(footprintOf(spaceA), footprintOf(spaceB), options).value();
+
+    CHECK(plan.spaces.size() == 2u);
+    const auto flood = checkConnection(spaceA, spaceB, plan);
+    CHECK(flood.reached);
+    CHECK_FALSE(flood.leaked);
+    CHECK(flood.maxOverlap == 1u);
+  }
+
+  SECTION("Corridor runs at the higher floor")
+  {
+    const auto spaceB = vm::bbox3d{{0, 512, 32}, {256, 768, 160}};
+    const auto plan =
+      planCorridor(footprintOf(spaceA), footprintOf(spaceB), options).value();
+
+    REQUIRE(plan.spaces.size() == 1u);
+    CHECK(plan.spaces.front().min.z() == 32.0);
+    CHECK(plan.spaces.front().max.z() == 128.0);
+    const auto flood = checkConnection(spaceA, spaceB, plan);
+    CHECK(flood.reached);
+    CHECK_FALSE(flood.leaked);
+  }
+
+  SECTION("Rooms at unrelated heights can't be connected")
+  {
+    const auto spaceB = vm::bbox3d{{0, 512, 512}, {256, 768, 640}};
+    CHECK(planCorridor(footprintOf(spaceA), footprintOf(spaceB), options).is_error());
+  }
+
+  SECTION("Overlapping rooms can't be connected")
+  {
+    const auto spaceB = vm::bbox3d{{128, 128, 0}, {384, 384, 128}};
+    CHECK(planCorridor(footprintOf(spaceA), footprintOf(spaceB), options).is_error());
+  }
+}
+
+TEST_CASE("planRoomLights")
+{
+  SECTION("Places lights on a grid below the ceiling")
+  {
+    auto recipe = makeRecipe({vm::bbox3d{{0, 0, 0}, {512, 256, 128}}});
+    recipe.lightSpacing = 256;
+
+    const auto lights = planRoomLights(recipe);
+    REQUIRE(lights.size() == 2u);
+    CHECK(lights[0].position == vm::vec3d{128, 128, 112});
+    CHECK(lights[1].position == vm::vec3d{384, 128, 112});
+    CHECK(lights[0].range == 384.0);
+  }
+
+  SECTION("Small spaces get one light")
+  {
+    auto recipe = makeRecipe({vm::bbox3d{{0, 0, 0}, {64, 64, 128}}});
+    recipe.lightSpacing = 256;
+    CHECK(planRoomLights(recipe).size() == 1u);
+  }
+
+  SECTION("Overlapping spaces don't stack lights")
+  {
+    auto recipe = makeRecipe({
+      vm::bbox3d{{0, 0, 0}, {256, 256, 128}},
+      vm::bbox3d{{0, 0, 0}, {256, 256, 128}},
+    });
+    recipe.lightSpacing = 256;
+    CHECK(planRoomLights(recipe).size() == 1u);
+  }
+}
+
+TEST_CASE("Room lights and connections in the map")
+{
+  auto fixture = MapFixture{};
+  auto& map = fixture.map();
+  fixture.create();
+
+  const auto generatedLights = [](const GroupNode& room) {
+    auto result = std::vector<const EntityNode*>{};
+    for (const auto* child : room.children())
+    {
+      if (
+        const auto* entityNode = dynamic_cast<const EntityNode*>(child);
+        entityNode && entityNode->entity().property("_tb_room_light"))
+      {
+        result.push_back(entityNode);
+      }
+    }
+    return result;
+  };
+
+  SECTION("Lights are generated with the room and replaced on rebuild")
+  {
+    auto recipe = makeRecipe({vm::bbox3d{{0, 0, 0}, {512, 256, 128}}});
+    recipe.generateLights = true;
+    recipe.lightSpacing = 256;
+
+    auto* room =
+      createRoom(map, map.world()->defaultLayer(), recipe, RoomLightOptions{0.5, 2.0})
+        .value();
+    const auto lights = generatedLights(*room);
+    REQUIRE(lights.size() == 2u);
+    CHECK(lights[0]->entity().classname() == "light_unity");
+    CHECK(*lights[0]->entity().property("origin") == "128 128 112");
+    CHECK(*lights[0]->entity().property("range") == "192.00");
+    CHECK(*lights[0]->entity().property("intensity") == "2");
+
+    auto* handPlaced = new EntityNode{Entity{{{"classname", "light_unity"}}}};
+    addNodes(map, {{room, {handPlaced}}});
+
+    REQUIRE(rebuildRoom(map, *room, recipe, ModifiedRoomBrushes::Replace).is_success());
+    CHECK(generatedLights(*room).size() == 2u);
+    CHECK(handPlaced->parent() == room);
+
+    recipe.generateLights = false;
+    REQUIRE(rebuildRoom(map, *room, recipe, ModifiedRoomBrushes::Replace).is_success());
+    CHECK(generatedLights(*room).empty());
+    CHECK(handPlaced->parent() == room);
+  }
+
+  SECTION("connectRooms cuts doorways and adds a corridor room")
+  {
+    auto* roomA = createRoom(
+                    map,
+                    map.world()->defaultLayer(),
+                    makeRecipe({vm::bbox3d{{0, 0, 0}, {256, 256, 128}}}))
+                    .value();
+    auto* roomB = createRoom(
+                    map,
+                    map.world()->defaultLayer(),
+                    makeRecipe({vm::bbox3d{{0, 512, 0}, {256, 768, 128}}}))
+                    .value();
+
+    const auto options = CorridorOptions{64.0, 112.0, 16.0};
+    auto* corridor =
+      connectRooms(
+        map, *roomA, *roomB, makeRecipe({}), options, ModifiedRoomBrushes::Replace)
+        .value();
+
+    REQUIRE(corridor != nullptr);
+    CHECK(corridor->name() == "Corridor");
+    CHECK(collectRooms(map).size() == 3u);
+    CHECK(readRoomRecipe(roomA->group()).value().doors.size() == 1u);
+    CHECK(readRoomRecipe(roomB->group()).value().doors.size() == 1u);
+    CHECK_FALSE(readRoomRecipe(corridor->group()).value().clips.empty());
+
+    map.undoCommand();
+    CHECK(collectRooms(map).size() == 2u);
+    CHECK(readRoomRecipe(roomA->group()).value().doors.empty());
   }
 }
 

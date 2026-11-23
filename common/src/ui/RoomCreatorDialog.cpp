@@ -90,6 +90,26 @@ bool overlaps(const vm::bbox3d& lhs, const vm::bbox3d& rhs)
   return true;
 }
 
+QComboBox* createValueChoice(QWidget* parent, const std::vector<int>& values)
+{
+  auto* choice = new QComboBox{parent};
+  for (const auto value : values)
+  {
+    choice->addItem(QString::number(value), value);
+  }
+  return choice;
+}
+
+/** Selects the given value, adding it to the choices if it isn't one of them. */
+void selectValue(QComboBox* choice, const int value)
+{
+  if (choice->findData(value) < 0)
+  {
+    choice->addItem(QString::number(value), value);
+  }
+  choice->setCurrentIndex(choice->findData(value));
+}
+
 std::vector<mdl::Node*> toNodes(const std::vector<mdl::BrushNode*>& brushes)
 {
   return kdl::vec_static_cast<mdl::Node*>(brushes);
@@ -188,6 +208,32 @@ void RoomCreatorDialog::createGui()
   materialForm->addRow(tr("Floor"), m_floorMaterial);
   layout->addWidget(m_materials);
 
+  auto* lights = new QGroupBox{tr("Lights"), this};
+  auto* lightsForm = new QFormLayout{lights};
+  m_generateLights = new QCheckBox{tr("Generate lights"), lights};
+  m_generateLights->setToolTip(tr(
+    "Places light_unity lights below the ceiling of each space. They are replaced "
+    "whenever the room is rebuilt; remove a light's _tb_room_light key to keep it."));
+  m_lightSpacing = createValueChoice(lights, {128, 192, 256, 384, 512});
+  m_lightSpacing->setToolTip(tr("Approximate distance between lights"));
+  lightsForm->addRow(m_generateLights);
+  lightsForm->addRow(tr("Spacing"), m_lightSpacing);
+  layout->addWidget(lights);
+
+  auto* corridors = new QGroupBox{tr("Corridors"), this};
+  auto* corridorForm = new QFormLayout{corridors};
+  m_corridorWidth = createValueChoice(corridors, {48, 64, 96, 128, 192});
+  m_corridorHeight = createValueChoice(corridors, {96, 112, 128, 160, 192});
+  m_connectButton = new QPushButton{tr("Connect Rooms"), corridors};
+  m_connectButton->setToolTip(tr(
+    "Joins the two selected rooms with a straight or L-shaped corridor, using the "
+    "wall, material and light settings above. Rooms whose walls touch just get a "
+    "doorway."));
+  corridorForm->addRow(tr("Width"), m_corridorWidth);
+  corridorForm->addRow(tr("Height"), m_corridorHeight);
+  corridorForm->addRow(m_connectButton);
+  layout->addWidget(corridors);
+
   m_status = new QLabel{this};
   m_status->setWordWrap(true);
   layout->addWidget(m_status);
@@ -220,6 +266,16 @@ void RoomCreatorDialog::createGui()
     this,
     &RoomCreatorDialog::clearDoorways);
   connect(resetButton, &QPushButton::clicked, this, &RoomCreatorDialog::reset);
+  connect(m_connectButton, &QPushButton::clicked, this, &RoomCreatorDialog::connectRooms);
+  connect(m_generateLights, &QCheckBox::toggled, this, &RoomCreatorDialog::saveSettings);
+  for (auto* choice : {m_lightSpacing, m_corridorWidth, m_corridorHeight})
+  {
+    connect(
+      choice,
+      QOverload<int>::of(&QComboBox::currentIndexChanged),
+      this,
+      &RoomCreatorDialog::saveSettings);
+  }
   connect(
     m_modeChoice,
     QOverload<int>::of(&QComboBox::currentIndexChanged),
@@ -271,6 +327,10 @@ void RoomCreatorDialog::loadSettings()
     pref(Preferences::RoomCreatorCeilingMaterial).toStdString());
   m_floorMaterial->setMaterialName(
     pref(Preferences::RoomCreatorFloorMaterial).toStdString());
+  m_generateLights->setChecked(pref(Preferences::RoomCreatorGenerateLights));
+  selectValue(m_lightSpacing, pref(Preferences::RoomCreatorLightSpacing));
+  selectValue(m_corridorWidth, pref(Preferences::RoomCreatorCorridorWidth));
+  selectValue(m_corridorHeight, pref(Preferences::RoomCreatorCorridorHeight));
   m_updating = false;
 }
 
@@ -284,6 +344,8 @@ void RoomCreatorDialog::loadSettingsFromRoom(const mdl::RoomRecipe& recipe)
   m_wallMaterial->setMaterialName(recipe.wallMaterial);
   m_ceilingMaterial->setMaterialName(recipe.ceilingMaterial);
   m_floorMaterial->setMaterialName(recipe.floorMaterial);
+  m_generateLights->setChecked(recipe.generateLights);
+  selectValue(m_lightSpacing, recipe.lightSpacing);
   m_updating = false;
 }
 
@@ -308,6 +370,11 @@ void RoomCreatorDialog::saveSettings()
   setPref(
     Preferences::RoomCreatorFloorMaterial,
     QString::fromStdString(m_floorMaterial->materialName()));
+  setPref(Preferences::RoomCreatorGenerateLights, m_generateLights->isChecked());
+  setPref(Preferences::RoomCreatorLightSpacing, m_lightSpacing->currentData().toInt());
+  setPref(Preferences::RoomCreatorCorridorWidth, m_corridorWidth->currentData().toInt());
+  setPref(
+    Preferences::RoomCreatorCorridorHeight, m_corridorHeight->currentData().toInt());
 }
 
 void RoomCreatorDialog::populateDimensionChoice(
@@ -398,9 +465,11 @@ void RoomCreatorDialog::updateSelectionUi()
   }
   else if (boxes.empty())
   {
-    status = tr("%n room(s) selected", "", roomCount) + QStringLiteral(": ")
-             + tr("%n space(s), ", "", spaceCount) + tr("%n doorway(s).", "", doorCount)
-             + QStringLiteral(" ") + tr("Generate rebuilds with the current settings.");
+    status =
+      tr("%n room(s) selected", "", roomCount) + QStringLiteral(": ")
+      + tr("%n space(s), ", "", spaceCount) + tr("%n doorway(s).", "", doorCount)
+      + QStringLiteral(" ") + tr("Generate rebuilds with the current settings.")
+      + (rooms.size() == 2u ? QStringLiteral(" ") + tr("Connect Rooms joins them with a corridor.") : QString{});
   }
   else if (rooms.size() == 1u)
   {
@@ -420,6 +489,7 @@ void RoomCreatorDialog::updateSelectionUi()
     !(rooms.empty() && boxes.empty()) && !(rooms.size() > 1u && !boxes.empty()));
   m_addDoorwayButton->setEnabled(!boxes.empty());
   m_clearDoorwaysButton->setEnabled(doorCount > 0);
+  m_connectButton->setEnabled(rooms.size() == 2u && boxes.empty());
 }
 
 RoomCreatorDialog::RoomSelection RoomCreatorDialog::resolveSelection() const
@@ -485,6 +555,8 @@ void RoomCreatorDialog::applyUiSettings(mdl::RoomRecipe& recipe) const
   recipe.wallMaterial = materialName(m_wallMaterial);
   recipe.floorMaterial = materialName(m_floorMaterial);
   recipe.ceilingMaterial = materialName(m_ceilingMaterial);
+  recipe.generateLights = m_generateLights->isChecked();
+  recipe.lightSpacing = m_lightSpacing->currentData().toInt();
 }
 
 std::optional<mdl::ModifiedRoomBrushes> RoomCreatorDialog::askAboutModifiedBrushes(
@@ -584,7 +656,7 @@ void RoomCreatorDialog::generate()
     mdl::deselectAll(map);
     // Add the room before removing its sources so that their parent group can't become
     // empty, which would remove it.
-    auto room = mdl::createRoom(map, parent, recipe);
+    auto room = mdl::createRoom(map, parent, recipe, roomLightOptionsFromPreferences());
     if (room.is_error())
     {
       transaction.cancel();
@@ -640,7 +712,10 @@ void RoomCreatorDialog::generate()
       recipe.spaces.push_back(localSpace.value());
     }
 
-    if (auto result = mdl::rebuildRoom(map, *room, recipe, *policy); result.is_error())
+    if (
+      auto result =
+        mdl::rebuildRoom(map, *room, recipe, *policy, roomLightOptionsFromPreferences());
+      result.is_error())
     {
       transaction.cancel();
       m_frame.logger().error() << "Room creator: " << std::get<Error>(result.error()).msg;
@@ -747,7 +822,8 @@ void RoomCreatorDialog::addDoorway()
   for (size_t i = 0; i < affectedRooms.size(); ++i)
   {
     if (
-      auto result = mdl::rebuildRoom(map, *affectedRooms[i], recipes[i], *policy);
+      auto result = mdl::rebuildRoom(
+        map, *affectedRooms[i], recipes[i], *policy, roomLightOptionsFromPreferences());
       result.is_error())
     {
       transaction.cancel();
@@ -805,7 +881,8 @@ void RoomCreatorDialog::clearDoorways()
   for (size_t i = 0; i < rooms.size(); ++i)
   {
     if (
-      auto result = mdl::rebuildRoom(map, *rooms[i], recipes[i], *policy);
+      auto result = mdl::rebuildRoom(
+        map, *rooms[i], recipes[i], *policy, roomLightOptionsFromPreferences());
       result.is_error())
     {
       transaction.cancel();
@@ -824,9 +901,95 @@ void RoomCreatorDialog::reset()
   setPref(Preferences::RoomCreatorWallHeight, DefaultWallHeight);
   setPref(Preferences::RoomCreatorGenerateCeiling, true);
   setPref(Preferences::RoomCreatorGenerateFloor, true);
+  setPref(Preferences::RoomCreatorGenerateLights, false);
+  setPref(Preferences::RoomCreatorLightSpacing, 256);
+  setPref(Preferences::RoomCreatorCorridorWidth, 64);
+  setPref(Preferences::RoomCreatorCorridorHeight, 128);
   loadSettings();
   updateGridStep();
   updateModeUi();
+}
+
+void RoomCreatorDialog::connectRooms()
+{
+  auto& map = m_frame.document().map();
+  const auto selection = resolveSelection();
+  if (selection.rooms.size() != 2u || !selection.boxes.empty())
+  {
+    m_frame.logger().warn() << "Room creator: select exactly two rooms to connect";
+    return;
+  }
+
+  const auto policy = askAboutModifiedBrushes(selection.rooms);
+  if (!policy)
+  {
+    return;
+  }
+
+  auto options = mdl::CorridorOptions{};
+  options.width = static_cast<double>(m_corridorWidth->currentData().toInt());
+  options.height = static_cast<double>(m_corridorHeight->currentData().toInt());
+  options.gridSize = static_cast<double>(map.grid().actualSize());
+
+  auto transaction = mdl::Transaction{map, "Connect Rooms"};
+  mdl::deselectAll(map);
+  auto corridor = mdl::connectRooms(
+    map,
+    *selection.rooms[0],
+    *selection.rooms[1],
+    recipeFromUi(),
+    options,
+    *policy,
+    roomLightOptionsFromPreferences());
+  if (corridor.is_error())
+  {
+    transaction.cancel();
+    m_frame.logger().error() << "Room creator: " << std::get<Error>(corridor.error()).msg;
+    return;
+  }
+
+  auto rooms = selection.rooms;
+  if (corridor.value())
+  {
+    rooms.push_back(corridor.value());
+  }
+  selectRooms(rooms);
+  transaction.commit();
+
+  if (corridor.value())
+  {
+    m_frame.logger().info() << "Room creator: connected the rooms with a corridor";
+  }
+  else
+  {
+    m_frame.logger().info()
+      << "Room creator: the rooms' walls touch, so they were joined with a doorway";
+  }
+}
+
+mdl::RoomRecipe roomStyleFromPreferences(const mdl::Map& map)
+{
+  const auto materialName = [&](Preference<QString>& preference) {
+    const auto name = pref(preference).trimmed().toStdString();
+    return name.empty() ? map.currentMaterialName() : name;
+  };
+
+  auto recipe = mdl::RoomRecipe{};
+  recipe.wallThickness = std::max(1, pref(Preferences::RoomCreatorWallThickness));
+  recipe.generateFloor = pref(Preferences::RoomCreatorGenerateFloor);
+  recipe.generateCeiling = pref(Preferences::RoomCreatorGenerateCeiling);
+  recipe.wallMaterial = materialName(Preferences::RoomCreatorWallMaterial);
+  recipe.floorMaterial = materialName(Preferences::RoomCreatorFloorMaterial);
+  recipe.ceilingMaterial = materialName(Preferences::RoomCreatorCeilingMaterial);
+  recipe.generateLights = pref(Preferences::RoomCreatorGenerateLights);
+  recipe.lightSpacing = pref(Preferences::RoomCreatorLightSpacing);
+  return recipe;
+}
+
+mdl::RoomLightOptions roomLightOptionsFromPreferences()
+{
+  const auto unitScale = static_cast<double>(pref(Preferences::UnityLightUnitScale));
+  return mdl::RoomLightOptions{unitScale > 0.0 ? unitScale : 0.03125, 1.0};
 }
 
 } // namespace tb::ui

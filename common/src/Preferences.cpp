@@ -361,6 +361,10 @@ Preference<bool> RoomCreatorGenerateFloor("Room Creator/Generate floor", true);
 Preference<QString> RoomCreatorWallMaterial("Room Creator/Wall material", "");
 Preference<QString> RoomCreatorCeilingMaterial("Room Creator/Ceiling material", "");
 Preference<QString> RoomCreatorFloorMaterial("Room Creator/Floor material", "");
+Preference<bool> RoomCreatorGenerateLights("Room Creator/Generate lights", false);
+Preference<int> RoomCreatorLightSpacing("Room Creator/Light spacing", 256);
+Preference<int> RoomCreatorCorridorWidth("Room Creator/Corridor width", 64);
+Preference<int> RoomCreatorCorridorHeight("Room Creator/Corridor height", 128);
 
 const std::vector<PreferenceBase*>& staticPreferences()
 {
@@ -506,7 +510,11 @@ const std::vector<PreferenceBase*>& staticPreferences()
     &RoomCreatorGenerateFloor,
     &RoomCreatorWallMaterial,
     &RoomCreatorCeilingMaterial,
-    &RoomCreatorFloorMaterial};
+    &RoomCreatorFloorMaterial,
+    &RoomCreatorGenerateLights,
+    &RoomCreatorLightSpacing,
+    &RoomCreatorCorridorWidth,
+    &RoomCreatorCorridorHeight};
 
   return list;
 }

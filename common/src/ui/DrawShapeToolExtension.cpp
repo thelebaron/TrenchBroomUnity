@@ -154,6 +154,11 @@ DrawShapeToolExtension::DrawShapeToolExtension(mdl::Map& map)
 
 DrawShapeToolExtension::~DrawShapeToolExtension() = default;
 
+bool DrawShapeToolExtension::commitShape(const vm::bbox3d&, const ShapeParameters&)
+{
+  return false;
+}
+
 DrawShapeToolExtensionManager::DrawShapeToolExtensionManager(mdl::Map& map)
   : m_extensions{createDrawShapeToolExtensions(map)}
 {
@@ -197,6 +202,11 @@ Result<std::vector<mdl::Brush>> DrawShapeToolExtensionManager::createBrushes(
   const vm::bbox3d& bounds) const
 {
   return currentExtension().createBrushes(bounds, m_parameters);
+}
+
+bool DrawShapeToolExtensionManager::commitShape(const vm::bbox3d& bounds)
+{
+  return m_extensions[m_currentExtensionIndex]->commitShape(bounds, m_parameters);
 }
 
 } // namespace tb::ui

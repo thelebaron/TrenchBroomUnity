@@ -29,6 +29,7 @@ namespace tb::mdl
 {
 class BrushNode;
 class GroupNode;
+class Map;
 struct SelectionChange;
 } // namespace tb::mdl
 
@@ -37,6 +38,15 @@ namespace tb::ui
 class GLContextManager;
 class MapFrame;
 class MaterialSwatchButton;
+
+/**
+ * The room style (wall settings, materials and lights, but no spaces, doors or clips)
+ * from the Room Creator's saved settings. Empty materials fall back to the current one.
+ */
+mdl::RoomRecipe roomStyleFromPreferences(const mdl::Map& map);
+
+/** Light settings for generated room lights, from the preferences. */
+mdl::RoomLightOptions roomLightOptionsFromPreferences();
 
 /**
  * Creates rooms from box brushes. A room is a group that stores its recipe (spaces,
@@ -69,6 +79,11 @@ private:
   QPushButton* m_generateButton = nullptr;
   QPushButton* m_addDoorwayButton = nullptr;
   QPushButton* m_clearDoorwaysButton = nullptr;
+  QCheckBox* m_generateLights = nullptr;
+  QComboBox* m_lightSpacing = nullptr;
+  QComboBox* m_corridorWidth = nullptr;
+  QComboBox* m_corridorHeight = nullptr;
+  QPushButton* m_connectButton = nullptr;
 
   NotifierConnection m_notifierConnection;
   bool m_updating = false;
@@ -84,6 +99,7 @@ private slots:
   void generate();
   void addDoorway();
   void clearDoorways();
+  void connectRooms();
   void reset();
   void updateModeUi();
   void updateGridStep();

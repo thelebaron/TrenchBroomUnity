@@ -23,6 +23,10 @@
 #include "ui/CreateBrushesToolBase.h"
 #include "ui/DrawShapeToolExtension.h"
 
+#include "vm/bbox.h"
+
+#include <optional>
+
 namespace tb::ui
 {
 
@@ -39,7 +43,9 @@ public:
 
 private:
   DrawShapeToolExtensionManager m_extensionManager;
+  std::optional<vm::bbox3d> m_lastBounds;
 
+  bool doCommitBrushes() override;
   QWidget* doCreatePage(QWidget* parent) override;
 };
 

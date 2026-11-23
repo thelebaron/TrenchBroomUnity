@@ -22,16 +22,28 @@
 #include <QButtonGroup>
 #include <QCheckBox>
 #include <QComboBox>
+#include <QHBoxLayout>
 #include <QLabel>
 #include <QSpinBox>
 #include <QStackedWidget>
 #include <QToolButton>
 
+#include "Logger.h"
 #include "mdl/BrushBuilder.h"
+#include "mdl/EditorContext.h"
 #include "mdl/Game.h"
+#include "mdl/GroupNode.h"
 #include "mdl/Map.h"
+#include "mdl/Map_Nodes.h"
+#include "mdl/Map_Selection.h"
+#include "mdl/RoomGenerator.h"
+#include "mdl/Selection.h"
+#include "mdl/Transaction.h"
 #include "mdl/WorldNode.h"
 #include "ui/QtUtils.h"
+#include "ui/RoomCreatorDialog.h"
+
+#include <algorithm>
 
 namespace tb::ui
 {
@@ -70,6 +82,273 @@ Result<std::vector<mdl::Brush>> DrawShapeToolCuboidExtension::createBrushes(
 
   return builder.createCuboid(bounds, m_map.currentMaterialName())
     .transform([](auto brush) { return std::vector{std::move(brush)}; });
+}
+
+namespace
+{
+
+bool hasVolume(const vm::bbox3d& bounds)
+{
+  const auto size = bounds.size();
+  return size.x() > 0.0 && size.y() > 0.0 && size.z() > 0.0;
+}
+
+std::vector<mdl::GroupNode*> selectedRooms(const mdl::Map& map)
+{
+  auto result = std::vector<mdl::GroupNode*>{};
+  for (auto* node : map.selection().nodes)
+  {
+    if (
+      auto* room = mdl::findRoom(node);
+      room && std::ranges::find(result, room) == result.end())
+    {
+      result.push_back(room);
+    }
+  }
+  return result;
+}
+
+void selectRoom(mdl::Map& map, mdl::GroupNode* room)
+{
+  // Only nodes in the currently open group (or the top level) can be selected.
+  if (room->containingGroup() == map.editorContext().currentGroup())
+  {
+    mdl::selectNodes(map, {room});
+  }
+}
+
+/** The recipe of the given room with the given world space box added as a space. */
+Result<mdl::RoomRecipe> extendedRecipe(
+  const mdl::GroupNode& room, const vm::bbox3d& worldBounds)
+{
+  auto recipe = mdl::readRoomRecipe(room.group());
+  if (recipe.is_error())
+  {
+    return std::get<Error>(recipe.error());
+  }
+  auto localBounds = mdl::roomLocalBounds(room, worldBounds);
+  if (localBounds.is_error())
+  {
+    return std::get<Error>(localBounds.error());
+  }
+
+  auto result = std::move(recipe).value();
+  result.spaces.push_back(localBounds.value());
+  return result;
+}
+
+DrawShapeToolExtensionPage* createInfoPage(
+  const QString& hint, const QString& details, QWidget* parent)
+{
+  auto* page = new DrawShapeToolExtensionPage{parent};
+  auto* label = new QLabel{hint};
+  label->setToolTip(details);
+  // Insert before the page's trailing stretch, like
+  // DrawShapeToolExtensionPage::addWidget.
+  auto* layout = qobject_cast<QHBoxLayout*>(page->layout());
+  layout->insertWidget(layout->count() - 1, label, 0, Qt::AlignVCenter);
+  return page;
+}
+
+} // namespace
+
+DrawShapeToolRoomExtension::DrawShapeToolRoomExtension(mdl::Map& map)
+  : DrawShapeToolExtension{map}
+{
+}
+
+const std::string& DrawShapeToolRoomExtension::name() const
+{
+  static const auto name = std::string{"Room"};
+  return name;
+}
+
+const std::filesystem::path& DrawShapeToolRoomExtension::iconPath() const
+{
+  static const auto path = std::filesystem::path{"RoomCreator.svg"};
+  return path;
+}
+
+DrawShapeToolExtensionPage* DrawShapeToolRoomExtension::createToolPage(
+  ShapeParameters&, QWidget* parent)
+{
+  return createInfoPage(
+    QObject::tr("Drag out a room; with a room selected, drag to extend it"),
+    QObject::tr(
+      "Drag out a room's interior. With a room selected, the box is added to "
+      "that room; press Esc to deselect and start a new one. Walls, materials "
+      "and lights use the Room Creator's settings."),
+    parent);
+}
+
+Result<std::vector<mdl::Brush>> DrawShapeToolRoomExtension::createBrushes(
+  const vm::bbox3d& bounds, const ShapeParameters&) const
+{
+  if (!hasVolume(bounds))
+  {
+    return std::vector<mdl::Brush>{};
+  }
+
+  if (const auto rooms = selectedRooms(m_map); rooms.size() == 1u)
+  {
+    auto* room = rooms.front();
+    auto recipe = extendedRecipe(*room, bounds);
+    if (recipe.is_error())
+    {
+      return std::get<Error>(recipe.error());
+    }
+    return mdl::buildRoomBrushes(m_map, recipe.value(), room->group().transformation());
+  }
+
+  auto recipe = roomStyleFromPreferences(m_map);
+  recipe.spaces = {bounds};
+  return mdl::buildRoomBrushes(m_map, recipe, vm::mat4x4d::identity());
+}
+
+bool DrawShapeToolRoomExtension::commitShape(
+  const vm::bbox3d& bounds, const ShapeParameters&)
+{
+  if (!hasVolume(bounds))
+  {
+    return true;
+  }
+
+  const auto lightOptions = roomLightOptionsFromPreferences();
+  const auto rooms = selectedRooms(m_map);
+  auto transaction = mdl::Transaction{m_map, "Draw Room"};
+
+  if (rooms.size() == 1u)
+  {
+    auto* room = rooms.front();
+    auto recipe = extendedRecipe(*room, bounds);
+    auto result =
+      recipe.is_success()
+        ? mdl::rebuildRoom(
+            m_map, *room, recipe.value(), mdl::ModifiedRoomBrushes::Keep, lightOptions)
+        : Result<void>{std::get<Error>(recipe.error())};
+    if (result.is_error())
+    {
+      transaction.cancel();
+      m_map.logger().error() << "Could not extend room: "
+                             << std::get<Error>(result.error()).msg;
+      return true;
+    }
+  }
+  else
+  {
+    auto recipe = roomStyleFromPreferences(m_map);
+    recipe.spaces = {bounds};
+
+    mdl::deselectAll(m_map);
+    auto room = mdl::createRoom(m_map, mdl::parentForNodes(m_map), recipe, lightOptions);
+    if (room.is_error())
+    {
+      transaction.cancel();
+      m_map.logger().error() << "Could not create room: "
+                             << std::get<Error>(room.error()).msg;
+      return true;
+    }
+    selectRoom(m_map, room.value());
+  }
+
+  transaction.commit();
+  return true;
+}
+
+DrawShapeToolDoorwayExtension::DrawShapeToolDoorwayExtension(mdl::Map& map)
+  : DrawShapeToolExtension{map}
+{
+}
+
+const std::string& DrawShapeToolDoorwayExtension::name() const
+{
+  static const auto name = std::string{"Doorway"};
+  return name;
+}
+
+const std::filesystem::path& DrawShapeToolDoorwayExtension::iconPath() const
+{
+  static const auto path = std::filesystem::path{"ShapeTool_Doorway.svg"};
+  return path;
+}
+
+DrawShapeToolExtensionPage* DrawShapeToolDoorwayExtension::createToolPage(
+  ShapeParameters&, QWidget* parent)
+{
+  return createInfoPage(
+    QObject::tr("Drag a box through a wall to cut a doorway"),
+    QObject::tr(
+      "Drag a box through a room's wall to cut a doorway. Make it deeper than "
+      "the wall. With rooms selected, only those are cut; otherwise every room "
+      "whose walls the box crosses."),
+    parent);
+}
+
+Result<std::vector<mdl::Brush>> DrawShapeToolDoorwayExtension::createBrushes(
+  const vm::bbox3d& bounds, const ShapeParameters&) const
+{
+  if (!hasVolume(bounds))
+  {
+    return std::vector<mdl::Brush>{};
+  }
+
+  const auto builder = mdl::BrushBuilder{
+    m_map.world()->mapFormat(),
+    m_map.worldBounds(),
+    m_map.game()->config().faceAttribsConfig.defaults};
+  return builder.createCuboid(bounds, m_map.currentMaterialName())
+    .transform([](auto brush) { return std::vector{std::move(brush)}; });
+}
+
+bool DrawShapeToolDoorwayExtension::commitShape(
+  const vm::bbox3d& bounds, const ShapeParameters&)
+{
+  if (!hasVolume(bounds))
+  {
+    return true;
+  }
+
+  auto candidates = selectedRooms(m_map);
+  if (candidates.empty())
+  {
+    candidates = mdl::collectRooms(m_map);
+  }
+
+  const auto rooms = mdl::roomsCrossedBy(candidates, bounds);
+  if (rooms.empty())
+  {
+    m_map.logger().warn() << "The doorway doesn't cross any room's walls";
+    return true;
+  }
+
+  const auto lightOptions = roomLightOptionsFromPreferences();
+  auto transaction = mdl::Transaction{m_map, "Add Doorway"};
+  for (auto* room : rooms)
+  {
+    auto recipe = mdl::readRoomRecipe(room->group());
+    auto localDoor = mdl::roomLocalBounds(*room, bounds);
+    if (recipe.is_error() || localDoor.is_error())
+    {
+      transaction.cancel();
+      m_map.logger().error() << "Could not add doorway to room '" << room->name() << "'";
+      return true;
+    }
+
+    auto newRecipe = std::move(recipe).value();
+    newRecipe.doors.push_back(localDoor.value());
+    if (
+      auto result = mdl::rebuildRoom(
+        m_map, *room, newRecipe, mdl::ModifiedRoomBrushes::Keep, lightOptions);
+      result.is_error())
+    {
+      transaction.cancel();
+      m_map.logger().error() << "Could not add doorway: "
+                             << std::get<Error>(result.error()).msg;
+      return true;
+    }
+  }
+  transaction.commit();
+  return true;
 }
 
 DrawShapeToolAxisAlignedShapeExtensionPage::DrawShapeToolAxisAlignedShapeExtensionPage(
@@ -140,31 +419,33 @@ DrawShapeToolCircularShapeExtensionPage::DrawShapeToolCircularShapeExtensionPage
     QOverload<int>::of(&QSpinBox::valueChanged),
     this,
     [&](const auto numSides) {
-      m_parameters.setCircleShape(std::visit(
-        kdl::overload(
-          [&](const mdl::EdgeAlignedCircle&) -> mdl::CircleShape {
-            return mdl::EdgeAlignedCircle{size_t(numSides)};
-          },
-          [&](const mdl::VertexAlignedCircle&) -> mdl::CircleShape {
-            return mdl::VertexAlignedCircle{size_t(numSides)};
-          },
-          [&](const mdl::ScalableCircle& circleShape) -> mdl::CircleShape {
-            return circleShape;
-          }),
-        m_parameters.circleShape()));
+      m_parameters.setCircleShape(
+        std::visit(
+          kdl::overload(
+            [&](const mdl::EdgeAlignedCircle&) -> mdl::CircleShape {
+              return mdl::EdgeAlignedCircle{size_t(numSides)};
+            },
+            [&](const mdl::VertexAlignedCircle&) -> mdl::CircleShape {
+              return mdl::VertexAlignedCircle{size_t(numSides)};
+            },
+            [&](const mdl::ScalableCircle& circleShape) -> mdl::CircleShape {
+              return circleShape;
+            }),
+          m_parameters.circleShape()));
     });
   connect(
     precisionBox,
     QOverload<int>::of(&QComboBox::currentIndexChanged),
     this,
     [&](const auto precision) {
-      m_parameters.setCircleShape(std::visit(
-        kdl::overload(
-          [&](const mdl::ScalableCircle&) -> mdl::CircleShape {
-            return mdl::ScalableCircle{size_t(precision)};
-          },
-          [](const auto& circleShape) -> mdl::CircleShape { return circleShape; }),
-        m_parameters.circleShape()));
+      m_parameters.setCircleShape(
+        std::visit(
+          kdl::overload(
+            [&](const mdl::ScalableCircle&) -> mdl::CircleShape {
+              return mdl::ScalableCircle{size_t(precision)};
+            },
+            [](const auto& circleShape) -> mdl::CircleShape { return circleShape; }),
+          m_parameters.circleShape()));
     });
   connect(edgeAlignedCircleButton, &QToolButton::clicked, this, [=, this]() {
     m_parameters.setCircleShape(
@@ -497,6 +778,8 @@ std::vector<std::unique_ptr<DrawShapeToolExtension>> createDrawShapeToolExtensio
   result.push_back(std::make_unique<DrawShapeToolConeExtension>(map));
   result.push_back(std::make_unique<DrawShapeToolUVSphereExtension>(map));
   result.push_back(std::make_unique<DrawShapeToolIcoSphereExtension>(map));
+  result.push_back(std::make_unique<DrawShapeToolRoomExtension>(map));
+  result.push_back(std::make_unique<DrawShapeToolDoorwayExtension>(map));
   return result;
 }
 

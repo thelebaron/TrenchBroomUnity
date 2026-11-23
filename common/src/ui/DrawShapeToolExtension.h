@@ -110,6 +110,13 @@ public:
     ShapeParameters& parameters, QWidget* parent = nullptr) = 0;
   virtual Result<std::vector<mdl::Brush>> createBrushes(
     const vm::bbox3d& bounds, const ShapeParameters& parameters) const = 0;
+
+  /**
+   * Called when the user finishes drawing a shape. An extension that creates something
+   * other than plain brushes (such as a room group) does so here and returns true. If it
+   * returns false, the tool adds the brushes returned by createBrushes.
+   */
+  virtual bool commitShape(const vm::bbox3d& bounds, const ShapeParameters& parameters);
 };
 
 class DrawShapeToolExtensionManager
@@ -126,6 +133,7 @@ public:
 
   std::vector<DrawShapeToolExtensionPage*> createToolPages(QWidget* parent = nullptr);
   Result<std::vector<mdl::Brush>> createBrushes(const vm::bbox3d& bounds) const;
+  bool commitShape(const vm::bbox3d& bounds);
 
 private:
   ShapeParameters m_parameters;

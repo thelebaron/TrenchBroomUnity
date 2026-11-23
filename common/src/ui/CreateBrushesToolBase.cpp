@@ -48,6 +48,13 @@ const mdl::Grid& CreateBrushesToolBase::grid() const
 
 void CreateBrushesToolBase::createBrushes()
 {
+  if (!m_brushNodes.empty() && doCommitBrushes())
+  {
+    clearBrushes();
+    doBrushesWereCreated();
+    return;
+  }
+
   if (!m_brushNodes.empty())
   {
     auto nodesToAdd = kdl::vec_transform(std::move(m_brushNodes), [](auto brushNode) {
@@ -111,6 +118,11 @@ void CreateBrushesToolBase::updateBrushes(
   std::vector<std::unique_ptr<mdl::BrushNode>> brushNodes)
 {
   m_brushNodes = std::move(brushNodes);
+}
+
+bool CreateBrushesToolBase::doCommitBrushes()
+{
+  return false;
 }
 
 void CreateBrushesToolBase::doBrushesWereCreated() {}

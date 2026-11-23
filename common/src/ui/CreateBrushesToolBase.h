@@ -67,6 +67,11 @@ protected:
   void updateBrushes(std::vector<std::unique_ptr<mdl::BrushNode>> brushNodes);
 
 private:
+  /**
+   * Lets a subclass create the map objects itself instead of adding the preview
+   * brushes. Returns true if it did.
+   */
+  virtual bool doCommitBrushes();
   virtual void doBrushesWereCreated();
 
   deleteCopyAndMove(CreateBrushesToolBase);

@@ -235,6 +235,10 @@ extern Preference<bool> RoomCreatorGenerateFloor;
 extern Preference<QString> RoomCreatorWallMaterial;
 extern Preference<QString> RoomCreatorCeilingMaterial;
 extern Preference<QString> RoomCreatorFloorMaterial;
+extern Preference<bool> RoomCreatorGenerateLights;
+extern Preference<int> RoomCreatorLightSpacing;
+extern Preference<int> RoomCreatorCorridorWidth;
+extern Preference<int> RoomCreatorCorridorHeight;
 
 /**
  * Returns all Preferences declared in this file. Needed for migrating preference formats
