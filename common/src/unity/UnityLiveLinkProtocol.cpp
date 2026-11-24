@@ -136,6 +136,14 @@ Result<LiveLinkMessage> parseLiveLinkMessage(const QByteArray& line)
     }
     return LiveLinkLiveCamera{message.value("enabled").toBool()};
   }
+  if (type == "play_state")
+  {
+    if (!message.value("playing").isBool())
+    {
+      return Error{"Live link 'play_state' needs a boolean 'playing'"};
+    }
+    return LiveLinkPlayState{message.value("playing").toBool()};
+  }
   return Error{"Unknown live link message type '" + type.toStdString() + "'"};
 }
 
@@ -165,6 +173,24 @@ QByteArray serializeLiveLinkCamera(
 QByteArray serializeLiveLinkLiveCamera(const bool enabled)
 {
   return serialize({{"type", "live_camera"}, {"enabled", enabled}});
+}
+
+QByteArray serializeLiveLinkPlay(
+  const LiveLinkPlayStart& start, const std::filesystem::path& mapPath)
+{
+  return serialize({
+    {"type", "play"},
+    {"map", io::pathAsQString(mapPath)},
+    {"anchor", start.anchor == LiveLinkPlayAnchor::Eye ? "eye" : "feet"},
+    {"position", vectorToJson(start.pose.position)},
+    {"direction", vectorToJson(start.pose.direction)},
+    {"up", vectorToJson(start.pose.up)},
+  });
+}
+
+QByteArray serializeLiveLinkStop()
+{
+  return serialize({{"type", "stop"}});
 }
 
 } // namespace tb::unity

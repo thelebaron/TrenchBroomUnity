@@ -64,6 +64,11 @@ enum class PasteType;
 struct SelectionChange;
 } // namespace tb::mdl
 
+namespace tb::unity
+{
+struct LiveLinkPlayStart;
+} // namespace tb::unity
+
 namespace tb::ui
 {
 class Action;
@@ -206,8 +211,12 @@ public:
     std::unique_ptr<mdl::Game> game,
     mdl::MapFormat mapFormat,
     const std::filesystem::path& path);
-  bool saveDocument();
-  bool saveDocumentAs();
+  /**
+   * Saves the map; with unityReimport, also asks Unity to reimport it if the Unity
+   * preferences say so.
+   */
+  bool saveDocument(bool unityReimport = true);
+  bool saveDocumentAs(bool unityReimport = true);
   /**
    * Makes the map's scene camera hold the 3D camera's pose; done before every save.
    */
@@ -216,6 +225,17 @@ public:
    * Moves the 3D camera to the map's scene camera, if it has one; done on load.
    */
   void restoreSceneCamera();
+
+  /**
+   * Saves the map if it has changes and asks Unity to play it from the given start.
+   * Unity reimports the map itself, so the save doesn't ask it to.
+   */
+  bool playInUnity(const unity::LiveLinkPlayStart& start);
+  /**
+   * Stops Unity's play mode if it is playing, else plays from the 3D camera.
+   */
+  void togglePlayInUnity();
+  bool canPlayInUnity() const;
   void revertDocument();
   bool exportDocumentAsObj();
   bool exportDocumentAsMap();

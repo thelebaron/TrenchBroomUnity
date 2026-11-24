@@ -80,7 +80,12 @@ TEST_CASE("Unity live link parses control messages", "[unity-live-link]")
   REQUIRE(live.is_success());
   CHECK(std::get<LiveLinkLiveCamera>(live.value()).enabled);
 
+  const auto playState = parseLiveLinkMessage(R"({"type":"play_state","playing":true})");
+  REQUIRE(playState.is_success());
+  CHECK(std::get<LiveLinkPlayState>(playState.value()).playing);
+
   CHECK(parseLiveLinkMessage(R"({"type":"live_camera","enabled":1})").is_error());
+  CHECK(parseLiveLinkMessage(R"({"type":"play_state"})").is_error());
   CHECK(parseLiveLinkMessage(R"({"type":"unknown"})").is_error());
   CHECK(parseLiveLinkMessage(R"([1,2,3])").is_error());
   CHECK(parseLiveLinkMessage("not json").is_error());
@@ -104,6 +109,22 @@ TEST_CASE("Unity live link serializes messages as JSON lines", "[unity-live-link
   const auto live = parseJsonLine(serializeLiveLinkLiveCamera(false));
   CHECK(live.value("type").toString() == "live_camera");
   CHECK(live.value("enabled").toBool() == false);
+
+  const auto play = parseJsonLine(serializeLiveLinkPlay(
+    {{{1, 2, 3}, {0, 1, 0}, {0, 0, 1}}, LiveLinkPlayAnchor::Feet},
+    std::filesystem::path{"C:/maps/e1m1.map"}));
+  CHECK(play.value("type").toString() == "play");
+  CHECK(play.value("map").toString() == "C:/maps/e1m1.map");
+  CHECK(play.value("anchor").toString() == "feet");
+  CHECK(play.value("position").toArray() == QJsonArray{1, 2, 3});
+  CHECK(play.value("direction").toArray() == QJsonArray{0, 1, 0});
+  CHECK(play.value("up").toArray() == QJsonArray{0, 0, 1});
+
+  const auto eye = parseJsonLine(serializeLiveLinkPlay(
+    {{{0, 0, 0}, {1, 0, 0}, {0, 0, 1}}, LiveLinkPlayAnchor::Eye}, {}));
+  CHECK(eye.value("anchor").toString() == "eye");
+
+  CHECK(parseJsonLine(serializeLiveLinkStop()).value("type").toString() == "stop");
 }
 
 TEST_CASE("Unity live link camera round trips", "[unity-live-link]")

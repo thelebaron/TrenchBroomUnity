@@ -559,6 +559,45 @@ selected) and `mdl/MissingDefinitionValidator.cpp`.
 pose round trips (including straight up and down), adding, moving, deduplicating, undo
 and visibility.
 
+## 20. Play From Here
+
+**Purpose:** Go from editing to playing the map in Unity in one key, starting where you
+are looking or where you click, and come back to TrenchBroom where you stopped.
+
+**Use:** **Unity > Play in Unity** (Alt+P, and the play button on the tool bar after
+Place Decals) saves the map if it has changes and asks Unity, over the live link, to
+play with the player's eyes at the 3D camera. While Unity plays, the same action (shown
+as a stop button) stops it. Right-clicking a brush face in the 3D view offers **Play From
+Here**, which starts the player standing on that spot, facing the camera's way along the
+floor; on a wall the player starts out from it and under a ceiling below it, and drops to
+the floor. When play stops, TrenchBroom's camera moves to where the player's eyes were.
+Both need Unity connected to the live link. The Unity side assumes the open map is the
+one the game loads.
+
+**How:** The live link protocol (version 2) adds `play`, `stop` and `play_state`
+(`UnityLiveLinkProtocol.md`). `unity::playStartAtCamera` and `playStartOnSurface`
+(`UnityPlay.*`) make the start; `MapFrame::playInUnity` saves without the CLI reimport,
+since Unity refreshes its assets itself, and `AllowSetForegroundWindow` lets Unity come
+to the front. In cyberjunk, `TrenchBroomPlay` (in `com.junk.trenchbroom`, editor only)
+enters play mode, starts a game past the menu as Start Game does, waits for the level to
+finish streaming in, and moves the player by setting its components (position, yaw,
+first person camera pitch, velocity, interpolation); no game code changes. Its
+**Junk > Trenchbroom > Play From Scene Camera** menu plays from the map's `scene_camera`
+without TrenchBroom. The Unity link no longer starts in asset import workers or batch
+mode, which could take the connection from the editor.
+
+**Main files:** `common/src/unity/UnityPlay.*`, `UnityLiveLinkProtocol.*`,
+`UnityLiveLink.*`; hooks in `common/src/ui/MapFrame.*` (play, save without reimport),
+`Actions.cpp` (Play in Unity), `MapViewBase.cpp` (context menu) and the
+`PlayInUnity.svg` / `PlayInUnity_on.svg` icons.
+
+**Tests:** `common/test/src/unity/tst_UnityPlay.cpp` ([unity-play]) covers starts on
+floors, walls, ceilings and when looking straight up or down;
+`tst_UnityLiveLinkProtocol.cpp` covers the new messages. The Unity side was checked
+against the running cyberjunk editor with a stand-in for TrenchBroom: entering play,
+skipping the menu, the player's position, facing and pitch, stopping, and the camera sent
+back.
+
 ## Build and maintenance changes
 
 The fork also changes Windows build guidance, ignore rules, editor icons and toolbar
@@ -580,7 +619,7 @@ With `build-vs18` configured as described in `AGENTS.md`:
 .\test-fork.ps1 -All
 ```
 
-The runner selects `[entity-identity],[unity-workflow],[unity-live-link],[unity-catalog],[unity-decals],[decal-stamp],[unity-asset-import],[text-declutter],[unity-scene-camera]` by default, uses the configured Qt kit and sets
+The runner selects `[entity-identity],[unity-workflow],[unity-live-link],[unity-catalog],[unity-decals],[decal-stamp],[unity-asset-import],[text-declutter],[unity-scene-camera],[unity-play]` by default, uses the configured Qt kit and sets
 the executable directory as the working directory. `-All` runs the remaining full common
 suite; the removed feature tests are not part of either run.
 

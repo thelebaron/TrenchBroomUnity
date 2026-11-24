@@ -78,11 +78,13 @@
 #include "ui/GLContextManager.h"
 #include "ui/MapDocument.h"
 #include "ui/MapFrame.h"
+#include "ui/MapView3D.h"
 #include "ui/MapViewActivationTracker.h"
 #include "ui/MapViewToolBox.h"
 #include "ui/QtUtils.h"
 #include "ui/SelectionTool.h"
 #include "ui/SignalDelayer.h"
+#include "unity/UnityPlay.h"
 
 #include "kdl/string_compare.h"
 #include "kdl/string_format.h"
@@ -1487,6 +1489,19 @@ void MapViewBase::showPopupMenuLater()
         .arg(QString::fromStdString(faceHandle->face().attributes().materialName())),
       mapFrame,
       [=] { mapFrame->revealMaterial(material); });
+
+    menu.addSeparator();
+  }
+
+  if (faceHandle && dynamic_cast<const MapView3D*>(this))
+  {
+    const auto start = unity::playStartOnSurface(
+      vm::vec3f{hit.hitPoint()},
+      vm::vec3f{faceHandle->face().boundary().normal},
+      {camera().position(), camera().direction(), camera().up()});
+    auto* playAction = menu.addAction(
+      tr("Play From Here"), mapFrame, [=] { mapFrame->playInUnity(start); });
+    playAction->setEnabled(mapFrame->canPlayInUnity());
 
     menu.addSeparator();
   }

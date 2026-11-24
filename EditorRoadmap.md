@@ -13,7 +13,11 @@ a rough size (S, M, L, XL).
 
 ## 1. A faster loop from editing to playing
 
-### 1.1 Play from here (L)
+### 1.1 Play from here (L) — done
+
+Built as ForkFeatures section 20: Alt+P plays from the 3D camera, right-clicking a face
+plays from that spot, and stopping returns the camera to the player.
+
 **What:** One key saves the map, sends it to Unity over the live link, enters Play mode
 and spawns the player at the TrenchBroom camera's position and facing. Pressing Esc in
 Unity (or a key in TrenchBroom) stops play and puts the TrenchBroom camera where the

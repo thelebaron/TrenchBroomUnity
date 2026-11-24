@@ -31,7 +31,7 @@
 namespace tb::unity
 {
 
-constexpr auto LiveLinkProtocolVersion = 1;
+constexpr auto LiveLinkProtocolVersion = 2;
 
 /**
  * A camera in Quake map units: Z is up, and direction and up are unit vectors.
@@ -64,8 +64,41 @@ struct LiveLinkLiveCamera
   bool enabled = false;
 };
 
-using LiveLinkMessage =
-  std::variant<LiveLinkHello, LiveLinkCamera, LiveLinkRequestCamera, LiveLinkLiveCamera>;
+/**
+ * Unity reports entering (true) and leaving (false) play mode.
+ */
+struct LiveLinkPlayState
+{
+  bool playing = false;
+};
+
+/**
+ * What a play start's position is: where the player's eyes go, or where the player
+ * stands.
+ */
+enum class LiveLinkPlayAnchor
+{
+  Eye,
+  Feet,
+};
+
+/**
+ * Where Unity starts playing: the player is placed at the pose, facing its direction.
+ */
+struct LiveLinkPlayStart
+{
+  LiveLinkCameraPose pose;
+  LiveLinkPlayAnchor anchor = LiveLinkPlayAnchor::Eye;
+
+  bool operator==(const LiveLinkPlayStart&) const = default;
+};
+
+using LiveLinkMessage = std::variant<
+  LiveLinkHello,
+  LiveLinkCamera,
+  LiveLinkRequestCamera,
+  LiveLinkLiveCamera,
+  LiveLinkPlayState>;
 
 /**
  * Parses one JSON line sent by Unity. The line must not include the trailing newline.
@@ -77,5 +110,8 @@ QByteArray serializeLiveLinkHello(const std::filesystem::path& mapPath, bool liv
 QByteArray serializeLiveLinkCamera(
   const LiveLinkCameraPose& pose, const std::filesystem::path& mapPath);
 QByteArray serializeLiveLinkLiveCamera(bool enabled);
+QByteArray serializeLiveLinkPlay(
+  const LiveLinkPlayStart& start, const std::filesystem::path& mapPath);
+QByteArray serializeLiveLinkStop();
 
 } // namespace tb::unity

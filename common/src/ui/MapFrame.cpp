@@ -106,6 +106,7 @@
 #include "ui/ViewUtils.h"
 #include "unity/UnityIntegration.h"
 #include "unity/UnityLiveLink.h"
+#include "unity/UnityPlay.h"
 #include "unity/UnitySceneCamera.h"
 #include "upd/Updater.h"
 
@@ -472,6 +473,8 @@ void MapFrame::createToolBar()
   m_toolBar->addWidget(m_gridChoice);
   m_toolBar->addAction(findAction("Menu/View/Toggle Room Creator"));
   m_toolBar->addAction(findAction("Menu/Edit/Tools/Decal Tool"));
+  m_toolBar->addSeparator();
+  m_toolBar->addAction(findAction("Menu/Unity/Play in Unity"));
 }
 
 void MapFrame::updateToolBarWidgets()
@@ -1027,7 +1030,7 @@ Result<bool> MapFrame::openDocument(
            });
 }
 
-bool MapFrame::saveDocument()
+bool MapFrame::saveDocument(const bool unityReimport)
 {
   auto& map = m_document->map();
 
@@ -1053,10 +1056,13 @@ bool MapFrame::saveDocument()
                            endTime - startTime)
                            .count()
                       << "ms";
-      unity::triggerUnityReimport(map.path(), this);
+      if (unityReimport)
+      {
+        unity::triggerUnityReimport(map.path(), this);
+      }
       return true;
     }
-    return saveDocumentAs();
+    return saveDocumentAs(unityReimport);
   }
   catch (...)
   {
@@ -1080,6 +1086,47 @@ void MapFrame::storeSceneCamera()
   }
 }
 
+bool MapFrame::canPlayInUnity() const
+{
+  return TrenchBroomApp::instance().unityLiveLink().isConnected();
+}
+
+bool MapFrame::playInUnity(const unity::LiveLinkPlayStart& start)
+{
+  auto& liveLink = TrenchBroomApp::instance().unityLiveLink();
+  if (!liveLink.isConnected())
+  {
+    logger().warn() << "Cannot play in Unity: Unity is not connected to the live link";
+    return false;
+  }
+
+  auto& map = m_document->map();
+  if ((map.modified() || !map.persistent()) && !saveDocument(false))
+  {
+    return false;
+  }
+
+  liveLink.play(start);
+  return true;
+}
+
+void MapFrame::togglePlayInUnity()
+{
+  auto& liveLink = TrenchBroomApp::instance().unityLiveLink();
+  if (liveLink.playing())
+  {
+    liveLink.stop();
+    return;
+  }
+
+  if (auto* mapView = findChild<MapView3D*>())
+  {
+    const auto& camera = static_cast<MapViewBase*>(mapView)->camera();
+    playInUnity(
+      unity::playStartAtCamera({camera.position(), camera.direction(), camera.up()}));
+  }
+}
+
 void MapFrame::restoreSceneCamera()
 {
   const auto nodes = unity::sceneCameraNodes(m_document->map());
@@ -1093,7 +1140,7 @@ void MapFrame::restoreSceneCamera()
   }
 }
 
-bool MapFrame::saveDocumentAs()
+bool MapFrame::saveDocumentAs(const bool unityReimport)
 {
   auto& map = m_document->map();
 
@@ -1130,7 +1177,10 @@ bool MapFrame::saveDocumentAs()
                          endTime - startTime)
                          .count()
                     << "ms";
-    unity::triggerUnityReimport(map.path(), this);
+    if (unityReimport)
+    {
+      unity::triggerUnityReimport(map.path(), this);
+    }
     return true;
   }
   catch (...)

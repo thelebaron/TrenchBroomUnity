@@ -40,6 +40,11 @@
 
 #include <variant>
 
+#ifdef _WIN32
+#define NOMINMAX
+#include <windows.h>
+#endif
+
 namespace tb::unity
 {
 namespace
@@ -146,6 +151,35 @@ void UnityLiveLink::requestCamera()
   write(QByteArray{"{\"type\":\"request_camera\"}\n"});
 }
 
+void UnityLiveLink::play(const LiveLinkPlayStart& start)
+{
+#ifdef _WIN32
+  // Unity brings itself to the front to play; Windows only lets it while the foreground
+  // application allows it.
+  AllowSetForegroundWindow(ASFW_ANY);
+#endif
+  write(serializeLiveLinkPlay(start, activeMapPath()));
+}
+
+void UnityLiveLink::stop()
+{
+  write(serializeLiveLinkStop());
+}
+
+bool UnityLiveLink::playing() const
+{
+  return m_playing;
+}
+
+void UnityLiveLink::setPlaying(const bool playing)
+{
+  if (playing != m_playing)
+  {
+    m_playing = playing;
+    emit statusChanged();
+  }
+}
+
 void UnityLiveLink::preferenceDidChange(const std::filesystem::path& path)
 {
   if (path == Preferences::UnityLiveLinkSocketName.path())
@@ -169,6 +203,7 @@ void UnityLiveLink::acceptConnection()
       {
         m_client = nullptr;
         m_clientBuffer.clear();
+        m_playing = false;
         updateCameraTimer();
         emit statusChanged();
       }
@@ -192,6 +227,7 @@ void UnityLiveLink::disconnectClient()
   auto* socket = m_client;
   m_client = nullptr;
   m_clientBuffer.clear();
+  m_playing = false;
   socket->disconnect(this);
   socket->disconnectFromServer();
   socket->deleteLater();
@@ -251,7 +287,8 @@ void UnityLiveLink::handleMessage(const LiveLinkMessage& message)
         m_lastPose = std::nullopt;
         updateCameraTimer();
         emit statusChanged();
-      }),
+      },
+      [&](const LiveLinkPlayState& playState) { setPlaying(playState.playing); }),
     message);
 }
 

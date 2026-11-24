@@ -2184,6 +2184,19 @@ void ActionManager::createUnityMenu()
 {
   auto& unityMenu = createMainMenu("Unity");
   unityMenu.addItem(addAction(Action{
+    "Menu/Unity/Play in Unity",
+    QObject::tr("Play in Unity"),
+    ActionContext::Any,
+    QKeySequence{Qt::ALT | Qt::Key_P},
+    [](auto& context) { context.frame().togglePlayInUnity(); },
+    [](const auto& context) {
+      return context.hasDocument() && context.frame().canPlayInUnity();
+    },
+    [](const auto&) { return TrenchBroomApp::instance().unityLiveLink().playing(); },
+    std::filesystem::path{"PlayInUnity.svg"},
+  }));
+  unityMenu.addSeparator();
+  unityMenu.addItem(addAction(Action{
     "Menu/Unity/Send Camera to Unity",
     QObject::tr("Send Camera to Unity"),
     ActionContext::Any,

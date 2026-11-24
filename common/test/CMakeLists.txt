@@ -97,6 +97,7 @@ set(COMMON_TEST_SOURCE
         "${COMMON_TEST_SOURCE_DIR}/unity/tst_UnityDecals.cpp"
         "${COMMON_TEST_SOURCE_DIR}/unity/tst_UnityAssetImport.cpp"
         "${COMMON_TEST_SOURCE_DIR}/unity/tst_UnityLiveLinkProtocol.cpp"
+        "${COMMON_TEST_SOURCE_DIR}/unity/tst_UnityPlay.cpp"
         "${COMMON_TEST_SOURCE_DIR}/unity/tst_UnitySceneCamera.cpp"
         "${COMMON_TEST_SOURCE_DIR}/unity/tst_UnityWorkflow.cpp"
         "${COMMON_TEST_SOURCE_DIR}/mdl/tst_Game.cpp"

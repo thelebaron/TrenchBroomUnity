@@ -64,6 +64,8 @@ private:
   QTimer* m_cameraTimer = nullptr;
   QString m_listenError;
   bool m_liveCamera = false;
+  // Whether Unity is in play mode, as Unity last reported.
+  bool m_playing = false;
   // The camera last sent to or received from Unity. The live camera only sends when
   // the camera differs from this, so a camera received from Unity is never echoed back.
   std::optional<LiveLinkCameraPose> m_lastPose;
@@ -89,6 +91,17 @@ public:
   void sendCamera();
   void requestCamera();
 
+  /**
+   * Asks Unity to play the active map from the given start: Unity enters play mode, or
+   * moves the player there if it is already playing. The map should be saved first.
+   */
+  void play(const LiveLinkPlayStart& start);
+  /**
+   * Asks Unity to leave play mode. Unity then sends where the player was as a camera.
+   */
+  void stop();
+  bool playing() const;
+
 signals:
   void statusChanged();
 
@@ -96,6 +109,7 @@ private:
   void preferenceDidChange(const std::filesystem::path& path);
   void acceptConnection();
   void disconnectClient();
+  void setPlaying(bool playing);
   void readClient();
   void handleMessage(const LiveLinkMessage& message);
   void applyCamera(const LiveLinkCameraPose& pose);
