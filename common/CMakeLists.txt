@@ -537,6 +537,7 @@ set(COMMON_SOURCE
         ${COMMON_SOURCE_DIR}/unity/UnityLiveLink.cpp
         ${COMMON_SOURCE_DIR}/unity/UnityLiveLinkProtocol.cpp
         ${COMMON_SOURCE_DIR}/unity/UnityPrefabBrowser.cpp
+        ${COMMON_SOURCE_DIR}/unity/UnitySceneCamera.cpp
         ${COMMON_SOURCE_DIR}/unity/UnityPreferencePane.cpp
         ${COMMON_SOURCE_DIR}/unity/UnityWorkflow.cpp
         ${COMMON_SOURCE_DIR}/unity/UnityTextureFolders.cpp
@@ -1131,6 +1132,7 @@ set(COMMON_HEADER
         ${COMMON_SOURCE_DIR}/unity/UnityLiveLink.h
         ${COMMON_SOURCE_DIR}/unity/UnityLiveLinkProtocol.h
         ${COMMON_SOURCE_DIR}/unity/UnityPrefabBrowser.h
+        ${COMMON_SOURCE_DIR}/unity/UnitySceneCamera.h
         ${COMMON_SOURCE_DIR}/unity/UnityPreferencePane.h
         ${COMMON_SOURCE_DIR}/unity/UnityWorkflow.h
         ${COMMON_SOURCE_DIR}/unity/UnityTextureFolders.h

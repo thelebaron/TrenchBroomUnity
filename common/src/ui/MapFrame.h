@@ -208,6 +208,14 @@ public:
     const std::filesystem::path& path);
   bool saveDocument();
   bool saveDocumentAs();
+  /**
+   * Makes the map's scene camera hold the 3D camera's pose; done before every save.
+   */
+  void storeSceneCamera();
+  /**
+   * Moves the 3D camera to the map's scene camera, if it has one; done on load.
+   */
+  void restoreSceneCamera();
   void revertDocument();
   bool exportDocumentAsObj();
   bool exportDocumentAsMap();

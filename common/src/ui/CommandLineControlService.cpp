@@ -259,6 +259,7 @@ Result<void> CommandLineControlService::saveMap()
     return Error{"The active map has no save path; use saveMapAs"};
   }
 
+  frame->storeSceneCamera();
   return map.save();
 }
 
@@ -302,6 +303,7 @@ Result<std::filesystem::path> CommandLineControlService::saveMapAs(
     return Error{"The destination file already exists; set overwrite to replace it"};
   }
 
+  frame->storeSceneCamera();
   if (const auto result = map.saveAs(normalizedPath); result.is_error())
   {
     return Error{std::get<Error>(result.error()).msg};

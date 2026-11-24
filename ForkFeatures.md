@@ -535,6 +535,30 @@ on; other text (measurements, tool readouts) is unchanged.
 
 **Tests:** `common/test/src/render/tst_TextDeclutter.cpp` ([text-declutter]).
 
+## 19. Scene camera
+
+**Purpose:** Keep where the level designer was looking in the map itself, so TrenchBroom
+reopens a map at the same view and Unity knows the editor camera without the live link,
+as the base for "Play From Here".
+
+**Use:** Every saved map holds exactly one `scene_camera` point entity in the default
+layer: its `origin` and `angles` (pitch yaw roll, positive pitch down, as for decals) are
+the 3D camera's pose. Saving (Save, Save As and the command-line control `saveMap` /
+`saveMapAs`) moves it to the 3D camera, adding it if the map has none and removing all
+but the first if pasting brought in more; it is one undoable "Update Scene Camera" step
+and is skipped when the camera hasn't moved. Opening a map moves the 3D camera to it. It
+needs no entity definition (no missing definition issue) and is neither drawn nor
+picked unless selected, since the 3D camera already shows where it is.
+
+**Main files:** `common/src/unity/UnitySceneCamera.*`; hooks in
+`common/src/ui/MapFrame.cpp` (`storeSceneCamera` before saving, `restoreSceneCamera` on
+load), `CommandLineControlService.cpp` (saves), `mdl/EditorContext.cpp` (hidden unless
+selected) and `mdl/MissingDefinitionValidator.cpp`.
+
+**Tests:** `common/test/src/unity/tst_UnitySceneCamera.cpp` ([unity-scene-camera]):
+pose round trips (including straight up and down), adding, moving, deduplicating, undo
+and visibility.
+
 ## Build and maintenance changes
 
 The fork also changes Windows build guidance, ignore rules, editor icons and toolbar
@@ -556,7 +580,7 @@ With `build-vs18` configured as described in `AGENTS.md`:
 .\test-fork.ps1 -All
 ```
 
-The runner selects `[entity-identity],[unity-workflow],[unity-live-link],[unity-catalog],[unity-decals],[decal-stamp],[unity-asset-import],[text-declutter]` by default, uses the configured Qt kit and sets
+The runner selects `[entity-identity],[unity-workflow],[unity-live-link],[unity-catalog],[unity-decals],[decal-stamp],[unity-asset-import],[text-declutter],[unity-scene-camera]` by default, uses the configured Qt kit and sets
 the executable directory as the working directory. `-All` runs the remaining full common
 suite; the removed feature tests are not part of either run.
 

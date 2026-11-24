@@ -74,6 +74,7 @@
 #include "mdl/PatchNode.h"
 #include "mdl/Resource.h"
 #include "mdl/WorldNode.h"
+#include "render/Camera.h"
 #include "ui/ActionBuilder.h"
 #include "ui/Actions.h"
 #include "ui/ChoosePathTypeDialog.h"
@@ -90,6 +91,7 @@
 #include "ui/LaunchGameEngineDialog.h"
 #include "ui/MapDocument.h"
 #include "ui/MapView2D.h"
+#include "ui/MapView3D.h"
 #include "ui/MapViewBase.h"
 #include "ui/MapViewToolBox.h"
 #include "ui/ObjExportDialog.h"
@@ -104,6 +106,7 @@
 #include "ui/ViewUtils.h"
 #include "unity/UnityIntegration.h"
 #include "unity/UnityLiveLink.h"
+#include "unity/UnitySceneCamera.h"
 #include "upd/Updater.h"
 
 #include "kdl/const_overload.h"
@@ -793,6 +796,7 @@ void MapFrame::mapWasLoaded(mdl::Map&)
   {
     m_roomCreatorDialog->mapDidChange();
   }
+  restoreSceneCamera();
   updateTitle();
   updateActionState();
   updateUndoRedoActions();
@@ -1031,6 +1035,7 @@ bool MapFrame::saveDocument()
   {
     if (map.persistent())
     {
+      storeSceneCamera();
       const auto startTime = std::chrono::high_resolution_clock::now();
       if (const auto result = map.save(); result.is_error())
       {
@@ -1064,6 +1069,30 @@ bool MapFrame::saveDocument()
   }
 }
 
+void MapFrame::storeSceneCamera()
+{
+  if (auto* mapView = findChild<MapView3D*>())
+  {
+    const auto& camera = static_cast<MapViewBase*>(mapView)->camera();
+    unity::updateSceneCamera(
+      m_document->map(),
+      unity::LiveLinkCameraPose{camera.position(), camera.direction(), camera.up()});
+  }
+}
+
+void MapFrame::restoreSceneCamera()
+{
+  const auto nodes = unity::sceneCameraNodes(m_document->map());
+  auto* mapView = findChild<MapView3D*>();
+  if (!nodes.empty() && mapView)
+  {
+    const auto pose = unity::sceneCameraPose(nodes.front()->entity());
+    auto& camera = static_cast<MapViewBase*>(mapView)->camera();
+    camera.moveTo(pose.position);
+    camera.setDirection(pose.direction, pose.up);
+  }
+}
+
 bool MapFrame::saveDocumentAs()
 {
   auto& map = m_document->map();
@@ -1083,6 +1112,7 @@ bool MapFrame::saveDocumentAs()
 
     const auto path = io::pathFromQString(newFileName);
 
+    storeSceneCamera();
     const auto startTime = std::chrono::high_resolution_clock::now();
     if (const auto result = map.saveAs(path); result.is_error())
     {

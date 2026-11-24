@@ -32,6 +32,7 @@
 #include "mdl/Node.h"
 #include "mdl/PatchNode.h"
 #include "mdl/WorldNode.h"
+#include "unity/UnitySceneCamera.h"
 
 namespace tb::mdl
 {
@@ -177,6 +178,12 @@ bool EditorContext::visible(const EntityNode& entityNode) const
   if (entityNode.selected())
   {
     return true;
+  }
+
+  // the 3D camera already shows where it is
+  if (unity::isSceneCameraEntity(entityNode.entity()))
+  {
+    return false;
   }
 
   if (!entityNode.entity().pointEntity())

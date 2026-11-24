@@ -23,6 +23,7 @@
 #include "mdl/EntityNodeBase.h"
 #include "mdl/Issue.h"
 #include "mdl/IssueQuickFix.h"
+#include "unity/UnitySceneCamera.h"
 
 #include <string>
 #include <vector>
@@ -43,7 +44,10 @@ MissingDefinitionValidator::MissingDefinitionValidator()
 void MissingDefinitionValidator::doValidate(
   EntityNodeBase& entityNode, std::vector<std::unique_ptr<Issue>>& issues) const
 {
-  if (entityNode.entity().definition() == nullptr)
+  // the scene camera needs no definition
+  if (
+    entityNode.entity().definition() == nullptr
+    && !unity::isSceneCameraEntity(entityNode.entity()))
   {
     issues.push_back(std::make_unique<Issue>(
       Type, entityNode, entityNode.name() + " not found in entity definitions"));
