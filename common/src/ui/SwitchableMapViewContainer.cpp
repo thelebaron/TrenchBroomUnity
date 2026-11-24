@@ -195,6 +195,21 @@ void SwitchableMapViewContainer::toggleRoomDrawTool()
   m_toolBox->toggleRoomDrawTool();
 }
 
+void SwitchableMapViewContainer::stampDecal(const std::string& decalId)
+{
+  m_toolBox->stampDecal(decalId);
+}
+
+void SwitchableMapViewContainer::toggleDecalTool()
+{
+  m_toolBox->toggleDecalStampTool();
+}
+
+bool SwitchableMapViewContainer::decalToolActive() const
+{
+  return m_toolBox->decalStampToolActive();
+}
+
 bool SwitchableMapViewContainer::dollhouseEnabled() const
 {
   return m_mapRenderer->dollhouseEnabled();

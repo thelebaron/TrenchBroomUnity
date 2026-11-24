@@ -38,6 +38,7 @@
 #include "ui/MapDocument.h"
 #include "ui/MapFrame.h"
 #include "ui/MapViewBase.h"
+#include "unity/UnityAssetImportDialogs.h"
 #include "unity/UnityCatalog.h"
 #include "unity/UnityLiveLink.h"
 
@@ -1573,6 +1574,17 @@ void ActionManager::createEditMenu()
     std::filesystem::path{"ClipTool.svg"},
   }));
   toolMenu.addItem(addAction(Action{
+    "Menu/Edit/Tools/Decal Tool",
+    QObject::tr("Decal Tool"),
+    ActionContext::Any,
+    QKeySequence{},
+    [](auto& context) { context.frame().toggleDecalTool(); },
+    [](const auto& context) { return context.hasDocument(); },
+    [](const auto& context) {
+      return context.hasDocument() && context.frame().decalToolActive();
+    },
+  }));
+  toolMenu.addItem(addAction(Action{
     "Menu/Edit/Tools/Rotate Tool",
     QObject::tr("Rotate Tool"),
     ActionContext::Any,
@@ -2211,6 +2223,32 @@ void ActionManager::createUnityMenu()
     ActionContext::Any,
     QKeySequence{},
     [](auto& context) { unity::updatePrefabEntitiesFromCatalog(context.map()); },
+    [](const auto& context) { return context.hasDocument(); },
+  }));
+  unityMenu.addSeparator();
+  unityMenu.addItem(addAction(Action{
+    "Menu/Unity/Import Textures into Unity",
+    QObject::tr("Import Textures into Unity..."),
+    ActionContext::Any,
+    QKeySequence{},
+    [](auto& context) {
+      auto& frame = context.frame();
+      unity::importTexturesInteractively(
+        &frame,
+        unity::chooseImageFiles(&frame, QObject::tr("Import Textures into Unity")));
+    },
+    [](const auto& context) { return context.hasDocument(); },
+  }));
+  unityMenu.addItem(addAction(Action{
+    "Menu/Unity/Import Decals into Unity",
+    QObject::tr("Import Decals into Unity..."),
+    ActionContext::Any,
+    QKeySequence{},
+    [](auto& context) {
+      auto& frame = context.frame();
+      unity::importDecalsInteractively(
+        &frame, unity::chooseImageFiles(&frame, QObject::tr("Import Decals into Unity")));
+    },
     [](const auto& context) { return context.hasDocument(); },
   }));
 }

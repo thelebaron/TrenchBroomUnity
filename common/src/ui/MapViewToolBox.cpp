@@ -23,6 +23,7 @@
 #include "ui/AssembleBrushTool.h"
 #include "ui/ClipTool.h"
 #include "ui/CreateEntityTool.h"
+#include "ui/DecalStampTool.h"
 #include "ui/DrawShapeTool.h"
 #include "ui/EdgeTool.h"
 #include "ui/ExtrudeTool.h"
@@ -121,6 +122,11 @@ RoomDrawTool& MapViewToolBox::roomDrawTool()
 PaintRollerTool& MapViewToolBox::paintRollerTool()
 {
   return *m_paintRollerTool;
+}
+
+DecalStampTool& MapViewToolBox::decalStampTool()
+{
+  return *m_decalStampTool;
 }
 
 void MapViewToolBox::toggleAssembleBrushTool()
@@ -280,11 +286,30 @@ bool MapViewToolBox::paintRollerToolActive() const
   return m_paintRollerTool->active();
 }
 
+void MapViewToolBox::stampDecal(const std::string& decalId)
+{
+  decalStampTool().setDecal(decalId);
+  if (!decalStampToolActive())
+  {
+    toggleTool(decalStampTool());
+  }
+}
+
+void MapViewToolBox::toggleDecalStampTool()
+{
+  toggleTool(decalStampTool());
+}
+
+bool MapViewToolBox::decalStampToolActive() const
+{
+  return m_decalStampTool->active();
+}
+
 bool MapViewToolBox::anyModalToolActive() const
 {
   return rotateToolActive() || scaleToolActive() || shearToolActive()
          || anyVertexToolActive() || marqueeSelectToolActive() || roomDrawToolActive()
-         || paintRollerToolActive();
+         || paintRollerToolActive() || decalStampToolActive();
 }
 
 void MapViewToolBox::moveVertices(const vm::vec3d& delta)
@@ -321,6 +346,7 @@ void MapViewToolBox::createTools(QStackedLayout* bookCtrl)
   m_marqueeSelectTool = std::make_unique<MarqueeSelectTool>(m_map);
   m_roomDrawTool = std::make_unique<RoomDrawTool>(m_map);
   m_paintRollerTool = std::make_unique<PaintRollerTool>(m_map);
+  m_decalStampTool = std::make_unique<DecalStampTool>(m_map);
 
   addExclusiveToolGroup(
     assembleBrushTool(),
@@ -332,7 +358,8 @@ void MapViewToolBox::createTools(QStackedLayout* bookCtrl)
     clipTool(),
     marqueeSelectTool(),
     roomDrawTool(),
-    paintRollerTool());
+    paintRollerTool(),
+    decalStampTool());
 
   addExclusiveToolGroup(
     assembleBrushTool(),
@@ -342,7 +369,8 @@ void MapViewToolBox::createTools(QStackedLayout* bookCtrl)
     clipTool(),
     marqueeSelectTool(),
     roomDrawTool(),
-    paintRollerTool());
+    paintRollerTool(),
+    decalStampTool());
 
   suppressWhileActive(
     assembleBrushTool(), moveObjectsTool(), extrudeTool(), drawShapeTool());
@@ -358,6 +386,8 @@ void MapViewToolBox::createTools(QStackedLayout* bookCtrl)
   suppressWhileActive(
     paintRollerTool(), moveObjectsTool(), extrudeTool(), drawShapeTool());
   suppressWhileActive(roomDrawTool(), moveObjectsTool(), extrudeTool(), drawShapeTool());
+  suppressWhileActive(
+    decalStampTool(), moveObjectsTool(), extrudeTool(), drawShapeTool());
 
   registerTool(marqueeSelectTool(), bookCtrl);
   registerTool(roomDrawTool(), bookCtrl);
@@ -372,6 +402,7 @@ void MapViewToolBox::createTools(QStackedLayout* bookCtrl)
   registerTool(edgeTool(), bookCtrl);
   registerTool(faceTool(), bookCtrl);
   registerTool(paintRollerTool(), bookCtrl);
+  registerTool(decalStampTool(), bookCtrl);
   registerTool(createEntityTool(), bookCtrl);
   registerTool(drawShapeTool(), bookCtrl);
 
@@ -441,6 +472,10 @@ void MapViewToolBox::updateToolPage()
   else if (roomDrawToolActive())
   {
     roomDrawTool().showPage();
+  }
+  else if (decalStampToolActive())
+  {
+    decalStampTool().showPage();
   }
   else if (rotateToolActive())
   {

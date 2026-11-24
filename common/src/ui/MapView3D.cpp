@@ -19,6 +19,8 @@
 
 #include "MapView3D.h"
 
+#include <QKeyEvent>
+
 #include "PreferenceManager.h"
 #include "Preferences.h"
 #include "mdl/BezierPatch.h"
@@ -47,6 +49,7 @@
 #include "ui/CameraTool3D.h"
 #include "ui/ClipToolController.h"
 #include "ui/CreateEntityToolController.h"
+#include "ui/DecalStampTool.h"
 #include "ui/DrawShapeToolController3D.h"
 #include "ui/EdgeTool.h"
 #include "ui/EdgeToolController.h"
@@ -58,10 +61,10 @@
 #include "ui/MapDocument.h"
 #include "ui/MapViewToolBox.h"
 #include "ui/MarqueeSelectTool.h"
-#include "ui/RoomDrawTool.h"
 #include "ui/MoveObjectsToolController.h"
 #include "ui/PaintRollerTool.h"
 #include "ui/PrefabDropController.h"
+#include "ui/RoomDrawTool.h"
 #include "ui/RotateToolController.h"
 #include "ui/ScaleToolController.h"
 #include "ui/SelectionTool.h"
@@ -75,6 +78,7 @@
 #include "vm/util.h"
 
 #include <algorithm>
+#include <optional>
 
 namespace tb::ui
 {
@@ -111,6 +115,8 @@ void MapView3D::initializeToolChain(MapViewToolBox& toolBox)
   auto& map = m_document.map();
 
   addToolController(std::make_unique<CameraTool3D>(*m_camera));
+  // before the move tool, so dragging a selected decal slides it over surfaces
+  addToolController(std::make_unique<DecalEditController>(toolBox.decalStampTool()));
   addToolController(
     std::make_unique<MoveObjectsToolController>(toolBox.moveObjectsTool()));
   addToolController(std::make_unique<RotateToolController3D>(toolBox.rotateTool()));
@@ -132,6 +138,7 @@ void MapView3D::initializeToolChain(MapViewToolBox& toolBox)
   addToolController(
     std::make_unique<MarqueeSelectToolController>(toolBox.marqueeSelectTool()));
   addToolController(std::make_unique<RoomDrawToolController>(toolBox.roomDrawTool()));
+  addToolController(std::make_unique<DecalStampToolController>(toolBox.decalStampTool()));
   addToolController(std::make_unique<SelectionTool>(map));
   addToolController(
     std::make_unique<DrawShapeToolController3D>(toolBox.drawShapeTool(), map));
@@ -165,8 +172,66 @@ void MapView3D::preferenceDidChange(const std::filesystem::path& path)
   }
 }
 
+namespace
+{
+/**
+ * While the decal tool is active, holding W, E or R (with or without Shift) moves, scales
+ * or turns decals by dragging, instead of flying forward or toggling the Rotate and Edge
+ * tools.
+ */
+std::optional<DecalManipulation> decalManipulationKey(
+  const QKeyEvent& event, const DecalStampTool& tool, const mdl::Map& map)
+{
+  const auto modifiers = event.modifiers() & ~Qt::KeypadModifier;
+  if (
+    !(tool.active() || onlyDecalsSelected(map))
+    || (modifiers != Qt::NoModifier && modifiers != Qt::ShiftModifier))
+  {
+    return std::nullopt;
+  }
+
+  switch (event.key())
+  {
+  case Qt::Key_W:
+    return DecalManipulation::Translate;
+  case Qt::Key_E:
+    return DecalManipulation::Scale;
+  case Qt::Key_R:
+    return DecalManipulation::Rotate;
+  default:
+    return std::nullopt;
+  }
+}
+} // namespace
+
+bool MapView3D::event(QEvent* event)
+{
+  // accepting the override keeps the W, E and R shortcuts from firing, so the keys reach
+  // keyPressEvent
+  if (
+    event->type() == QEvent::ShortcutOverride
+    && decalManipulationKey(
+      *static_cast<QKeyEvent*>(event), m_toolBox.decalStampTool(), m_document.map()))
+  {
+    event->accept();
+    return true;
+  }
+
+  return MapViewBase::event(event);
+}
+
 void MapView3D::keyPressEvent(QKeyEvent* event)
 {
+  auto& decalTool = m_toolBox.decalStampTool();
+  if (const auto manipulation = decalManipulationKey(*event, decalTool, m_document.map()))
+  {
+    if (!event->isAutoRepeat())
+    {
+      decalTool.setManipulation(*manipulation);
+    }
+    return;
+  }
+
   m_flyModeHelper->keyDown(event);
 
   MapViewBase::keyPressEvent(event);
@@ -174,6 +239,16 @@ void MapView3D::keyPressEvent(QKeyEvent* event)
 
 void MapView3D::keyReleaseEvent(QKeyEvent* event)
 {
+  auto& decalTool = m_toolBox.decalStampTool();
+  if (const auto manipulation = decalManipulationKey(*event, decalTool, m_document.map()))
+  {
+    if (!event->isAutoRepeat() && decalTool.manipulation() == *manipulation)
+    {
+      decalTool.setManipulation(DecalManipulation::None);
+    }
+    return;
+  }
+
   m_flyModeHelper->keyUp(event);
 
   MapViewBase::keyReleaseEvent(event);
@@ -189,6 +264,7 @@ void MapView3D::focusInEvent(QFocusEvent* event)
 void MapView3D::focusOutEvent(QFocusEvent* event)
 {
   m_flyModeHelper->resetKeys();
+  m_toolBox.decalStampTool().setManipulation(DecalManipulation::None);
 
   MapViewBase::focusOutEvent(event);
 }
@@ -594,8 +670,9 @@ void MapView3D::renderMap(
   renderer.render(renderContext, renderBatch);
 
   const auto& map = m_document.map();
+  // selected decals are outlined on their surfaces; a bounds box would look like a brush
   if (const auto& bounds = map.selectionBounds();
-      bounds && renderContext.showSelectionGuide())
+      bounds && renderContext.showSelectionGuide() && !onlyDecalsSelected(map))
   {
     auto boundsRenderer = render::SelectionBoundsRenderer{*bounds};
     boundsRenderer.render(renderContext, renderBatch);

@@ -466,6 +466,8 @@ set(COMMON_SOURCE
         ${COMMON_SOURCE_DIR}/ui/ReplaceMaterialDialog.cpp
         ${COMMON_SOURCE_DIR}/ui/RoomCreatorDialog.cpp
         ${COMMON_SOURCE_DIR}/ui/RoomDrawTool.cpp
+        ${COMMON_SOURCE_DIR}/ui/DecalStampTool.cpp
+        ${COMMON_SOURCE_DIR}/ui/ImageViewerDialog.cpp
         ${COMMON_SOURCE_DIR}/ui/RotateHandle.cpp
         ${COMMON_SOURCE_DIR}/ui/RotateTool.cpp
         ${COMMON_SOURCE_DIR}/ui/RotateToolController.cpp
@@ -526,6 +528,11 @@ set(COMMON_SOURCE
         ${COMMON_SOURCE_DIR}/ui/WelcomeWindow.cpp
         ${COMMON_SOURCE_DIR}/unity/UnityCatalog.cpp
         ${COMMON_SOURCE_DIR}/unity/UnityCatalogWatcher.cpp
+        ${COMMON_SOURCE_DIR}/unity/UnityAssetImport.cpp
+        ${COMMON_SOURCE_DIR}/unity/UnityAssetImportDialogs.cpp
+        ${COMMON_SOURCE_DIR}/unity/UnityDecalBrowser.cpp
+        ${COMMON_SOURCE_DIR}/unity/UnityDecalLibrary.cpp
+        ${COMMON_SOURCE_DIR}/unity/UnityDecals.cpp
         ${COMMON_SOURCE_DIR}/unity/UnityIntegration.cpp
         ${COMMON_SOURCE_DIR}/unity/UnityLiveLink.cpp
         ${COMMON_SOURCE_DIR}/unity/UnityLiveLinkProtocol.cpp
@@ -1051,6 +1058,8 @@ set(COMMON_HEADER
         ${COMMON_SOURCE_DIR}/ui/ReplaceMaterialDialog.h
         ${COMMON_SOURCE_DIR}/ui/RoomCreatorDialog.h
         ${COMMON_SOURCE_DIR}/ui/RoomDrawTool.h
+        ${COMMON_SOURCE_DIR}/ui/DecalStampTool.h
+        ${COMMON_SOURCE_DIR}/ui/ImageViewerDialog.h
         ${COMMON_SOURCE_DIR}/ui/RotateHandle.h
         ${COMMON_SOURCE_DIR}/ui/RotateTool.h
         ${COMMON_SOURCE_DIR}/ui/RotateToolController.h
@@ -1113,6 +1122,11 @@ set(COMMON_HEADER
         ${COMMON_SOURCE_DIR}/ui/WelcomeWindow.h
         ${COMMON_SOURCE_DIR}/unity/UnityCatalog.h
         ${COMMON_SOURCE_DIR}/unity/UnityCatalogWatcher.h
+        ${COMMON_SOURCE_DIR}/unity/UnityAssetImport.h
+        ${COMMON_SOURCE_DIR}/unity/UnityAssetImportDialogs.h
+        ${COMMON_SOURCE_DIR}/unity/UnityDecalBrowser.h
+        ${COMMON_SOURCE_DIR}/unity/UnityDecalLibrary.h
+        ${COMMON_SOURCE_DIR}/unity/UnityDecals.h
         ${COMMON_SOURCE_DIR}/unity/UnityIntegration.h
         ${COMMON_SOURCE_DIR}/unity/UnityLiveLink.h
         ${COMMON_SOURCE_DIR}/unity/UnityLiveLinkProtocol.h

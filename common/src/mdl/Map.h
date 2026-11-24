@@ -48,6 +48,11 @@ class Color;
 class Logger;
 } // namespace tb
 
+namespace tb::unity
+{
+class UnityDecalLibrary;
+} // namespace tb::unity
+
 namespace tb::mdl
 {
 enum class MapFormat;
@@ -104,6 +109,7 @@ private:
   std::unique_ptr<EntityDefinitionManager> m_entityDefinitionManager;
   std::unique_ptr<EntityModelManager> m_entityModelManager;
   std::unique_ptr<MaterialManager> m_materialManager;
+  std::unique_ptr<unity::UnityDecalLibrary> m_decalLibrary;
   std::unique_ptr<TagManager> m_tagManager;
 
   std::unique_ptr<EditorContext> m_editorContext;
@@ -196,6 +202,8 @@ public: // notification
   Notifier<> entityDefinitionsWillChangeNotifier;
   Notifier<> entityDefinitionsDidChangeNotifier;
 
+  Notifier<> decalLibraryDidChangeNotifier;
+
   Notifier<> modsWillChangeNotifier;
   Notifier<> modsDidChangeNotifier;
 
@@ -218,6 +226,16 @@ public: // misc
 
   MaterialManager& materialManager();
   const MaterialManager& materialManager() const;
+
+  /**
+   * The Unity catalog's decals, for previewing and stamping decal entities.
+   */
+  const unity::UnityDecalLibrary& decalLibrary() const;
+  /**
+   * Reloads the decal library from the Unity catalog and notifies
+   * decalLibraryDidChangeNotifier.
+   */
+  void reloadDecalLibrary();
 
   TagManager& tagManager();
   const TagManager& tagManager() const;
@@ -323,6 +341,8 @@ private: // Asset management
 
   void loadEntityDefinitions();
   void clearEntityDefinitions();
+
+  void loadDecalLibrary();
 
   void reloadMaterials();
   void loadMaterials();

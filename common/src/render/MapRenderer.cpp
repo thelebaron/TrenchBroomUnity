@@ -556,7 +556,6 @@ void MapRenderer::render(RenderContext& renderContext, RenderBatch& renderBatch)
     updateDollhouseHiddenBrushes(vm::vec3d{renderContext.camera().position()});
   }
   m_previewLightRenderer->prepare(renderContext, renderBatch);
-  renderEntityDecals(renderContext, renderBatch);
   if (renderContext.showEditorOverlays())
   {
     renderEntityLinks(renderContext, renderBatch);
@@ -566,6 +565,9 @@ void MapRenderer::render(RenderContext& renderContext, RenderBatch& renderBatch)
   renderDefaultOpaque(renderContext, renderBatch);
   renderLockedOpaque(renderContext, renderBatch);
   renderSelectionOpaque(renderContext, renderBatch);
+
+  // after the opaque geometry, so decals with soft alpha blend over the faces they sit on
+  renderEntityDecals(renderContext, renderBatch);
 
   renderDefaultTransparent(renderContext, renderBatch);
   renderLockedTransparent(renderContext, renderBatch);
@@ -727,6 +729,11 @@ void MapRenderer::renderEntityDecals(
   if (renderContext.render3D())
   {
     m_entityDecalRenderer->render(renderContext, renderBatch);
+  }
+  else
+  {
+    // atlas decals are outlined in 2D views, which don't draw their entity boxes
+    m_entityDecalRenderer->render2D(renderContext, renderBatch);
   }
 }
 
@@ -1154,6 +1161,8 @@ void MapRenderer::connectObservers()
     this, &MapRenderer::materialCollectionsWillChange);
   m_notifierConnection += m_map.entityDefinitionsDidChangeNotifier.connect(
     this, &MapRenderer::entityDefinitionsDidChange);
+  m_notifierConnection += m_map.decalLibraryDidChangeNotifier.connect(
+    this, &MapRenderer::invalidateEntityDecalRenderer);
   m_notifierConnection +=
     m_map.modsDidChangeNotifier.connect(this, &MapRenderer::modsDidChange);
   m_notifierConnection += m_map.editorContextDidChangeNotifier.connect(

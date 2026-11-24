@@ -21,6 +21,8 @@
 
 #include "Result.h"
 
+#include "vm/vec.h"
+
 #include <filesystem>
 #include <string>
 #include <vector>
@@ -64,9 +66,44 @@ struct UnityCatalogPrefab
   bool operator==(const UnityCatalogPrefab&) const = default;
 };
 
+/**
+ * A decal library's atlas. Every decal in it is previewed with the same image.
+ */
+struct UnityCatalogDecalAtlas
+{
+  std::string id;
+  std::filesystem::path texture;
+
+  bool operator==(const UnityCatalogDecalAtlas&) const = default;
+};
+
+/**
+ * A decal the stamp tool can place. Its id ("<atlas>/<name>") is stored in the decal
+ * entity's _decal property.
+ */
+struct UnityCatalogDecal
+{
+  std::string id;
+  std::string displayName;
+  std::string category;
+  std::string atlas;
+  // Normalized (u, v, width, height) in the atlas, with the origin at the bottom left as
+  // in Unity.
+  vm::vec4d rect;
+  // Width and height in map units.
+  vm::vec2d defaultSize;
+  // The decal's own image in the Unity project, for decals made from an image in the
+  // decal folder; empty for decals cut from a hand-made atlas.
+  std::filesystem::path source = {};
+
+  bool operator==(const UnityCatalogDecal&) const = default;
+};
+
 struct UnityCatalog
 {
   std::vector<UnityCatalogPrefab> prefabs;
+  std::vector<UnityCatalogDecalAtlas> decalAtlases;
+  std::vector<UnityCatalogDecal> decals;
 };
 
 /**

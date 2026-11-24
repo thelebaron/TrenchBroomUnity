@@ -29,6 +29,7 @@
 #include "mdl/PickResult.h"
 #include "mdl/TagVisitor.h"
 #include "mdl/Validator.h"
+#include "unity/UnityDecals.h"
 
 #include "kdl/overload.h"
 
@@ -305,6 +306,14 @@ void EntityNode::validateBounds() const
       pointEntityDefinition ? pointEntityDefinition->bounds : DefaultBounds;
 
     m_cachedBounds->logicalBounds = definitionBounds.translate(m_entity.origin());
+    if (unity::isDecalEntity(m_entity))
+    {
+      // A decal covers its whole projection box, so it can be picked and selected there
+      // and the renderer finds the brushes it touches.
+      m_cachedBounds->logicalBounds = vm::merge(
+        m_cachedBounds->logicalBounds,
+        unity::decalBounds(unity::decalBox(m_entity, unity::DefaultDecalSize)));
+    }
     if (hasModel)
     {
       m_cachedBounds->physicalBounds =

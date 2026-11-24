@@ -31,6 +31,8 @@
 #include "mdl/PropertyDefinition.h"
 #include "unity/UnityCatalog.h"
 
+#include <fmt/format.h>
+
 #include <catch2/catch_test_macros.hpp>
 
 namespace tb::unity
@@ -86,6 +88,84 @@ TEST_CASE("Unity catalog parses prefabs", "[unity-catalog]")
     == std::filesystem::path{"C:/project/TrenchBroom/thumbnails/"
                              "59905e417919b994e9ff248cfd4913d1.png"}
          .lexically_normal());
+}
+
+TEST_CASE("Unity catalog parses decals", "[unity-catalog]")
+{
+  constexpr auto json = R"({
+    "version": 1,
+    "prefabs": [],
+    "decal_atlases": [
+      { "id": "markings", "texture": "decals/markings.png", "width": 256, "height": 128 }
+    ],
+    "decals": [
+      {
+        "id": "markings/stripe",
+        "display_name": "Stripe",
+        "category": "markings",
+        "atlas": "markings",
+        "rect": [0.25, 0.5, 0.125, 0.0625],
+        "default_size": [32, 16]
+      }
+    ]
+  })";
+
+  const auto catalog = parseCatalog(json, "C:/project/TrenchBroom");
+  REQUIRE(catalog.is_success());
+  CHECK(
+    catalog.value().decalAtlases
+    == std::vector<UnityCatalogDecalAtlas>{
+      {"markings",
+       std::filesystem::path{"C:/project/TrenchBroom/decals/markings.png"}
+         .lexically_normal()}});
+  CHECK(
+    catalog.value().decals
+    == std::vector<UnityCatalogDecal>{
+      {"markings/stripe",
+       "Stripe",
+       "markings",
+       "markings",
+       vm::vec4d{0.25, 0.5, 0.125, 0.0625},
+       vm::vec2d{32, 16}}});
+}
+
+TEST_CASE("Unity catalog without decals has none", "[unity-catalog]")
+{
+  const auto catalog = parseCatalog(CatalogJson, "C:/project/TrenchBroom");
+  REQUIRE(catalog.is_success());
+  CHECK(catalog.value().decalAtlases.empty());
+  CHECK(catalog.value().decals.empty());
+}
+
+TEST_CASE("Unity catalog rejects bad decals", "[unity-catalog]")
+{
+  constexpr auto atlases = R"("decal_atlases": [{"id": "a", "texture": "decals/a.png"}])";
+  const auto withDecal = [&](const std::string& decal) {
+    return parseCatalog(
+      fmt::format(R"({{"version": 1, {}, "decals": [{}]}})", atlases, decal), {});
+  };
+
+  CHECK(
+    withDecal(
+      R"({"id": "a/x", "display_name": "X", "atlas": "a", "rect": [0, 0, 1, 1], "default_size": [8, 8]})")
+      .is_success());
+  // unknown atlas
+  CHECK(
+    withDecal(
+      R"({"id": "b/x", "display_name": "X", "atlas": "b", "rect": [0, 0, 1, 1], "default_size": [8, 8]})")
+      .is_error());
+  // rect with too few numbers
+  CHECK(
+    withDecal(
+      R"({"id": "a/x", "display_name": "X", "atlas": "a", "rect": [0, 0, 1], "default_size": [8, 8]})")
+      .is_error());
+  // missing id
+  CHECK(
+    withDecal(
+      R"({"display_name": "X", "atlas": "a", "rect": [0, 0, 1, 1], "default_size": [8, 8]})")
+      .is_error());
+  // atlas without texture
+  CHECK(parseCatalog(R"({"version": 1, "decal_atlases": [{"id": "a"}]})", {}).is_error());
 }
 
 TEST_CASE("Unity catalog rejects bad files", "[unity-catalog]")

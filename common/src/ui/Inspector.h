@@ -61,6 +61,12 @@ public:
   bool cancelMouseDrag();
 
   FaceInspector* faceInspector();
+
+signals:
+  /**
+   * The decal browser asks to arm the decal stamp tool with a decal.
+   */
+  void decalStampRequested(const QString& decalId);
 };
 
 } // namespace tb::ui

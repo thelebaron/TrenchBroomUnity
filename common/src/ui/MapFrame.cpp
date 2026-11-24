@@ -394,6 +394,11 @@ void MapFrame::createGui()
     m_currentMapView, "SwitchableMapViewContainer should have constructed a MapViewBase");
 
   m_inspector = new Inspector{document(), *m_contextManager};
+  connect(
+    m_inspector, &Inspector::decalStampRequested, this, [&](const QString& decalId) {
+      m_mapView->stampDecal(decalId.toStdString());
+      m_mapView->setFocus();
+    });
 
   m_mapView->connectTopWidgets(m_inspector);
 
@@ -1884,6 +1889,16 @@ bool MapFrame::canToggleClipTool() const
 bool MapFrame::clipToolActive() const
 {
   return m_mapView->clipToolActive();
+}
+
+void MapFrame::toggleDecalTool()
+{
+  m_mapView->toggleDecalTool();
+}
+
+bool MapFrame::decalToolActive() const
+{
+  return m_mapView->decalToolActive();
 }
 
 void MapFrame::toggleRotateTool()

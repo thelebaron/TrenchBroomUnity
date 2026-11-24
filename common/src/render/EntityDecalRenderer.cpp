@@ -20,6 +20,8 @@
 #include "EntityDecalRenderer.h"
 
 #include "BrushRendererArrays.h"
+#include "PreferenceManager.h"
+#include "Preferences.h"
 #include "mdl/BrushFace.h"
 #include "mdl/BrushNode.h"
 #include "mdl/DecalDefinition.h"
@@ -32,8 +34,12 @@
 #include "mdl/Texture.h"
 #include "mdl/UVCoordSystem.h"
 #include "mdl/WorldNode.h"
+#include "render/RenderService.h"
+#include "unity/UnityDecalLibrary.h"
+#include "unity/UnityDecals.h"
 
 #include "kdl/overload.h"
+#include "kdl/vector_utils.h"
 
 #include "vm/intersection.h"
 
@@ -194,7 +200,8 @@ void EntityDecalRenderer::updateEntity(const mdl::EntityNode* entityNode)
 
   // check if the entity has a decal specification
   const auto spec =
-    editorContext.visible(*entityNode) ? getDecalSpecification(entityNode) : std::nullopt;
+    editorContext.visible(*entityNode)
+    && (unity::isDecalEntity(entityNode->entity()) || getDecalSpecification(entityNode));
 
   // see if we are tracking this entity
   const auto entity = m_entities.find(entityNode);
@@ -209,7 +216,7 @@ void EntityDecalRenderer::updateEntity(const mdl::EntityNode* entityNode)
     // entity is being tracked but no longer has a decal specification
     removeEntity(entityNode);
   }
-  else if (spec.has_value())
+  else if (spec)
   {
     // entity is not being tracked and has a decal specification, start tracking it
     m_entities.insert({entityNode, EntityDecalData{}});
@@ -316,26 +323,18 @@ void EntityDecalRenderer::validateDecalData(
     return;
   }
 
+  if (unity::isDecalEntity(entityNode->entity()))
+  {
+    validateAtlasDecalData(entityNode, data);
+    return;
+  }
+
   const auto spec = getDecalSpecification(entityNode);
   ensure(spec, "entity has a decal specification");
 
-  const auto& editorContext = m_map.editorContext();
-  const auto* world = m_map.world();
-
   // collect all the brush nodes that touch the entity's bbox
   const auto entityBounds = entityNode->physicalBounds();
-  const auto intersectors = world->nodeTree().find_intersectors(entityBounds);
-
-  // track them in the entity
-  data.brushes.clear();
-  for (const auto* node : intersectors)
-  {
-    const auto* brushNode = dynamic_cast<const mdl::BrushNode*>(node);
-    if (brushNode && editorContext.visible(*brushNode))
-    {
-      data.brushes.push_back(brushNode);
-    }
-  }
+  trackBrushes(entityBounds, data);
 
   data.material = m_map.materialManager().material(spec->materialName);
   if (!data.material)
@@ -386,6 +385,94 @@ void EntityDecalRenderer::validateDecalData(
     }
   }
 
+  uploadDecalGeometry(data, vertices, indices);
+  data.validated = true;
+}
+
+void EntityDecalRenderer::validateAtlasDecalData(
+  const mdl::EntityNode* entityNode, EntityDecalData& data) const
+{
+  const auto& entity = entityNode->entity();
+  const auto& library = m_map.decalLibrary();
+  const auto* decalId = entity.property(unity::DecalPropertyKeys::Decal);
+  const auto* decal = decalId ? library.decal(*decalId) : nullptr;
+
+  const auto box =
+    unity::decalBox(entity, decal ? decal->defaultSize : unity::DefaultDecalSize);
+  trackBrushes(unity::decalBounds(box), data);
+  data.outline.clear();
+  data.boxEdges = kdl::vec_transform(
+    unity::decalBoxEdges(box), [](const auto& p) { return vm::vec3f{p}; });
+
+  data.material =
+    decal ? library.atlasMaterial(decal->atlas, unity::decalAppearance(entity)) : nullptr;
+  if (!data.material)
+  {
+    // unknown decal or unreadable atlas: the entity's box still shows where it is
+    data.validated = true;
+    return;
+  }
+
+  // we want to shift every vertex by just a little bit to avoid z-fighting
+  constexpr auto offset = 0.1;
+
+  auto vertices = std::vector<Vertex>{};
+  auto indices = std::vector<size_t>{};
+  for (const auto* brush : data.brushes)
+  {
+    for (const auto& polygon : unity::projectDecal(box, brush->brush()))
+    {
+      const auto vertexOffset = vertices.size();
+      const auto normal = vm::vec3f{polygon.normal};
+      for (size_t i = 0; i < polygon.positions.size(); ++i)
+      {
+        const auto& next = polygon.positions[(i + 1) % polygon.positions.size()];
+        data.outline.emplace_back(polygon.positions[i] + polygon.normal * offset);
+        data.outline.emplace_back(next + polygon.normal * offset);
+      }
+      for (size_t i = 0; i < polygon.positions.size(); ++i)
+      {
+        vertices.push_back(
+          Vertex{
+            vm::vec3f{polygon.positions[i] + polygon.normal * offset},
+            normal,
+            unity::atlasTextureCoords(polygon.decalCoords[i], decal->rect)});
+      }
+      for (size_t i = 0; i + 2 < polygon.positions.size(); ++i)
+      {
+        indices.push_back(vertexOffset);
+        indices.push_back(vertexOffset + i + 1);
+        indices.push_back(vertexOffset + i + 2);
+      }
+    }
+  }
+
+  uploadDecalGeometry(data, vertices, indices);
+  data.validated = true;
+}
+
+void EntityDecalRenderer::trackBrushes(
+  const vm::bbox3d& bounds, EntityDecalData& data) const
+{
+  const auto& editorContext = m_map.editorContext();
+  const auto intersectors = m_map.world()->nodeTree().find_intersectors(bounds);
+
+  data.brushes.clear();
+  for (const auto* node : intersectors)
+  {
+    const auto* brushNode = dynamic_cast<const mdl::BrushNode*>(node);
+    if (brushNode && editorContext.visible(*brushNode))
+    {
+      data.brushes.push_back(brushNode);
+    }
+  }
+}
+
+void EntityDecalRenderer::uploadDecalGeometry(
+  EntityDecalData& data,
+  const std::vector<Vertex>& vertices,
+  const std::vector<size_t>& indices) const
+{
   if (!vertices.empty() && !indices.empty())
   {
     // upload the geometry into the VBO
@@ -413,11 +500,9 @@ void EntityDecalRenderer::validateDecalData(
     }
     data.faceIndicesKey = indexBlock;
   }
-
-  data.validated = true;
 }
 
-void EntityDecalRenderer::render(RenderContext&, RenderBatch& renderBatch)
+void EntityDecalRenderer::render(RenderContext& renderContext, RenderBatch& renderBatch)
 {
   // update any invalidated entities if required
   for (auto& [ent, data] : m_entities)
@@ -426,6 +511,72 @@ void EntityDecalRenderer::render(RenderContext&, RenderBatch& renderBatch)
   }
 
   m_faceRenderer.render(renderBatch);
+  renderOutlines(renderContext, renderBatch);
+}
+
+void EntityDecalRenderer::render2D(RenderContext& renderContext, RenderBatch& renderBatch)
+{
+  for (auto& [ent, data] : m_entities)
+  {
+    validateDecalData(ent, data);
+  }
+
+  // 2D views show no surfaces, so every atlas decal is shown by its projection box
+  auto selected = std::vector<vm::vec3f>{};
+  auto unselected = std::vector<vm::vec3f>{};
+  for (const auto& [entityNode, data] : m_entities)
+  {
+    if (unity::isDecalEntity(entityNode->entity()))
+    {
+      auto& edges = entityNode->selected() ? selected : unselected;
+      edges.insert(edges.end(), data.boxEdges.begin(), data.boxEdges.end());
+    }
+  }
+
+  auto renderService = RenderService{renderContext, renderBatch};
+  renderService.setForegroundColor(pref(Preferences::UndefinedEntityColor));
+  renderService.renderLines(unselected);
+  renderService.setForegroundColor(pref(Preferences::SelectedEdgeColor));
+  renderService.renderLines(selected);
+}
+
+void EntityDecalRenderer::renderOutlines(
+  RenderContext& renderContext, RenderBatch& renderBatch) const
+{
+  auto selected = std::vector<vm::vec3f>{};
+  auto unselectedBoxes = std::vector<vm::vec3f>{};
+  for (const auto& [entityNode, data] : m_entities)
+  {
+    if (!unity::isDecalEntity(entityNode->entity()))
+    {
+      continue;
+    }
+
+    // a decal that covers nothing is shown by its box, else by its outline when selected
+    const auto& edges = data.outline.empty() ? data.boxEdges : data.outline;
+    if (entityNode->selected())
+    {
+      selected.insert(selected.end(), edges.begin(), edges.end());
+    }
+    else if (data.outline.empty())
+    {
+      unselectedBoxes.insert(unselectedBoxes.end(), edges.begin(), edges.end());
+    }
+  }
+
+  auto renderService = RenderService{renderContext, renderBatch};
+  if (!unselectedBoxes.empty())
+  {
+    renderService.setForegroundColor(pref(Preferences::UndefinedEntityColor));
+    renderService.renderLines(unselectedBoxes);
+  }
+  if (!selected.empty())
+  {
+    renderService.setForegroundColor(pref(Preferences::SelectedEdgeColor));
+    renderService.setShowOccludedObjectsTransparent();
+    renderService.setLineWidth(2.0f);
+    renderService.renderLines(selected);
+  }
 }
 
 } // namespace tb::render

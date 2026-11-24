@@ -58,6 +58,9 @@ private:
   QLabel* m_defaultTextureFolderLabel = nullptr;
   QPlainTextEdit* m_textureFoldersEdit = nullptr;
   QPushButton* m_textureFolderBrowseButton = nullptr;
+  QLineEdit* m_decalFolderEdit = nullptr;
+  QLineEdit* m_imageEditorEdit = nullptr;
+  QPushButton* m_imageEditorBrowseButton = nullptr;
   QPushButton* m_refreshTexturesButton = nullptr;
   QCheckBox* m_entityDefinitionsCheckBox = nullptr;
   QLineEdit* m_liveLinkSocketNameEdit = nullptr;

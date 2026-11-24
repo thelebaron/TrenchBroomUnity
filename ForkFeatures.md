@@ -388,6 +388,112 @@ rejection, the entity definition preference, GUIDs from definitions, and the upd
 command including undo, and that placing a Unity prefab copies no defaults while other
 entities still get theirs.
 
+## 16. Decal stamps
+
+**Purpose:** Place surface detail (markings, stripes, signage, grime) from Unity decal
+atlases without unique textures, previewed on brushes and imported as URP decal
+projectors. Modelled on Source's `info_overlay`; the design is in `DecalStampPlan.md`.
+
+**Use:** In Unity, a `DecalLibrary` asset (Create > Junk > Decal Library) names an atlas
+id, a URP decal material, the atlas texture and the decals in it (pixel rectangles with a
+bottom-left origin, a category and a default size in meters). The catalog export writes
+each atlas to `TrenchBroom/decals/<id>.png` and lists `decal_atlases` and `decals` in
+`catalog.json`; both sections are optional, so older catalogs still load. A library or
+atlas change re-exports only the decals. The **Decals** inspector tab lists them with
+tiles cut from the atlases. Clicking one arms the **decal stamp tool**: the outline
+follows the brush face under the cursor (up follows world up on walls and the view on
+floors and ceilings), Alt+wheel turns it in 15 degree steps, Alt+Shift+wheel scales it,
+a click places a `decal` entity and the tool stays armed until Escape. With the tool off,
+Alt+wheel and Alt+Shift+wheel turn and scale the selected decals as one undoable command
+each. The `decal` entity stores `_decal` (`<atlas>/<name>`), `size`, `depth`, `angles`,
+`opacity`, `angle_fade`, `flip` and `_weights` (stored only). Its bounds cover its
+projection box, so it is picked and selected there. The map renderer projects it onto
+the visible brushes in its box and draws it with the atlas, faces turned more than
+`angle_fade`'s end away getting none. Unity's `DecalImporter` (`Junk.Scopa.Editor`)
+adds a `DecalProjector` with the atlas material, UV scale and bias from the rectangle,
+and a rotation computed from `angles` with TrenchBroom's convention, because Scopa's
+own angle conversion turns roll the other way. Projectors only paint the Statics
+rendering layer, which brush geometry has.
+
+**Main files:** `common/src/unity/UnityDecals.*` (box, projection, angles, property
+values), `UnityDecalLibrary.*` (atlas materials, owned by `mdl::Map`), `UnityDecalBrowser.*`,
+`UnityCatalog.*` (decal sections), `common/src/ui/DecalStampTool.*`; hooks in
+`render/EntityDecalRenderer.*` (atlas path beside upstream `infodecal`), `render/EntityRenderer.cpp`
+(wireframe box), `mdl/EntityNode.cpp` (bounds), `mdl/Map.*` (library loading, `decalLibraryDidChangeNotifier`),
+`render/MapRenderer.cpp`, `unity/UnityCatalogWatcher.cpp`, `ui/MapViewToolBox.*`,
+`ui/MapView3D.cpp`, `ui/SwitchableMapViewContainer.*`, `ui/Inspector.*` and
+`ui/MapFrame.cpp`. Unity side: `com.junk.scopa/Junk.Scopa.Editor/Decals/` and
+`com.junk.trenchbroom/.../Catalog/DecalCatalogExporter.cs`.
+
+**Rebase considerations:** Keep upstream `infodecal` geometry untouched; the atlas
+path branches on the `decal` class before it. `MapRenderer::render` draws entity decals
+after the opaque passes (upstream draws them first), so soft-edged atlas decals blend
+over the faces they sit on; this also applies to `infodecal`. `EntityRenderer` draws
+decal entities as wireframe boxes only, since a solid box would hide the decal. Decal
+polygons are reversed from brush face vertex order to be front facing. Atlas materials are reloaded with the
+catalog and must not change the map or its undo history. The decal tab is the last
+inspector page so existing page indices still hold. Alt+wheel is otherwise unused in
+the 3D view; Ctrl+wheel (drill selection) and Ctrl+Alt+wheel (grid) are taken.
+
+**Tests:** `common/test/src/unity/tst_UnityDecals.cpp` covers the box from entity
+properties, bounds, projection onto one face, clipping at a face edge, wrapping a
+corner, the fade angle, depth, flips, atlas coordinates and angle round trips;
+`tst_UnityCatalog.cpp` covers the decal sections; `common/test/src/ui/tst_DecalStampTool.cpp`
+covers placement on walls and floors and turning and scaling selected decals with undo.
+
+### Decal editing, appearance and folder categories
+
+Whenever the selection is only decals (or the decal tool is active), the 3D view treats
+them as decals, not boxes: `DecalEditController` sits before the move tool, so dragging a
+selected decal slides it across brush faces and around corners; holding W, E or R while
+dragging moves, scales (Shift stretches width and height separately) or turns them (Shift
+snaps to 45 degrees), and Shift keeps a move to one screen axis. `MapView3D` accepts the
+ShortcutOverride for W, E and R then, so they don't fly the camera or toggle the Rotate
+and Edge tools. Selected decals are outlined on the faces they cover
+(`EntityDecalRenderer::renderOutlines`) instead of an entity box, and the brush-style
+selection guide is skipped; a decal that covers nothing shows its projection box. 2D
+views draw every atlas decal's projection box. The decal tool can be turned on without a
+stamp from Edit > Tools > Decal Tool (no default shortcut).
+
+`tint` (0-255 per channel), `brightness` and `invert` change a decal's colors: inverted,
+then multiplied, alpha untouched. TrenchBroom previews them with recolored copies of the
+atlas made on first use (`UnityDecalLibrary::atlasMaterial(atlas, appearance)`, which
+keeps a CPU copy of each atlas because uploaded textures drop their pixels); Unity's
+`DecalVariants` bakes the same into a texture and material stored in the imported map,
+so any decal shader works.
+
+Decal categories come from folders: every image in `Assets/Content/Decals/<category>/`
+is a decal. `DecalFolderLibraries` (Unity) rebuilds the category's packed atlas, URP decal
+material and DecalLibrary in its `_Generated` folder when images there change, and the
+catalog lists each decal's `source` image. Hand-made DecalLibrary assets still work.
+
+## 17. Image viewer and Unity asset import
+
+**Use:** Double-click a material or decal (or use View Texture / View Image in their
+context menus) to open the built-in image viewer: wheel zoom around the cursor, drag to
+pan, double-click to toggle fit and 1:1, a checkerboard behind transparency, RGBA, RGB,
+alpha and single-channel views, Left/Right for the other images in the folder, and Open in
+Editor (the external image editor in the Unity preferences, or the system default),
+Show in Folder and Copy Path. The image reloads when it changes on disk.
+
+Drop image files on the Materials browser, or use Unity > Import Textures into Unity, to
+copy them into a texture folder (a new folder is added to the texture folders); the
+texture folder watcher reloads the materials. Drop them on the Decals browser, its
+Import... button, or Unity > Import Decals into Unity, to copy them into a decal category
+under the decal folder (Unity preferences, default `Assets/Content/Decals`); Unity builds
+the category atlas when it next refreshes. Existing files are only replaced after asking.
+Remove from Unity Project... in the material and decal context menus moves the image and
+its `.meta` file to the recycle bin after confirming.
+
+**Main files:** `common/src/ui/ImageViewerDialog.*`, `common/src/unity/UnityAssetImport.*`
+(plans, copies, categories, removal), `UnityAssetImportDialogs.*` (folder pickers and
+prompts), hooks in `ui/CellView.*` (double-click), `ui/MaterialBrowserView.*`,
+`ui/MaterialBrowser.*` (drops), `unity/UnityDecalBrowser.*`, `ui/Actions.cpp` (Unity
+menu), `Preferences.*` and `unity/UnityPreferencePane.*` (decal folder, image editor).
+
+**Tests:** `common/test/src/unity/tst_UnityAssetImport.cpp` covers import plans,
+conflicts, replace and skip, folder names, categories and project paths.
+
 ## Build and maintenance changes
 
 The fork also changes Windows build guidance, ignore rules, editor icons and toolbar
@@ -401,7 +507,7 @@ or `feature/2d` alone is not evidence of another implemented feature in the acti
 With `build-vs18` configured as described in `AGENTS.md`:
 
 ```powershell
-# Build common-test and run Unity identity, workflow, live link and catalog tests.
+# Build common-test and run Unity identity, workflow, live link, catalog and decal tests.
 .\test-fork.ps1
 
 # Use the existing binary, or run the full original common suite as well.
@@ -409,7 +515,7 @@ With `build-vs18` configured as described in `AGENTS.md`:
 .\test-fork.ps1 -All
 ```
 
-The runner selects `[entity-identity],[unity-workflow],[unity-live-link],[unity-catalog]` by default, uses the configured Qt kit and sets
+The runner selects `[entity-identity],[unity-workflow],[unity-live-link],[unity-catalog],[unity-decals],[decal-stamp],[unity-asset-import]` by default, uses the configured Qt kit and sets
 the executable directory as the working directory. `-All` runs the remaining full common
 suite; the removed feature tests are not part of either run.
 

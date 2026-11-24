@@ -121,6 +121,7 @@ void UnityCatalogWatcher::refresh()
 
   if (m_map.world() && m_map.game() && usesUnityEntityDefinitions(m_map.game()->config()))
   {
+    m_map.reloadDecalLibrary();
     mdl::reloadEntityDefinitions(m_map);
   }
   emit catalogChanged();

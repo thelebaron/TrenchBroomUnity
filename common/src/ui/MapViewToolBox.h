@@ -25,6 +25,7 @@
 #include "vm/vec.h"
 
 #include <memory>
+#include <string>
 
 class QStackedLayout;
 
@@ -52,6 +53,7 @@ class FaceTool;
 class MarqueeSelectTool;
 class RoomDrawTool;
 class PaintRollerTool;
+class DecalStampTool;
 
 class MapViewToolBox : public ToolBox
 {
@@ -73,6 +75,7 @@ private:
   std::unique_ptr<MarqueeSelectTool> m_marqueeSelectTool;
   std::unique_ptr<RoomDrawTool> m_roomDrawTool;
   std::unique_ptr<PaintRollerTool> m_paintRollerTool;
+  std::unique_ptr<DecalStampTool> m_decalStampTool;
 
   NotifierConnection m_notifierConnection;
 
@@ -96,6 +99,7 @@ public: // tools
   MarqueeSelectTool& marqueeSelectTool();
   RoomDrawTool& roomDrawTool();
   PaintRollerTool& paintRollerTool();
+  DecalStampTool& decalStampTool();
 
   void toggleAssembleBrushTool();
   bool assembleBrushToolActive() const;
@@ -138,6 +142,13 @@ public: // tools
 
   void togglePaintRollerTool();
   bool paintRollerToolActive() const;
+
+  /**
+   * Arms the decal stamp tool with the given decal, activating it if it is off.
+   */
+  void stampDecal(const std::string& decalId);
+  void toggleDecalStampTool();
+  bool decalStampToolActive() const;
 
   bool anyModalToolActive() const;
 

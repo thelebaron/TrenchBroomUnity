@@ -29,6 +29,7 @@
 #include "ui/QtUtils.h"
 #include "ui/TabBar.h"
 #include "ui/TabBook.h"
+#include "unity/UnityDecalBrowser.h"
 #include "unity/UnityPrefabBrowser.h"
 
 namespace tb::ui
@@ -49,6 +50,14 @@ Inspector::Inspector(
   m_tabBook->addPage(m_entityInspector, "Entity");
   m_tabBook->addPage(m_faceInspector, "Face");
   m_tabBook->addPage(new unity::UnityPrefabBrowser{document}, "Unity");
+
+  auto* decalBrowser = new unity::UnityDecalBrowser{document};
+  connect(
+    decalBrowser,
+    &unity::UnityDecalBrowser::decalStampRequested,
+    this,
+    &Inspector::decalStampRequested);
+  m_tabBook->addPage(decalBrowser, "Decals");
 
   auto* layout = new QVBoxLayout{};
   layout->setContentsMargins(0, 0, 0, 0);

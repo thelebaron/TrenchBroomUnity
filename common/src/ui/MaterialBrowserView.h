@@ -124,6 +124,7 @@ private:
   void doLeftClick(Layout& layout, float x, float y) override;
   QString tooltip(const Cell& cell) override;
   void doContextMenu(Layout& layout, float x, float y, QContextMenuEvent* event) override;
+  void doDoubleClick(Layout& layout, float x, float y) override;
 
   const mdl::Material& cellData(const Cell& cell) const;
 signals:

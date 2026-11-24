@@ -21,6 +21,9 @@
 
 #include <QAction>
 #include <QComboBox>
+#include <QDragEnterEvent>
+#include <QDropEvent>
+#include <QMimeData>
 #include <QHBoxLayout>
 #include <QLineEdit>
 #include <QMenu>
@@ -40,6 +43,7 @@
 
 #include "PreferenceManager.h"
 #include "Preferences.h"
+#include "unity/UnityAssetImportDialogs.h"
 #include "mdl/Game.h"
 #include "mdl/Map.h"
 #include "mdl/Material.h"
@@ -68,6 +72,25 @@ MaterialBrowser::MaterialBrowser(
   connectObservers();
   connectWadFilter();
   reload();
+  setAcceptDrops(true);
+}
+
+void MaterialBrowser::dragEnterEvent(QDragEnterEvent* event)
+{
+  if (!unity::droppedImageFiles(*event->mimeData()).empty())
+  {
+    event->acceptProposedAction();
+  }
+}
+
+void MaterialBrowser::dropEvent(QDropEvent* event)
+{
+  const auto files = unity::droppedImageFiles(*event->mimeData());
+  if (!files.empty())
+  {
+    event->acceptProposedAction();
+    unity::importTexturesInteractively(this, files);
+  }
 }
 
 const mdl::Material* MaterialBrowser::selectedMaterial() const

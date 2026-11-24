@@ -66,6 +66,7 @@ private: // notification
   void preferenceDidChange(const std::filesystem::path& path);
 
 protected: // QWidget overrides
+  bool event(QEvent* event) override;
   void keyPressEvent(QKeyEvent* event) override;
   void keyReleaseEvent(QKeyEvent* event) override;
   void focusInEvent(QFocusEvent* event) override;

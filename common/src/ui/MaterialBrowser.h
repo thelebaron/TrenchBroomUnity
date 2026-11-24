@@ -85,6 +85,11 @@ public:
 signals:
   void materialSelected(const mdl::Material* material);
 
+protected:
+  // images dropped from the file browser are imported into the Unity project
+  void dragEnterEvent(QDragEnterEvent* event) override;
+  void dropEvent(QDropEvent* event) override;
+
 private:
   void createGui(GLContextManager& contextManager);
   void bindEvents();

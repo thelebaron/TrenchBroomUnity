@@ -300,6 +300,8 @@ public:
   bool marqueeSelectToolActive() const;
 
   void toggleRoomDrawTool();
+  void toggleDecalTool();
+  bool decalToolActive() const;
   bool roomDrawToolActive() const;
 
   void toggleRoomDollhouse();

@@ -224,6 +224,8 @@ extern Preference<QString> UnityDefaultMapFormat;
 extern Preference<bool> UnityTextureFoldersEnabled;
 extern Preference<bool> UnityEntityDefinitionsEnabled;
 extern Preference<std::vector<std::filesystem::path>> UnityAdditionalTextureFolders;
+extern Preference<std::filesystem::path> UnityDecalFolder;
+extern Preference<std::filesystem::path> ExternalImageEditor;
 extern Preference<QString> UnityLiveLinkSocketName;
 extern Preference<float> UnityLightUnitScale;
 

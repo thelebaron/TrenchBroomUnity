@@ -32,6 +32,7 @@
 #include "render/RenderContext.h"
 #include "render/RenderService.h"
 #include "render/TextAnchor.h"
+#include "unity/UnityDecals.h"
 
 #include "vm/mat.h"
 #include "vm/mat_ext.h"
@@ -440,7 +441,10 @@ void EntityRenderer::validateBounds()
 
     for (const auto* entityNode : m_entities)
     {
-      if (m_editorContext.visible(*entityNode))
+      // decals are outlined on their surfaces by EntityDecalRenderer instead
+      if (
+        m_editorContext.visible(*entityNode)
+        && !unity::isDecalEntity(entityNode->entity()))
       {
         const auto pointEntity = !entityNode->hasChildren();
         if (pointEntity)
@@ -480,7 +484,9 @@ void EntityRenderer::validateBounds()
 
     for (auto* entityNode : m_entities)
     {
-      if (m_editorContext.visible(*entityNode))
+      if (
+        m_editorContext.visible(*entityNode)
+        && !unity::isDecalEntity(entityNode->entity()))
       {
         const auto isPointEntity = !entityNode->hasChildren();
         if (isPointEntity)

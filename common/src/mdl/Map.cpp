@@ -96,6 +96,7 @@
 #include "mdl/WorldNode.h"
 #include "mdl/WorldNode.h" // IWYU pragma: keep
 #include "unity/UnityCatalog.h"
+#include "unity/UnityDecalLibrary.h"
 #include "unity/UnityTextureFolders.h"
 
 #include "kdl/path_utils.h"
@@ -495,6 +496,7 @@ Map::Map(kdl::task_manager& taskManager, Logger& logger)
       },
       m_logger)}
   , m_materialManager{std::make_unique<MaterialManager>(m_logger)}
+  , m_decalLibrary{std::make_unique<unity::UnityDecalLibrary>()}
   , m_tagManager{std::make_unique<TagManager>()}
   , m_editorContext{std::make_unique<EditorContext>()}
   , m_grid{std::make_unique<Grid>(4)}
@@ -552,6 +554,35 @@ MaterialManager& Map::materialManager()
 const MaterialManager& Map::materialManager() const
 {
   return *m_materialManager;
+}
+
+const unity::UnityDecalLibrary& Map::decalLibrary() const
+{
+  return *m_decalLibrary;
+}
+
+void Map::reloadDecalLibrary()
+{
+  loadDecalLibrary();
+  decalLibraryDidChangeNotifier();
+}
+
+void Map::loadDecalLibrary()
+{
+  m_decalLibrary->clear();
+  if (!m_game || !unity::usesUnityEntityDefinitions(m_game->config()))
+  {
+    return;
+  }
+
+  // A missing catalog is already reported when the Unity entity definitions load.
+  if (const auto catalog = unity::loadCatalog(); catalog.is_success())
+  {
+    m_decalLibrary->load(
+      catalog.value(),
+      [&](auto resource) { m_resourceManager->addResource(std::move(resource)); },
+      m_logger);
+  }
 }
 
 TagManager& Map::tagManager()
@@ -1063,6 +1094,7 @@ void Map::setIssueHidden(const Issue& issue, const bool hidden)
 
 void Map::loadAssets()
 {
+  loadDecalLibrary();
   loadEntityDefinitions();
   setEntityDefinitions();
   setEntityModels();
@@ -1072,6 +1104,7 @@ void Map::loadAssets()
 
 void Map::clearAssets()
 {
+  m_decalLibrary->clear();
   clearEntityDefinitions();
   clearEntityModels();
   clearMaterials();
@@ -1980,6 +2013,7 @@ void Map::preferenceDidChange(const std::filesystem::path& path)
 
     if (unity::isUnityEntityDefinitionPreference(path))
     {
+      reloadDecalLibrary();
       mdl::reloadEntityDefinitions(*this);
     }
   }

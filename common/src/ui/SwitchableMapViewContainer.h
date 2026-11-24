@@ -25,6 +25,8 @@
 #include "NotifierConnection.h"
 #include "ui/MapView.h"
 
+#include <string>
+
 namespace tb::render
 {
 class MapRenderer;
@@ -87,6 +89,9 @@ public:
 
   bool roomDrawToolActive() const;
   void toggleRoomDrawTool();
+  void stampDecal(const std::string& decalId);
+  void toggleDecalTool();
+  bool decalToolActive() const;
 
   bool dollhouseEnabled() const;
   void setDollhouseEnabled(bool enabled);

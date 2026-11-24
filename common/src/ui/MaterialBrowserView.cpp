@@ -44,7 +44,10 @@
 #include "render/TextureFont.h"
 #include "render/Transformation.h"
 #include "render/VertexArray.h"
+#include "ui/ImageViewerDialog.h"
 #include "ui/MapDocument.h"
+#include "unity/UnityAssetImport.h"
+#include "unity/UnityAssetImportDialogs.h"
 #include "unity/UnityTextureFolders.h"
 
 #include "kdl/string_compare.h"
@@ -577,7 +580,40 @@ void MaterialBrowserView::doContextMenu(
     openInFolderAction->setEnabled(
       sourcePath && canOpenMaterialSourceFolder(*sourcePath));
 
+    const auto isImage = sourcePath && isSupportedImageFile(*sourcePath);
+    auto* viewAction = menu.addAction(tr("View Texture"), this, [this, sourcePath]() {
+      ImageViewerDialog::showImage(*sourcePath, this);
+    });
+    viewAction->setEnabled(isImage);
+    auto* editAction = menu.addAction(tr("Open in Image Editor"), this, [sourcePath]() {
+      openInExternalImageEditor(*sourcePath);
+    });
+    editAction->setEnabled(isImage);
+
+    menu.addSeparator();
+    menu.addAction(tr("Import Textures into Unity..."), this, [this]() {
+      unity::importTexturesInteractively(
+        this, unity::chooseImageFiles(this, tr("Import Textures into Unity")));
+    });
+    auto* removeAction =
+      menu.addAction(tr("Remove from Unity Project..."), this, [this, sourcePath]() {
+        unity::removeAssetInteractively(this, *sourcePath, tr("Texture"));
+      });
+    removeAction->setEnabled(sourcePath && unity::isInUnityProject(*sourcePath));
+
     menu.exec(event->globalPos());
+  }
+}
+
+void MaterialBrowserView::doDoubleClick(Layout& layout, const float x, const float y)
+{
+  if (const auto* cell = layout.cellAt(x, y))
+  {
+    const auto sourcePath = materialSourcePath(m_document.map(), cellData(*cell));
+    if (sourcePath && isSupportedImageFile(*sourcePath))
+    {
+      ImageViewerDialog::showImage(*sourcePath, this);
+    }
   }
 }
 

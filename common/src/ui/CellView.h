@@ -101,6 +101,7 @@ public: // QWidget overrides
   void wheelEvent(QWheelEvent* event) override;
   bool event(QEvent* event) override;
   void contextMenuEvent(QContextMenuEvent* event) override;
+  void mouseDoubleClickEvent(QMouseEvent* event) override;
 
 public:
   void startDrag(const QMouseEvent* event);
@@ -124,6 +125,7 @@ private:
   virtual void doRender(Layout& layout, float y, float height) = 0;
   virtual void doLeftClick(Layout& layout, float x, float y);
   virtual void doContextMenu(Layout& layout, float x, float y, QContextMenuEvent* event);
+  virtual void doDoubleClick(Layout& layout, float x, float y);
 
   virtual bool dndEnabled();
   virtual QPixmap dndImage(const Cell& cell);

@@ -346,6 +346,13 @@ Preference<bool> UnityEntityDefinitionsEnabled("Unity/Entity definitions from Un
 // resolve against the Unity project path.
 Preference<std::vector<std::filesystem::path>> UnityAdditionalTextureFolders(
   "Unity/Additional texture folders", {});
+// Where decal images are imported into, one subfolder per category. Relative folders
+// resolve against the Unity project path.
+Preference<std::filesystem::path> UnityDecalFolder(
+  "Unity/Decal folder", std::filesystem::path{"Assets/Content/Decals"});
+// The application the image viewer and the browsers open images in. Empty uses the
+// system's default application for the file type.
+Preference<std::filesystem::path> ExternalImageEditor("Unity/External image editor", {});
 // The local socket (a named pipe on Windows) the Unity editor connects to. Empty turns
 // the live link off.
 Preference<QString> UnityLiveLinkSocketName(
@@ -504,6 +511,8 @@ const std::vector<PreferenceBase*>& staticPreferences()
     &UnityTextureFoldersEnabled,
     &UnityEntityDefinitionsEnabled,
     &UnityAdditionalTextureFolders,
+    &UnityDecalFolder,
+    &ExternalImageEditor,
     &UnityLiveLinkSocketName,
     &UnityLightUnitScale,
     &RoomCreatorMode,

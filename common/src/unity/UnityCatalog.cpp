@@ -57,7 +57,7 @@ Result<std::string> requiredString(const QJsonObject& object, const char* key)
   const auto value = object.value(key);
   if (!value.isString() || value.toString().isEmpty())
   {
-    return Error{fmt::format("Unity catalog prefab is missing '{}'", key)};
+    return Error{fmt::format("Unity catalog entry is missing '{}'", key)};
   }
   return value.toString().toStdString();
 }
@@ -83,6 +83,105 @@ Result<UnityCatalogPrefab> parsePrefab(
     displayName.value(),
     object.value("category").toString().toStdString(),
     (exportFolder / thumbnail.value()).lexically_normal(),
+  };
+}
+
+template <size_t S>
+Result<vm::vec<double, S>> requiredNumbers(const QJsonObject& object, const char* key)
+{
+  const auto array = object.value(key).toArray();
+  if (array.size() != qsizetype(S))
+  {
+    return Error{fmt::format("Unity catalog decal '{}' needs {} numbers", key, S)};
+  }
+
+  auto result = vm::vec<double, S>{};
+  for (size_t i = 0; i < S; ++i)
+  {
+    const auto value = array.at(qsizetype(i));
+    if (!value.isDouble())
+    {
+      return Error{fmt::format("Unity catalog decal '{}' needs {} numbers", key, S)};
+    }
+    result[i] = value.toDouble();
+  }
+  return result;
+}
+
+Result<UnityCatalogDecalAtlas> parseDecalAtlas(
+  const QJsonObject& object, const std::filesystem::path& exportFolder)
+{
+  const auto id = requiredString(object, "id");
+  if (id.is_error())
+  {
+    return std::get<Error>(id.error());
+  }
+  const auto texture = requiredString(object, "texture");
+  if (texture.is_error())
+  {
+    return std::get<Error>(texture.error());
+  }
+  return UnityCatalogDecalAtlas{
+    id.value(), (exportFolder / texture.value()).lexically_normal()};
+}
+
+/**
+ * The decal's source image: its asset path in the catalog, resolved against the Unity
+ * project, which holds the export folder.
+ */
+std::filesystem::path sourcePath(
+  const QJsonObject& object, const std::filesystem::path& exportFolder)
+{
+  const auto source = object.value("source").toString().toStdString();
+  return source.empty() ? std::filesystem::path{}
+                        : (exportFolder.parent_path() / source).lexically_normal();
+}
+
+Result<UnityCatalogDecal> parseDecal(
+  const QJsonObject& object,
+  const std::vector<UnityCatalogDecalAtlas>& atlases,
+  const std::filesystem::path& exportFolder)
+{
+  const auto id = requiredString(object, "id");
+  const auto displayName = requiredString(object, "display_name");
+  const auto atlas = requiredString(object, "atlas");
+  for (const auto* field : {&id, &displayName, &atlas})
+  {
+    if (field->is_error())
+    {
+      return std::get<Error>(field->error());
+    }
+  }
+
+  if (std::ranges::none_of(atlases, [&](const auto& candidate) {
+        return candidate.id == atlas.value();
+      }))
+  {
+    return Error{fmt::format(
+      "Unity catalog decal '{}' uses atlas '{}', which the catalog doesn't list",
+      id.value(),
+      atlas.value())};
+  }
+
+  const auto rect = requiredNumbers<4>(object, "rect");
+  if (rect.is_error())
+  {
+    return std::get<Error>(rect.error());
+  }
+  const auto defaultSize = requiredNumbers<2>(object, "default_size");
+  if (defaultSize.is_error())
+  {
+    return std::get<Error>(defaultSize.error());
+  }
+
+  return UnityCatalogDecal{
+    id.value(),
+    displayName.value(),
+    object.value("category").toString().toStdString(),
+    atlas.value(),
+    rect.value(),
+    defaultSize.value(),
+    sourcePath(object, exportFolder),
   };
 }
 
@@ -148,6 +247,26 @@ Result<UnityCatalog> parseCatalog(
       return std::get<Error>(prefab.error());
     }
     catalog.prefabs.push_back(std::move(prefab.value()));
+  }
+
+  // Decals are optional: catalogs exported before decal libraries existed have none.
+  for (const auto& value : root.value("decal_atlases").toArray())
+  {
+    auto atlas = parseDecalAtlas(value.toObject(), exportFolder);
+    if (atlas.is_error())
+    {
+      return std::get<Error>(atlas.error());
+    }
+    catalog.decalAtlases.push_back(std::move(atlas.value()));
+  }
+  for (const auto& value : root.value("decals").toArray())
+  {
+    auto decal = parseDecal(value.toObject(), catalog.decalAtlases, exportFolder);
+    if (decal.is_error())
+    {
+      return std::get<Error>(decal.error());
+    }
+    catalog.decals.push_back(std::move(decal.value()));
   }
   return catalog;
 }

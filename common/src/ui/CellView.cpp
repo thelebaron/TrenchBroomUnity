@@ -262,6 +262,20 @@ bool CellView::event(QEvent* event)
   return QWidget::event(event);
 }
 
+void CellView::mouseDoubleClickEvent(QMouseEvent* event)
+{
+  if (event->button() != Qt::LeftButton)
+  {
+    return;
+  }
+  validate();
+  const auto top = m_scrollBar ? m_scrollBar->value() : 0;
+  doDoubleClick(
+    m_layout, float(event->pos().x()), float(event->pos().y() + top));
+}
+
+void CellView::doDoubleClick(Layout&, float, float) {}
+
 void CellView::contextMenuEvent(QContextMenuEvent* event)
 {
   validate();

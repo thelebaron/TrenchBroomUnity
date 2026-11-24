@@ -26,6 +26,8 @@
 #include "render/GLVertexType.h"
 #include "render/Renderable.h"
 
+#include "vm/bbox.h"
+
 #include <unordered_map>
 #include <vector>
 
@@ -54,10 +56,16 @@ private:
      * and the decal geometry is stored in the VBO */
     bool validated = false;
 
-    mdl::Material* material = nullptr;
+    const mdl::Material* material = nullptr;
 
     AllocationTracker::Block* vertexHolderKey = nullptr;
     AllocationTracker::Block* faceIndicesKey = nullptr;
+
+    // atlas decals: the edges of the projected polygons, as line segment pairs, drawn
+    // when the decal is selected; and the edges of the projection box, drawn when the
+    // decal covers no surface (or has no image) so it can still be found
+    std::vector<vm::vec3f> outline;
+    std::vector<vm::vec3f> boxEdges;
   };
 
   using EntityWithDependenciesMap =
@@ -107,9 +115,19 @@ private:
   void invalidateDecalData(EntityDecalData& data) const;
 
   void validateDecalData(const mdl::EntityNode* entityNode, EntityDecalData& data) const;
+  void validateAtlasDecalData(
+    const mdl::EntityNode* entityNode, EntityDecalData& data) const;
+  void trackBrushes(const vm::bbox3d& bounds, EntityDecalData& data) const;
+  void uploadDecalGeometry(
+    EntityDecalData& data,
+    const std::vector<Vertex>& vertices,
+    const std::vector<size_t>& indices) const;
+
+  void renderOutlines(RenderContext& renderContext, RenderBatch& renderBatch) const;
 
 public: // rendering
   void render(RenderContext& renderContext, RenderBatch& renderBatch);
+  void render2D(RenderContext& renderContext, RenderBatch& renderBatch);
 
   deleteCopy(EntityDecalRenderer);
 };

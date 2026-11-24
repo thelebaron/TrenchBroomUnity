@@ -286,6 +286,46 @@ QWidget* UnityPreferencePane::createUnityPreferences()
       prefs.set(Preferences::UnityEntityDefinitionsEnabled, state == Qt::Checked);
     });
 
+  m_decalFolderEdit = new QLineEdit{};
+  connect(m_decalFolderEdit, &QLineEdit::editingFinished, this, [&]() {
+    if (m_disableNotifiers)
+    {
+      return;
+    }
+    auto& prefs = PreferenceManager::instance();
+    prefs.set(
+      Preferences::UnityDecalFolder,
+      io::pathFromQString(m_decalFolderEdit->text().trimmed()));
+  });
+
+  m_imageEditorEdit = new QLineEdit{};
+  m_imageEditorEdit->setPlaceholderText(tr("System default"));
+  connect(m_imageEditorEdit, &QLineEdit::editingFinished, this, [&]() {
+    if (m_disableNotifiers)
+    {
+      return;
+    }
+    auto& prefs = PreferenceManager::instance();
+    prefs.set(
+      Preferences::ExternalImageEditor,
+      io::pathFromQString(m_imageEditorEdit->text().trimmed()));
+  });
+
+  m_imageEditorBrowseButton = new QPushButton{tr("...")};
+  connect(m_imageEditorBrowseButton, &QPushButton::clicked, this, [&]() {
+    const auto path = QFileDialog::getOpenFileName(
+      this,
+      tr("Choose Image Editor"),
+      m_imageEditorEdit->text(),
+      tr("Applications (*.exe);;All Files (*)"));
+    if (!path.isEmpty())
+    {
+      auto& prefs = PreferenceManager::instance();
+      prefs.set(Preferences::ExternalImageEditor, io::pathFromQString(path));
+      m_imageEditorEdit->setText(path);
+    }
+  });
+
   m_liveLinkSocketNameEdit = new QLineEdit{};
   connect(m_liveLinkSocketNameEdit, &QLineEdit::editingFinished, this, [&]() {
     if (m_disableNotifiers)
@@ -375,6 +415,21 @@ QWidget* UnityPreferencePane::createUnityPreferences()
   textureButtons->addWidget(m_refreshTexturesButton);
   layout->addRow("", textureButtons);
 
+  layout->addSection(tr("Asset Import"));
+  layout->addRow(tr("Decal folder"), m_decalFolderEdit);
+  auto* imageEditorLayout = new QHBoxLayout{};
+  imageEditorLayout->addWidget(m_imageEditorEdit, 1);
+  imageEditorLayout->addWidget(m_imageEditorBrowseButton);
+  layout->addRow(tr("Image editor"), imageEditorLayout);
+  auto* importDescription = new QLabel{tr(
+    "Images dropped on the Materials browser are copied into a texture folder; images "
+    "dropped on the Decals browser are copied into the decal folder, one subfolder per "
+    "category, where Unity builds an atlas for each category. Relative folders are "
+    "inside the Unity project. The image editor opens images from the browsers and the "
+    "image viewer; leave it empty for the system's default application.")};
+  importDescription->setWordWrap(true);
+  layout->addRow(importDescription);
+
   layout->addSection("Entities");
   layout->addRow(description);
   layout->addRow("Generate unique entity identifiers", m_generateEntityIdsCheckBox);
@@ -413,6 +468,8 @@ void UnityPreferencePane::doResetToDefaults()
   prefs.resetToDefault(Preferences::UnityDefaultMapFormat);
   prefs.resetToDefault(Preferences::UnityTextureFoldersEnabled);
   prefs.resetToDefault(Preferences::UnityAdditionalTextureFolders);
+  prefs.resetToDefault(Preferences::UnityDecalFolder);
+  prefs.resetToDefault(Preferences::ExternalImageEditor);
   prefs.resetToDefault(Preferences::UnityLiveLinkSocketName);
   prefs.resetToDefault(Preferences::UnityEntityDefinitionsEnabled);
 }
@@ -436,6 +493,8 @@ void UnityPreferencePane::updateControls()
     folders.push_back(io::pathAsQString(folder));
   }
   m_textureFoldersEdit->setPlainText(folders.join('\n'));
+  m_decalFolderEdit->setText(io::pathAsQString(pref(Preferences::UnityDecalFolder)));
+  m_imageEditorEdit->setText(io::pathAsQString(pref(Preferences::ExternalImageEditor)));
   m_generateEntityIdsCheckBox->setChecked(pref(Preferences::GenerateEntityIds));
   m_generateClassIndicesCheckBox->setChecked(pref(Preferences::GenerateClassIndices));
   m_unityReimportOnSaveCheckBox->setChecked(pref(Preferences::UnityReimportOnSave));
