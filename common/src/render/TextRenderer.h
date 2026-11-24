@@ -35,6 +35,22 @@ class AttrString;
 class RenderContext;
 class TextAnchor;
 
+/**
+ * A label's rectangle on screen, in pixels.
+ */
+struct LabelRect
+{
+  vm::vec2f min;
+  vm::vec2f size;
+};
+
+/**
+ * Which labels to draw so that no two overlap: earlier labels win. Placed labels are
+ * binned in a grid of the given cell size, so this stays cheap with thousands of labels.
+ */
+std::vector<bool> declutterLabels(
+  const std::vector<LabelRect>& labels, float cellSize = 64.0f);
+
 class TextRenderer : public DirectRenderable
 {
 private:
@@ -70,6 +86,7 @@ private:
   float m_maxViewDistance;
   float m_minZoomFactor;
   vm::vec2f m_inset;
+  bool m_declutter = false;
 
   EntryCollection m_entries;
   EntryCollection m_entriesOnTop;
@@ -80,6 +97,12 @@ public:
     float maxViewDistance = DefaultMaxViewDistance,
     float minZoomFactor = DefaultMinZoomFactor,
     const vm::vec2f& inset = DefaultInset);
+
+  /**
+   * Drops labels that would overlap one drawn on top or a nearer one, so crowded areas
+   * stay readable when zoomed out. Off by default.
+   */
+  void setDeclutter(bool declutter);
 
   void renderString(
     RenderContext& renderContext,
@@ -117,6 +140,8 @@ private:
 
 private:
   void doPrepareVertices(VboManager& vboManager) override;
+  void declutter();
+  LabelRect labelRect(const Entry& entry) const;
   void prepare(EntryCollection& collection, bool onTop, VboManager& vboManager);
 
   void addEntry(

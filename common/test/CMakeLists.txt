@@ -144,6 +144,7 @@ set(COMMON_TEST_SOURCE
         "${COMMON_TEST_SOURCE_DIR}/render/tst_AllocationTracker.cpp"
         "${COMMON_TEST_SOURCE_DIR}/render/tst_Camera.cpp"
         "${COMMON_TEST_SOURCE_DIR}/render/tst_PreviewLighting.cpp"
+        "${COMMON_TEST_SOURCE_DIR}/render/tst_TextDeclutter.cpp"
         "${COMMON_TEST_SOURCE_DIR}/render/tst_Vertex.cpp"
         "${COMMON_TEST_SOURCE_DIR}/tst_Ensure.cpp"
         "${COMMON_TEST_SOURCE_DIR}/tst_Notifier.cpp"

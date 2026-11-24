@@ -23,12 +23,15 @@
 #include <QLabel>
 #include <QWidget>
 
+#include "Logger.h"
 #include "PreferenceManager.h"
 #include "Preferences.h"
 #include "mdl/BrushFace.h"
 #include "mdl/BrushFaceHandle.h"
 #include "mdl/BrushNode.h"
+#include "mdl/EditorContext.h"
 #include "mdl/Entity.h"
+#include "mdl/EntityDefinitionManager.h"
 #include "mdl/EntityNode.h"
 #include "mdl/EntityProperties.h"
 #include "mdl/HitAdapter.h"
@@ -659,12 +662,39 @@ void DecalStampTool::scale(const double factor)
   setStretch(m_stretch * factor);
 }
 
+namespace
+{
+
+void showDecals(mdl::Map& map)
+{
+  auto& editorContext = map.editorContext();
+  if (
+    const auto* definition =
+      map.entityDefinitionManager().definition(unity::DecalClassName);
+    definition && editorContext.entityDefinitionHidden(*definition))
+  {
+    editorContext.setEntityDefinitionHidden(*definition, false);
+    map.logger().info() << "Showing decals again to place them (View > Entities)";
+  }
+  if (!pref(Preferences::ShowPointEntities))
+  {
+    PreferenceManager::instance().set(Preferences::ShowPointEntities, true);
+    map.logger().info() << "Showing point entities again to place decals";
+  }
+}
+
+} // namespace
+
 bool DecalStampTool::stamp()
 {
   if (!m_surface || !decal())
   {
     return false;
   }
+
+  // a hidden decal is only drawn while selected, so each stamp would seem to move the
+  // last one
+  showDecals(m_map);
 
   const auto placement =
     decalPlacement(m_surface->point, m_surface->normal, m_surface->viewDirection, m_roll);
@@ -685,6 +715,12 @@ bool DecalStampTool::stamp()
   mdl::deselectAll(m_map);
   mdl::selectNodes(m_map, {node});
   return transaction.commit();
+}
+
+bool DecalStampTool::doActivate()
+{
+  showDecals(m_map);
+  return true;
 }
 
 bool DecalStampTool::doDeactivate()
@@ -718,9 +754,8 @@ void DecalStampTool::updatePage()
 
   const auto stamp =
     m_decalId.empty()
-      ? QObject::tr("Decals: click a decal to select it.")
-      : QObject::tr(
-          "Stamp %1 (%2 x %3, %4°): click a surface to place, a decal to select.")
+      ? QObject::tr("Place Decals: choose a decal in the Decals browser.")
+      : QObject::tr("Place %1 (%2 x %3, %4°): click a surface to place it.")
           .arg(QString::fromStdString(m_decalId))
           .arg(std::round(size().x()))
           .arg(std::round(size().y()))
@@ -728,8 +763,8 @@ void DecalStampTool::updatePage()
   m_label->setText(
     stamp
     + QObject::tr(
-      " Hold W/E/R and drag to move/scale/turn the selection (or the stamp); "
-      "Shift constrains, stretches, snaps. Esc to stop."));
+      " Hold W/E/R and drag to move/scale/turn the last placed decal (or the stamp); "
+      "Shift constrains, stretches, snaps. Esc to stop placing."));
 }
 
 DecalStampToolController::DecalStampToolController(DecalStampTool& tool)
@@ -756,8 +791,6 @@ void DecalStampToolController::mouseMove(const InputState& inputState)
 
 bool DecalStampToolController::mouseClick(const InputState& inputState)
 {
-  using namespace mdl::HitFilters;
-
   if (
     !inputState.mouseButtonsPressed(MouseButtons::Left)
     || !inputState.modifierKeysPressed(ModifierKeys::None))
@@ -765,30 +798,15 @@ bool DecalStampToolController::mouseClick(const InputState& inputState)
     return false;
   }
 
-  if (m_tool.manipulation() != DecalManipulation::None)
+  // while placing, clicks only place decals, also over existing ones; a click while W,
+  // E or R is held is a drag that didn't move
+  if (m_tool.manipulation() == DecalManipulation::None)
   {
-    // a click while W, E or R is held is a drag that didn't move
-    return true;
+    m_tool.updatePlacement(
+      inputState.pickResult(), vm::vec3d{inputState.camera().direction()});
+    m_tool.stamp();
   }
-
-  // clicking a decal selects it rather than stamping over it
-  const auto& hit = inputState.pickResult().first(
-    type(mdl::EntityNode::EntityHitType | mdl::BrushNode::BrushHitType));
-  if (
-    auto* entityNode = dynamic_cast<mdl::EntityNode*>(mdl::hitToNode(hit));
-    entityNode && unity::isDecalEntity(entityNode->entity()))
-  {
-    auto& map = m_tool.map();
-    mdl::deselectAll(map);
-    mdl::selectNodes(map, {entityNode});
-    return true;
-  }
-
-  m_tool.updatePlacement(
-    inputState.pickResult(), vm::vec3d{inputState.camera().direction()});
-
-  // without a stamp, clicks select as usual
-  return m_tool.stamp();
+  return true;
 }
 
 void DecalStampToolController::mouseScroll(const InputState& inputState)

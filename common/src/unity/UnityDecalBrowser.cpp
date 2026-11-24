@@ -20,7 +20,7 @@
 #include "UnityDecalBrowser.h"
 
 #include <QBoxLayout>
-#include <QComboBox>
+#include <QDir>
 #include <QDragEnterEvent>
 #include <QDropEvent>
 #include <QIcon>
@@ -40,6 +40,7 @@
 #include "ui/ImageViewerDialog.h"
 #include "ui/MapDocument.h"
 #include "ui/QtUtils.h"
+#include "ui/Splitter.h"
 #include "ui/ViewConstants.h"
 #include "unity/UnityAssetImport.h"
 #include "unity/UnityAssetImportDialogs.h"
@@ -47,7 +48,7 @@
 #include "unity/UnityDecalLibrary.h"
 
 #include <algorithm>
-#include <set>
+#include <map>
 
 namespace tb::unity
 {
@@ -55,6 +56,7 @@ namespace
 {
 constexpr auto ThumbnailSize = 96;
 constexpr auto DecalIdRole = Qt::UserRole;
+constexpr auto CategoryRole = Qt::UserRole;
 
 bool matchesSearch(const UnityCatalogDecal& decal, const QString& search)
 {
@@ -117,10 +119,16 @@ UnityDecalBrowser::UnityDecalBrowser(ui::MapDocument& document, QWidget* parent)
 
   connect(m_searchBox, &QLineEdit::textChanged, this, &UnityDecalBrowser::rebuildList);
   connect(
-    m_categoryCombo,
-    QOverload<int>::of(&QComboBox::currentIndexChanged),
+    m_categoryList,
+    &QListWidget::currentRowChanged,
     this,
     &UnityDecalBrowser::rebuildList);
+  m_categoryList->setContextMenuPolicy(Qt::CustomContextMenu);
+  connect(
+    m_categoryList,
+    &QListWidget::customContextMenuRequested,
+    this,
+    &UnityDecalBrowser::showCategoryContextMenu);
   connect(m_list, &QListWidget::itemClicked, this, &UnityDecalBrowser::itemClicked);
   connect(m_list, &QListWidget::itemDoubleClicked, this, [this](auto* item) {
     const auto path = imagePath(item->data(DecalIdRole).toString().toStdString());
@@ -148,10 +156,14 @@ UnityDecalBrowser::UnityDecalBrowser(ui::MapDocument& document, QWidget* parent)
   reloadLibrary();
 }
 
+UnityDecalBrowser::~UnityDecalBrowser()
+{
+  ui::saveWindowState(m_splitter);
+}
+
 void UnityDecalBrowser::createGui()
 {
   m_searchBox = ui::createSearchBox();
-  m_categoryCombo = new QComboBox{};
 
   auto* controls = new QHBoxLayout{};
   controls->setContentsMargins(
@@ -170,8 +182,13 @@ void UnityDecalBrowser::createGui()
   });
 
   controls->addWidget(m_searchBox, 1);
-  controls->addWidget(m_categoryCombo, 1);
   controls->addWidget(importButton);
+
+  m_categoryList = new QListWidget{};
+  m_categoryList->setSelectionMode(QAbstractItemView::SingleSelection);
+  m_categoryList->setToolTip(tr(
+    "Decal categories: the folders in the Unity project's decal folder. Drop images "
+    "on a category to import them into it."));
 
   m_list = new QListWidget{};
   m_list->setViewMode(QListView::IconMode);
@@ -192,12 +209,23 @@ void UnityDecalBrowser::createGui()
   m_stack->addWidget(m_list);
   m_stack->addWidget(m_messageLabel);
 
+  m_splitter = new ui::Splitter{Qt::Horizontal};
+  m_splitter->setObjectName("UnityDecalBrowser_Splitter");
+  m_splitter->addWidget(m_categoryList);
+  m_splitter->addWidget(m_stack);
+  // when the inspector resizes, the decals get the room
+  m_splitter->setStretchFactor(0, 0);
+  m_splitter->setStretchFactor(1, 1);
+  m_splitter->setSizes({120, 280});
+
   auto* layout = new QVBoxLayout{};
   layout->setContentsMargins(0, 0, 0, 0);
   layout->setSpacing(0);
   layout->addLayout(controls, 0);
-  layout->addWidget(m_stack, 1);
+  layout->addWidget(m_splitter, 1);
   setLayout(layout);
+
+  ui::restoreWindowState(m_splitter);
 }
 
 void UnityDecalBrowser::reloadLibrary()
@@ -240,23 +268,35 @@ void UnityDecalBrowser::reloadLibrary()
 
 void UnityDecalBrowser::rebuildCategories()
 {
-  const auto current = m_categoryCombo->currentData().toString();
+  const auto current = QString::fromStdString(currentCategory());
+  const auto& decals = m_document.map().decalLibrary().decals();
 
-  auto categories = std::set<std::string>{};
-  for (const auto& decal : m_document.map().decalLibrary().decals())
+  // decal counts by category, sorted by name
+  auto categories = std::map<std::string, size_t>{};
+  for (const auto& decal : decals)
   {
-    categories.insert(decal.category);
+    ++categories[decal.category];
   }
 
-  const auto blocker = QSignalBlocker{m_categoryCombo};
-  m_categoryCombo->clear();
-  m_categoryCombo->addItem(tr("All categories"), QString{});
-  for (const auto& category : categories)
+  const auto blocker = QSignalBlocker{m_categoryList};
+  m_categoryList->clear();
+
+  auto* all = new QListWidgetItem{tr("All (%1)").arg(decals.size())};
+  all->setData(CategoryRole, QString{});
+  m_categoryList->addItem(all);
+  auto currentRow = 0;
+  for (const auto& [category, count] : categories)
   {
     const auto name = QString::fromStdString(category);
-    m_categoryCombo->addItem(name, name);
+    auto* item = new QListWidgetItem{tr("%1 (%2)").arg(name).arg(count)};
+    item->setData(CategoryRole, name);
+    m_categoryList->addItem(item);
+    if (name == current)
+    {
+      currentRow = m_categoryList->count() - 1;
+    }
   }
-  m_categoryCombo->setCurrentIndex(std::max(0, m_categoryCombo->findData(current)));
+  m_categoryList->setCurrentRow(currentRow);
 
   rebuildList();
 }
@@ -264,7 +304,7 @@ void UnityDecalBrowser::rebuildCategories()
 void UnityDecalBrowser::rebuildList()
 {
   const auto search = m_searchBox->text().trimmed();
-  const auto category = m_categoryCombo->currentData().toString().toStdString();
+  const auto category = currentCategory();
 
   m_list->clear();
   for (const auto& decal : m_document.map().decalLibrary().decals())
@@ -312,7 +352,45 @@ std::filesystem::path UnityDecalBrowser::imagePath(const std::string& decalId) c
 
 std::string UnityDecalBrowser::currentCategory() const
 {
-  return m_categoryCombo->currentData().toString().toStdString();
+  const auto* item = m_categoryList->currentItem();
+  return item ? item->data(CategoryRole).toString().toStdString() : std::string{};
+}
+
+std::string UnityDecalBrowser::dropCategory(const QPoint& position) const
+{
+  const auto* viewport = m_categoryList->viewport();
+  const auto listPosition = viewport->mapFrom(this, position);
+  if (viewport->rect().contains(listPosition))
+  {
+    if (const auto* item = m_categoryList->itemAt(listPosition))
+    {
+      return item->data(CategoryRole).toString().toStdString();
+    }
+  }
+  return currentCategory();
+}
+
+void UnityDecalBrowser::showCategoryContextMenu(const QPoint& position)
+{
+  const auto* item = m_categoryList->itemAt(position);
+  const auto category =
+    item ? item->data(CategoryRole).toString().toStdString() : std::string{};
+  const auto folder = category.empty() ? decalFolder() : decalFolder() / category;
+
+  auto menu = QMenu{this};
+  menu.addAction(
+    category.empty()
+      ? tr("Import Decals into Unity...")
+      : tr("Import Decals into %1...").arg(QString::fromStdString(category)),
+    this,
+    [this, category]() {
+      importDecalsInteractively(
+        this, chooseImageFiles(this, tr("Import Decals into Unity")), category);
+    });
+  auto* show = menu.addAction(
+    tr("Show in Folder"), this, [folder]() { ui::showInFileBrowser(folder); });
+  show->setEnabled(QDir{io::pathAsQString(folder)}.exists());
+  menu.exec(m_categoryList->viewport()->mapToGlobal(position));
 }
 
 void UnityDecalBrowser::showContextMenu(const QPoint& position)
@@ -377,7 +455,7 @@ void UnityDecalBrowser::dropEvent(QDropEvent* event)
   if (!files.empty())
   {
     event->acceptProposedAction();
-    importDecalsInteractively(this, files, currentCategory());
+    importDecalsInteractively(this, files, dropCategory(event->position().toPoint()));
   }
 }
 

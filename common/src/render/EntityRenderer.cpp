@@ -290,6 +290,7 @@ void EntityRenderer::renderClassnames(
     auto renderService = render::RenderService{renderContext, renderBatch};
     renderService.setForegroundColor(m_overlayTextColor);
     renderService.setBackgroundColor(m_overlayBackgroundColor);
+    renderService.setDeclutterStrings();
 
     for (const auto* entityNode : m_entities)
     {

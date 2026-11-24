@@ -133,6 +133,7 @@ void LayerHighlightRenderer::render(
     pref(Preferences::WeakInfoOverlayBackgroundAlpha),
   });
   renderService.setShowOccludedObjects();
+  renderService.setDeclutterStrings();
 
   for (const auto* entity : selection.entities)
   {

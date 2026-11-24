@@ -452,8 +452,21 @@ ShortcutOverride for W, E and R then, so they don't fly the camera or toggle the
 and Edge tools. Selected decals are outlined on the faces they cover
 (`EntityDecalRenderer::renderOutlines`) instead of an entity box, and the brush-style
 selection guide is skipped; a decal that covers nothing shows its projection box. 2D
-views draw every atlas decal's projection box. The decal tool can be turned on without a
-stamp from Edit > Tools > Decal Tool (no default shortcut).
+views draw every atlas decal's projection box.
+
+**Placing decals** is a mode: the Place Decals button on the toolbar (after the Room
+Creator button; also Edit > Tools > Place Decals, no default shortcut) turns it on and
+shows the Decals tab, and clicking a decal in the Decals tab turns it on with that decal.
+While it is on, a click only ever places the chosen decal, also over existing decals, so
+it never selects one by accident; turn it off (button or Escape) to select decals again.
+The decal just placed is selected, so W, E and R adjust it straight away. Placing a decal
+while decals (the `decal` entity class, or all point entities) are hidden in the view
+options shows them again: hidden entities are only drawn while selected, so each new
+decal would otherwise seem to move the previous one.
+
+The Decals tab lists categories, with their decal counts and an "All" entry, beside the
+decal tiles in a split view. Dropping images on a category imports them into it; its
+context menu imports into it or shows its folder.
 
 `tint` (0-255 per channel), `brightness` and `invert` change a decal's colors: inverted,
 then multiplied, alpha untouched. TrenchBroom previews them with recolored copies of the
@@ -494,6 +507,22 @@ menu), `Preferences.*` and `unity/UnityPreferencePane.*` (decal folder, image ed
 **Tests:** `common/test/src/unity/tst_UnityAssetImport.cpp` covers import plans,
 conflicts, replace and skip, folder names, categories and project paths.
 
+## 18. Label decluttering
+
+**Use:** When zoomed out, entity classname, group name and layer labels no longer pile on
+top of each other: a label that would overlap another is left out, so crowded areas show
+one readable label instead of a smear. Labels drawn on top (2D views and labels shown
+through geometry) win over the others, and nearer labels over farther ones. Zoom in and
+the hidden labels come back as space opens up.
+
+**How:** `TextRenderer::setDeclutter` (through `RenderService::setDeclutterStrings`)
+sorts the frame's labels and keeps them greedily with `declutterLabels`, which bins
+placed label rectangles in a 64 pixel screen grid so each label is only tested against
+its neighbours. `EntityRenderer`, `GroupRenderer` and `LayerHighlightRenderer` turn it
+on; other text (measurements, tool readouts) is unchanged.
+
+**Tests:** `common/test/src/render/tst_TextDeclutter.cpp` ([text-declutter]).
+
 ## Build and maintenance changes
 
 The fork also changes Windows build guidance, ignore rules, editor icons and toolbar
@@ -515,7 +544,7 @@ With `build-vs18` configured as described in `AGENTS.md`:
 .\test-fork.ps1 -All
 ```
 
-The runner selects `[entity-identity],[unity-workflow],[unity-live-link],[unity-catalog],[unity-decals],[decal-stamp],[unity-asset-import]` by default, uses the configured Qt kit and sets
+The runner selects `[entity-identity],[unity-workflow],[unity-live-link],[unity-catalog],[unity-decals],[decal-stamp],[unity-asset-import],[text-declutter]` by default, uses the configured Qt kit and sets
 the executable directory as the working directory. `-All` runs the remaining full common
 suite; the removed feature tests are not part of either run.
 

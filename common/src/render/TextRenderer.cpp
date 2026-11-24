@@ -33,10 +33,103 @@
 #include "vm/mat_ext.h"
 #include "vm/vec.h"
 
+#include <algorithm>
+#include <cmath>
+#include <cstdint>
+#include <unordered_map>
 #include <utility>
 
 namespace tb::render
 {
+
+namespace
+{
+
+bool overlaps(const LabelRect& lhs, const LabelRect& rhs)
+{
+  return lhs.min.x() < rhs.min.x() + rhs.size.x()
+         && rhs.min.x() < lhs.min.x() + lhs.size.x()
+         && lhs.min.y() < rhs.min.y() + rhs.size.y()
+         && rhs.min.y() < lhs.min.y() + lhs.size.y();
+}
+
+/**
+ * Placed label rects, binned by the grid cells they touch.
+ */
+class LabelGrid
+{
+private:
+  float m_cellSize;
+  std::vector<LabelRect> m_rects;
+  std::unordered_map<std::int64_t, std::vector<size_t>> m_cells;
+
+public:
+  explicit LabelGrid(const float cellSize)
+    : m_cellSize{cellSize}
+  {
+  }
+
+  bool fits(const LabelRect& rect) const
+  {
+    auto result = true;
+    visitCells(rect, [&](const auto key) {
+      if (const auto it = m_cells.find(key); result && it != m_cells.end())
+      {
+        result = std::none_of(it->second.begin(), it->second.end(), [&](const auto i) {
+          return overlaps(m_rects[i], rect);
+        });
+      }
+    });
+    return result;
+  }
+
+  void add(const LabelRect& rect)
+  {
+    const auto index = m_rects.size();
+    m_rects.push_back(rect);
+    visitCells(rect, [&](const auto key) { m_cells[key].push_back(index); });
+  }
+
+private:
+  std::int64_t cell(const float coord) const
+  {
+    return static_cast<std::int64_t>(std::floor(coord / m_cellSize));
+  }
+
+  template <typename F>
+  void visitCells(const LabelRect& rect, const F& f) const
+  {
+    const auto x0 = cell(rect.min.x());
+    const auto y0 = cell(rect.min.y());
+    const auto x1 = cell(rect.min.x() + rect.size.x());
+    const auto y1 = cell(rect.min.y() + rect.size.y());
+    for (auto y = y0; y <= y1; ++y)
+    {
+      for (auto x = x0; x <= x1; ++x)
+      {
+        f((y << 32) ^ (x & 0xffffffff));
+      }
+    }
+  }
+};
+
+} // namespace
+
+std::vector<bool> declutterLabels(
+  const std::vector<LabelRect>& labels, const float cellSize)
+{
+  auto grid = LabelGrid{cellSize};
+  auto result = std::vector<bool>(labels.size(), false);
+  for (size_t i = 0; i < labels.size(); ++i)
+  {
+    if (grid.fits(labels[i]))
+    {
+      grid.add(labels[i]);
+      result[i] = true;
+    }
+  }
+  return result;
+}
 
 const float TextRenderer::DefaultMaxViewDistance = 768.0f;
 const float TextRenderer::DefaultMinZoomFactor = 0.5f;
@@ -54,6 +147,11 @@ TextRenderer::TextRenderer(
   , m_minZoomFactor{minZoomFactor}
   , m_inset{inset}
 {
+}
+
+void TextRenderer::setDeclutter(const bool declutter)
+{
+  m_declutter = declutter;
 }
 
 void TextRenderer::renderString(
@@ -190,8 +288,53 @@ vm::vec2f TextRenderer::stringSize(
 
 void TextRenderer::doPrepareVertices(VboManager& vboManager)
 {
+  if (m_declutter)
+  {
+    declutter();
+  }
   prepare(m_entries, false, vboManager);
   prepare(m_entriesOnTop, true, vboManager);
+}
+
+LabelRect TextRenderer::labelRect(const Entry& entry) const
+{
+  // the background rect, with a pixel to spare on each side
+  const auto gap = vm::vec2f{1.0f, 1.0f};
+  return {entry.offset.xy() - m_inset - gap, entry.size + 2.0f * (m_inset + gap)};
+}
+
+void TextRenderer::declutter()
+{
+  // labels drawn on top win over the others, and nearer labels over farther ones
+  auto collections = {&m_entriesOnTop.entries, &m_entries.entries};
+
+  auto labels = std::vector<LabelRect>{};
+  for (auto* entries : collections)
+  {
+    std::stable_sort(
+      entries->begin(), entries->end(), [](const auto& lhs, const auto& rhs) {
+        return lhs.offset.z() < rhs.offset.z();
+      });
+    for (const auto& entry : *entries)
+    {
+      labels.push_back(labelRect(entry));
+    }
+  }
+
+  const auto keep = declutterLabels(labels);
+  auto index = size_t(0);
+  for (auto* entries : collections)
+  {
+    auto kept = std::vector<Entry>{};
+    for (auto& entry : *entries)
+    {
+      if (keep[index++])
+      {
+        kept.push_back(std::move(entry));
+      }
+    }
+    *entries = std::move(kept);
+  }
 }
 
 void TextRenderer::prepare(

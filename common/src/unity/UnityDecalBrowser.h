@@ -29,7 +29,6 @@
 #include <string>
 #include <unordered_map>
 
-class QComboBox;
 class QLabel;
 class QLineEdit;
 class QListWidget;
@@ -39,15 +38,16 @@ class QStackedWidget;
 namespace tb::ui
 {
 class MapDocument;
-}
+class Splitter;
+} // namespace tb::ui
 
 namespace tb::unity
 {
 
 /**
- * The Decals inspector tab: the decals of the Unity decal libraries, as tiles cut from
- * their atlases, with a category filter and search. Clicking a decal arms the stamp tool
- * with it.
+ * The Decals inspector tab: the categories of the Unity decal libraries on the left, and
+ * the decals of the chosen one on the right, as tiles cut from their atlases, with a
+ * search. Clicking a decal arms the stamp tool with it.
  */
 class UnityDecalBrowser : public ui::TabBookPage
 {
@@ -59,13 +59,15 @@ private:
   std::unordered_map<std::string, QImage> m_atlasImages;
 
   QLineEdit* m_searchBox = nullptr;
-  QComboBox* m_categoryCombo = nullptr;
+  ui::Splitter* m_splitter = nullptr;
+  QListWidget* m_categoryList = nullptr;
   QListWidget* m_list = nullptr;
   QLabel* m_messageLabel = nullptr;
   QStackedWidget* m_stack = nullptr;
 
 public:
   explicit UnityDecalBrowser(ui::MapDocument& document, QWidget* parent = nullptr);
+  ~UnityDecalBrowser() override;
 
 signals:
   void decalStampRequested(const QString& decalId);
@@ -83,11 +85,17 @@ private:
   void showMessage(const QString& message);
   void itemClicked(QListWidgetItem* item);
   void showContextMenu(const QPoint& position);
+  void showCategoryContextMenu(const QPoint& position);
   /**
    * The decal's own image if it has one, else its atlas.
    */
   std::filesystem::path imagePath(const std::string& decalId) const;
   std::string currentCategory() const;
+  /**
+   * The category under the drop position if the drop is on the category list, else the
+   * current one.
+   */
+  std::string dropCategory(const QPoint& position) const;
 };
 
 } // namespace tb::unity

@@ -38,7 +38,9 @@ enum class InspectorPage
   Map = 0,
   Prefab = 1,
   Entity = 2,
-  Face = 3
+  Face = 3,
+  Unity = 4,
+  Decals = 5,
 };
 
 class Inspector : public QWidget

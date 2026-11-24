@@ -210,6 +210,7 @@ public:
   bool stamp();
 
 private:
+  bool doActivate() override;
   bool doDeactivate() override;
   QWidget* doCreatePage(QWidget* parent) override;
   void updatePage();

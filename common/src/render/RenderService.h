@@ -77,6 +77,10 @@ public:
 
   void setShowBackfaces();
   void setCullBackfaces();
+  /**
+   * Strings that would overlap a nearer one are left out.
+   */
+  void setDeclutterStrings();
 
   void renderString(const AttrString& string, const vm::vec3f& position);
   void renderString(const AttrString& string, const TextAnchor& position);

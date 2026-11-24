@@ -1575,7 +1575,7 @@ void ActionManager::createEditMenu()
   }));
   toolMenu.addItem(addAction(Action{
     "Menu/Edit/Tools/Decal Tool",
-    QObject::tr("Decal Tool"),
+    QObject::tr("Place Decals"),
     ActionContext::Any,
     QKeySequence{},
     [](auto& context) { context.frame().toggleDecalTool(); },
@@ -1583,6 +1583,7 @@ void ActionManager::createEditMenu()
     [](const auto& context) {
       return context.hasDocument() && context.frame().decalToolActive();
     },
+    std::filesystem::path{"DecalTool.svg"},
   }));
   toolMenu.addItem(addAction(Action{
     "Menu/Edit/Tools/Rotate Tool",

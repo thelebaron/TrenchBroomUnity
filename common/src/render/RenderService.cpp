@@ -130,6 +130,11 @@ void RenderService::setCullBackfaces()
   m_cullingPolicy = PrimitiveRendererCullingPolicy::CullBackfaces;
 }
 
+void RenderService::setDeclutterStrings()
+{
+  m_textRenderer->setDeclutter(true);
+}
+
 void RenderService::renderString(const AttrString& string, const vm::vec3f& position)
 {
   renderString(

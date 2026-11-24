@@ -168,6 +168,7 @@ void GroupRenderer::renderNames(RenderContext& renderContext, RenderBatch& rende
   {
     auto renderService = render::RenderService{renderContext, renderBatch};
     renderService.setBackgroundColor(m_overlayBackgroundColor);
+    renderService.setDeclutterStrings();
 
     if (m_overrideColors)
     {

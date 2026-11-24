@@ -468,6 +468,7 @@ void MapFrame::createToolBar()
 
   m_toolBar->addWidget(m_gridChoice);
   m_toolBar->addAction(findAction("Menu/View/Toggle Room Creator"));
+  m_toolBar->addAction(findAction("Menu/Edit/Tools/Decal Tool"));
 }
 
 void MapFrame::updateToolBarWidgets()
@@ -1894,6 +1895,11 @@ bool MapFrame::clipToolActive() const
 void MapFrame::toggleDecalTool()
 {
   m_mapView->toggleDecalTool();
+  if (m_mapView->decalToolActive())
+  {
+    // decals are chosen there
+    switchToInspectorPage(InspectorPage::Decals);
+  }
 }
 
 bool MapFrame::decalToolActive() const
