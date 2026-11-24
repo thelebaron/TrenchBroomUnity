@@ -18,17 +18,26 @@
  */
 
 #include "MapFixture.h"
+#include "mdl/BrushBuilder.h"
+#include "mdl/BrushNode.h"
 #include "mdl/Entity.h"
 #include "mdl/EntityNode.h"
 #include "mdl/EntityProperties.h"
 #include "mdl/Map.h"
 #include "mdl/Map_Nodes.h"
+#include "mdl/Map_Picking.h"
 #include "mdl/Map_Selection.h"
+#include "mdl/PickResult.h"
+#include "mdl/WorldNode.h"
 #include "ui/DecalStampTool.h"
 #include "unity/UnityDecals.h"
 
+#include "kdl/result.h"
+
 #include "vm/approx.h"
 #include "vm/vec_io.h" // IWYU pragma: keep
+
+#include <set>
 
 #include <catch2/catch_test_macros.hpp>
 
@@ -38,11 +47,14 @@ namespace
 {
 
 mdl::EntityNode* addDecal(
-  mdl::Map& map, const std::string& angles, const std::string& size)
+  mdl::Map& map,
+  const std::string& angles,
+  const std::string& size,
+  const std::string& origin = "0 0 64")
 {
   auto* node = new mdl::EntityNode{mdl::Entity{{
     {mdl::EntityPropertyKeys::Classname, unity::DecalClassName},
-    {mdl::EntityPropertyKeys::Origin, "0 0 64"},
+    {mdl::EntityPropertyKeys::Origin, origin},
     {mdl::EntityPropertyKeys::Angles, angles},
     {unity::DecalPropertyKeys::Decal, "markings/stripe"},
     {unity::DecalPropertyKeys::Size, size},
@@ -217,6 +229,98 @@ TEST_CASE("Scaling selected decals", "[decal-stamp]")
 
   map.undoCommand();
   CHECK(propertyOf(*decal, unity::DecalPropertyKeys::Size) == "32 16");
+}
+
+TEST_CASE("The stamp remembers its transform offset", "[decal-stamp]")
+{
+  auto fixture = mdl::MapFixture{};
+  fixture.create();
+  auto tool = DecalStampTool{fixture.map()};
+
+  CHECK_FALSE(tool.hasTransformOffset());
+
+  tool.setDecal("markings/stripe");
+  tool.setRoll(30.0);
+  tool.setStretch({2.0, 1.5});
+  CHECK(tool.hasTransformOffset());
+
+  SECTION("choosing another decal keeps the offset")
+  {
+    tool.setDecal("markings/arrow");
+    CHECK(tool.roll() == 30.0);
+    CHECK(tool.stretch() == vm::vec2d{2.0, 1.5});
+  }
+
+  SECTION("resetting drops the turn and the stretch")
+  {
+    tool.resetTransformOffset();
+    CHECK(tool.roll() == 0.0);
+    CHECK(tool.stretch() == vm::vec2d{1.0, 1.0});
+    CHECK_FALSE(tool.hasTransformOffset());
+  }
+}
+
+TEST_CASE("Clicks cycle through stacked decals", "[decal-stamp]")
+{
+  auto fixture = mdl::MapFixture{};
+  fixture.create();
+  auto& map = fixture.map();
+
+  // a wall whose west face is at x = 0, with three decals on it and one behind it
+  auto builder = mdl::BrushBuilder{map.world()->mapFormat(), map.worldBounds()};
+  auto* wall = new mdl::BrushNode{
+    builder.createCuboid(vm::bbox3d{{0, -64, 0}, {32, 64, 128}}, "material")
+    | kdl::value()};
+  REQUIRE_FALSE(mdl::addNodes(map, {{mdl::parentForNodes(map), {wall}}}).empty());
+
+  auto* a = addDecal(map, "0 0 0", "32 16");
+  auto* b = addDecal(map, "0 0 0", "64 64");
+  auto* c = addDecal(map, "0 0 0", "16 16", "0 4 64");
+  auto* behind = addDecal(map, "0 0 0", "32 16", "40 0 64");
+
+  auto pickResult = mdl::PickResult::byDistance();
+  mdl::pick(map, vm::ray3d{{-100, 0, 64}, {1, 0, 0}}, pickResult);
+  const auto stack = decalsUnderCursor(pickResult);
+
+  SECTION("decals behind the wall are not in the stack")
+  {
+    CHECK(
+      std::set<mdl::EntityNode*>{stack.begin(), stack.end()}
+      == std::set<mdl::EntityNode*>{a, b, c});
+    CHECK(std::ranges::find(stack, behind) == stack.end());
+  }
+
+  SECTION("the first click selects the nearest")
+  {
+    CHECK(nextDecalInStack(stack, {}) == stack.front());
+    CHECK(nextDecalInStack(stack, {behind}) == stack.front());
+  }
+
+  SECTION("repeated clicks visit every decal and come back")
+  {
+    for (auto* start : stack)
+    {
+      auto visited = std::set<mdl::EntityNode*>{};
+      auto* current = start;
+      for (size_t i = 0; i < stack.size(); ++i)
+      {
+        current = nextDecalInStack(stack, {current});
+        visited.insert(current);
+      }
+      CHECK(current == start);
+      CHECK(visited.size() == stack.size());
+    }
+  }
+
+  SECTION("a stack that a selected decal isn't in starts again")
+  {
+    CHECK(nextDecalInStack({b, c}, {a}) == b);
+  }
+
+  SECTION("an empty stack selects nothing")
+  {
+    CHECK(nextDecalInStack({}, {a}) == nullptr);
+  }
 }
 
 } // namespace tb::ui

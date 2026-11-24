@@ -439,7 +439,8 @@ the 3D view; Ctrl+wheel (drill selection) and Ctrl+Alt+wheel (grid) are taken.
 properties, bounds, projection onto one face, clipping at a face edge, wrapping a
 corner, the fade angle, depth, flips, atlas coordinates and angle round trips;
 `tst_UnityCatalog.cpp` covers the decal sections; `common/test/src/ui/tst_DecalStampTool.cpp`
-covers placement on walls and floors and turning and scaling selected decals with undo.
+covers placement on walls and floors, turning and scaling selected decals with undo,
+the remembered stamp offset and its reset, and cycling through stacked decals.
 
 ### Decal editing, appearance and folder categories
 
@@ -459,10 +460,21 @@ Creator button; also Edit > Tools > Place Decals, no default shortcut) turns it 
 shows the Decals tab, and clicking a decal in the Decals tab turns it on with that decal.
 While it is on, a click only ever places the chosen decal, also over existing decals, so
 it never selects one by accident; turn it off (button or Escape) to select decals again.
-The decal just placed is selected, so W, E and R adjust it straight away. Placing a decal
+While placing, holding E or R and dragging (or Alt+Shift+wheel and Alt+wheel) scales or
+turns the stamp, not the selection: Shift stretches width and height separately or snaps
+to 45 degrees. That scale and turn are a remembered offset applied to every decal placed
+from then on, whichever decal is chosen, and shown in the tool bar with a Reset
+Transform button that sets them back to the default size and no turn. The decal just
+placed is selected, so W moves it straight away; a move doesn't change the offset. Placing a decal
 while decals (the `decal` entity class, or all point entities) are hidden in the view
 options shows them again: hidden entities are only drawn while selected, so each new
 decal would otherwise seem to move the previous one.
+
+With placing off, clicking where several decals overlap cycles through them: the first
+click selects the nearest, and each further click on the selected decal selects the next
+one in the stack (`decalsUnderCursor`, `nextDecalInStack`), so the one underneath can be
+reached. Only decals whose boxes the ray enters before the first brush face count, so
+decals behind a wall don't join the stack; a lone decal is selected as usual.
 
 The Decals tab lists categories, with their decal counts and an "All" entry, beside the
 decal tiles in a split view. Dropping images on a category imports them into it; its

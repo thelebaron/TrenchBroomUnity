@@ -21,6 +21,7 @@
 
 #include <QHBoxLayout>
 #include <QLabel>
+#include <QPushButton>
 #include <QWidget>
 
 #include "Logger.h"
@@ -57,6 +58,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <functional>
 #include <utility>
 #include <vector>
 
@@ -317,10 +319,14 @@ public:
     auto& map = m_tool.map();
     map.commitTransaction();
 
-    // the next stamp continues where this decal left off
-    const auto& node = *m_targets.front().node;
-    m_tool.adoptFrom(
-      unity::decalBox(node.entity(), defaultSize(map, node.entity())), m_viewDirection);
+    // the next stamp continues where a scaled or turned decal left off; a move keeps the
+    // stamp's offset
+    if (m_manipulation != DecalManipulation::Translate)
+    {
+      const auto& node = *m_targets.front().node;
+      m_tool.adoptFrom(
+        unity::decalBox(node.entity(), defaultSize(map, node.entity())), m_viewDirection);
+    }
   }
 
   void cancel() override
@@ -530,6 +536,52 @@ bool scaleSelectedDecals(mdl::Map& map, const double factor)
     });
 }
 
+std::vector<mdl::EntityNode*> decalsUnderCursor(const mdl::PickResult& pickResult)
+{
+  auto result = std::vector<mdl::EntityNode*>{};
+  for (const auto& hit : pickResult.all())
+  {
+    if (hit.type() == mdl::BrushNode::BrushHitType)
+    {
+      break;
+    }
+    if (hit.type() != mdl::EntityNode::EntityHitType)
+    {
+      continue;
+    }
+    if (
+      auto* entityNode = dynamic_cast<mdl::EntityNode*>(mdl::hitToNode(hit));
+      entityNode && unity::isDecalEntity(entityNode->entity())
+      && std::ranges::find(result, entityNode) == result.end())
+    {
+      result.push_back(entityNode);
+    }
+  }
+  return result;
+}
+
+mdl::EntityNode* nextDecalInStack(
+  const std::vector<mdl::EntityNode*>& stack,
+  const std::vector<mdl::EntityNode*>& selected)
+{
+  if (stack.empty())
+  {
+    return nullptr;
+  }
+  if (selected.size() != 1 || std::ranges::find(stack, selected.front()) == stack.end())
+  {
+    return stack.front();
+  }
+
+  // Nearest first would change between clicks when decals lie at almost the same depth
+  // and the cursor moves a pixel, skipping some; a fixed order visits every decal.
+  auto cycle = stack;
+  std::ranges::sort(cycle, std::less<>{});
+  const auto current = std::ranges::find(cycle, selected.front());
+  const auto next = std::next(current);
+  return next != cycle.end() ? *next : cycle.front();
+}
+
 DecalStampTool::DecalStampTool(mdl::Map& map)
   : Tool{false}
   , m_map{map}
@@ -543,11 +595,7 @@ mdl::Map& DecalStampTool::map()
 
 void DecalStampTool::setDecal(std::string decalId)
 {
-  if (decalId != m_decalId)
-  {
-    m_decalId = std::move(decalId);
-    m_stretch = {1.0, 1.0};
-  }
+  m_decalId = std::move(decalId);
   updatePage();
   refreshViews();
 }
@@ -603,6 +651,19 @@ void DecalStampTool::adoptFrom(const unity::DecalBox& box, const vm::vec3d& view
     m_stretch = {box.size.x() / base.x(), box.size.y() / base.y()};
   }
   updatePage();
+}
+
+bool DecalStampTool::hasTransformOffset() const
+{
+  return m_roll != 0.0 || m_stretch != vm::vec2d{1.0, 1.0};
+}
+
+void DecalStampTool::resetTransformOffset()
+{
+  m_roll = 0.0;
+  m_stretch = {1.0, 1.0};
+  updatePage();
+  refreshViews();
 }
 
 DecalManipulation DecalStampTool::manipulation() const
@@ -735,9 +796,19 @@ QWidget* DecalStampTool::doCreatePage(QWidget* parent)
   auto* page = new QWidget{parent};
   m_label = new QLabel{};
 
+  auto* resetButton = new QPushButton{QObject::tr("Reset Transform")};
+  resetButton->setToolTip(
+    QObject::tr(
+      "Place decals at their default size with no turn again, dropping the scale and "
+      "turn set with E and R"));
+  QObject::connect(
+    resetButton, &QPushButton::clicked, page, [this]() { resetTransformOffset(); });
+  m_resetButton = resetButton;
+
   auto* layout = new QHBoxLayout{};
   layout->setContentsMargins(QMargins{});
   layout->addWidget(m_label);
+  layout->addWidget(resetButton);
   layout->addStretch(1);
   page->setLayout(layout);
 
@@ -752,19 +823,28 @@ void DecalStampTool::updatePage()
     return;
   }
 
+  const auto offset = QObject::tr("scale %1 x %2, turn %3°")
+                        .arg(m_stretch.x(), 0, 'g', 3)
+                        .arg(m_stretch.y(), 0, 'g', 3)
+                        .arg(std::round(m_roll));
   const auto stamp =
     m_decalId.empty()
-      ? QObject::tr("Place Decals: choose a decal in the Decals browser.")
-      : QObject::tr("Place %1 (%2 x %3, %4°): click a surface to place it.")
+      ? QObject::tr("Place Decals (%1): choose a decal in the Decals browser.")
+          .arg(offset)
+      : QObject::tr("Place %1 (%2 x %3; %4): click a surface to place it.")
           .arg(QString::fromStdString(m_decalId))
           .arg(std::round(size().x()))
           .arg(std::round(size().y()))
-          .arg(std::round(m_roll));
+          .arg(offset);
   m_label->setText(
     stamp
     + QObject::tr(
-      " Hold W/E/R and drag to move/scale/turn the last placed decal (or the stamp); "
-      "Shift constrains, stretches, snaps. Esc to stop placing."));
+      " Hold E/R and drag to scale/turn every decal placed from now on (Shift stretches, "
+      "snaps); W drags the last placed decal. Esc to stop placing."));
+  if (m_resetButton)
+  {
+    m_resetButton->setEnabled(hasTransformOffset());
+  }
 }
 
 DecalStampToolController::DecalStampToolController(DecalStampTool& tool)
@@ -817,12 +897,7 @@ void DecalStampToolController::mouseScroll(const InputState& inputState)
     return;
   }
 
-  // selected decals are turned and scaled by DecalEditController
-  if (!selectedDecals(m_tool.map()).empty())
-  {
-    return;
-  }
-
+  // while placing, the wheel adjusts the stamp even with the last placed decal selected
   if (inputState.modifierKeysPressed(ModifierKeys::Alt | ModifierKeys::Shift))
   {
     m_tool.scale(std::pow(ScaleStep, steps));
@@ -844,10 +919,9 @@ std::unique_ptr<GestureTracker> DecalStampToolController::acceptMouseDrag(
     return nullptr;
   }
 
-  // selected decals are edited by DecalEditController; this only adjusts the stamp
-  if (
-    !selectedDecals(m_tool.map()).empty() || manipulation == DecalManipulation::Translate
-    || !m_tool.decal())
+  // E and R adjust the stamp, and so every decal placed after; W moves the selected
+  // decals in DecalEditController
+  if (manipulation == DecalManipulation::Translate || !m_tool.decal())
   {
     return nullptr;
   }
@@ -873,9 +947,8 @@ void DecalStampToolController::render(
   render::RenderContext& renderContext,
   render::RenderBatch& renderBatch)
 {
-  // while decals are selected, the stamp outline would only get in the way of editing
-  // them
-  if (!selectedDecals(m_tool.map()).empty())
+  // while W drags the last placed decal, the stamp outline would only get in the way
+  if (m_tool.manipulation() == DecalManipulation::Translate)
   {
     return;
   }
@@ -943,11 +1016,39 @@ const Tool& DecalEditController::tool() const
   return *this;
 }
 
+bool DecalEditController::mouseClick(const InputState& inputState)
+{
+  // while placing, clicks place decals
+  if (
+    !inputState.mouseButtonsPressed(MouseButtons::Left)
+    || !inputState.modifierKeysPressed(ModifierKeys::None) || m_stampTool.active())
+  {
+    return false;
+  }
+
+  // a single decal or none is selected as usual
+  const auto stack = decalsUnderCursor(inputState.pickResult());
+  if (stack.size() < 2)
+  {
+    return false;
+  }
+
+  auto& map = m_stampTool.map();
+  auto* decal = nextDecalInStack(stack, selectedDecals(map));
+
+  auto transaction = mdl::Transaction{map, "Select Decal"};
+  mdl::deselectAll(map);
+  mdl::selectNodes(map, {decal});
+  transaction.commit();
+  return true;
+}
+
 void DecalEditController::mouseScroll(const InputState& inputState)
 {
+  // while placing, the wheel adjusts the stamp
   auto& map = m_stampTool.map();
   const auto steps = scrollSteps(inputState);
-  if (steps == 0.0 || selectedDecals(map).empty())
+  if (steps == 0.0 || m_stampTool.active() || selectedDecals(map).empty())
   {
     return;
   }
@@ -983,6 +1084,11 @@ std::unique_ptr<GestureTracker> DecalEditController::acceptMouseDrag(
     const auto manipulation = m_stampTool.manipulation();
     manipulation != DecalManipulation::None)
   {
+    // while placing, E and R adjust the stamp in DecalStampToolController
+    if (m_stampTool.active() && manipulation != DecalManipulation::Translate)
+    {
+      return nullptr;
+    }
     return std::make_unique<DecalTransformTracker>(
       m_stampTool, manipulation, inputState, nodes);
   }

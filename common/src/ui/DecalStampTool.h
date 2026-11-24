@@ -27,11 +27,13 @@
 
 #include <optional>
 #include <string>
+#include <vector>
 
 class QLabel;
 
 namespace tb::mdl
 {
+class EntityNode;
 class Map;
 class PickResult;
 } // namespace tb::mdl
@@ -127,6 +129,22 @@ bool rotateSelectedDecals(mdl::Map& map, double degrees);
 bool scaleSelectedDecals(mdl::Map& map, double factor);
 
 /**
+ * The decals under the cursor, nearest first: those whose boxes the pick ray enters
+ * before it reaches the first brush face, so decals behind a wall are left out.
+ */
+std::vector<mdl::EntityNode*> decalsUnderCursor(const mdl::PickResult& pickResult);
+
+/**
+ * The decal a click on a stack of overlapping decals selects. If one of them is the
+ * selected decal, it is the one after it in a fixed order, so repeated clicks cycle
+ * through the whole stack wherever in the stack the first click landed; else the
+ * nearest. Null for an empty stack.
+ */
+mdl::EntityNode* nextDecalInStack(
+  const std::vector<mdl::EntityNode*>& stack,
+  const std::vector<mdl::EntityNode*>& selected);
+
+/**
  * What holding W, E or R does to a left mouse drag while the decal tool is active.
  */
 enum class DecalManipulation
@@ -165,6 +183,7 @@ private:
   };
   std::optional<Surface> m_surface;
   QLabel* m_label = nullptr;
+  QWidget* m_resetButton = nullptr;
 
 public:
   explicit DecalStampTool(mdl::Map& map);
@@ -176,13 +195,20 @@ public:
   const unity::UnityCatalogDecal* decal() const;
 
   /**
-   * The size the next decal is stamped at.
+   * The size the next decal is stamped at: its default size times the stretch.
    */
   vm::vec2d size() const;
   double roll() const;
   void setRoll(double roll);
   const vm::vec2d& stretch() const;
   void setStretch(const vm::vec2d& stretch);
+
+  /**
+   * The turn and stretch are remembered for every decal placed, whichever decal is
+   * chosen, until reset to no turn and the default size.
+   */
+  bool hasTransformOffset() const;
+  void resetTransformOffset();
 
   /**
    * Stamps continue where an edited decal left off: its turn and its size relative to the
@@ -256,6 +282,7 @@ public:
   Tool& tool() override;
   const Tool& tool() const override;
 
+  bool mouseClick(const InputState& inputState) override;
   void mouseScroll(const InputState& inputState) override;
   std::unique_ptr<GestureTracker> acceptMouseDrag(const InputState& inputState) override;
 };
