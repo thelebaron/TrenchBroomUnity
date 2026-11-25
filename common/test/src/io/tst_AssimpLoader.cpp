@@ -21,6 +21,8 @@
 #include "Logger.h"
 #include "io/AssimpLoader.h"
 #include "io/DiskFileSystem.h"
+#include "io/File.h"
+#include "io/TestFileSystem.h"
 #include "mdl/EntityModel.h"
 
 #include "vm/approx.h"
@@ -94,6 +96,47 @@ TEST_CASE("AssimpLoader")
     REQUIRE(modelData.value().surface(0).skinCount() == 1);
 
     CHECK(vm::approx(modelData.value().bounds(0)) == vm::bbox3f{{0, 0, 0}, {2, 1, 3}});
+  }
+
+  SECTION("non-finite vertices")
+  {
+    const auto makeTextFile = [](const std::string_view text) {
+      auto buffer = std::make_unique<char[]>(text.size());
+      std::copy(text.begin(), text.end(), buffer.get());
+      return std::make_shared<OwningBufferFile>(std::move(buffer), text.size());
+    };
+
+    const auto objWithNan = R"(
+v 0 0 0
+v 2 0 0
+v 0 3 0
+v NaN NaN NaN
+f 1 2 3
+f 1 2 4
+)";
+    const auto objAllNan = R"(
+v NaN NaN NaN
+v NaN NaN NaN
+v NaN NaN NaN
+f 1 2 3
+)";
+
+    auto fs = TestFileSystem{
+      DirectoryEntry{
+        "",
+        {
+          FileEntry{"partial_nan.obj", makeTextFile(objWithNan)},
+          FileEntry{"all_nan.obj", makeTextFile(objAllNan)},
+        }},
+      {}};
+
+    auto partialResult = AssimpLoader{"partial_nan.obj", fs}.load(logger);
+    REQUIRE(partialResult.is_success());
+    REQUIRE(partialResult.value().frameCount() == 1);
+    CHECK(vm::approx(partialResult.value().bounds(0)) == vm::bbox3f{{0, 0, 0}, {0, 2, 3}});
+
+    auto allNanResult = AssimpLoader{"all_nan.obj", fs}.load(logger);
+    CHECK(allNanResult.is_error());
   }
 }
 

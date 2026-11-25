@@ -21,6 +21,7 @@
 
 #include "AssimpLoader.h"
 
+#include "Exceptions.h"
 #include "Logger.h"
 #include "ReaderException.h"
 #include "io/File.h"
@@ -51,6 +52,7 @@
 #include <fmt/format.h>
 #include <fmt/std.h>
 
+#include <cmath>
 #include <optional>
 #include <ranges>
 #include <string_view>
@@ -618,13 +620,32 @@ Result<std::vector<mdl::EntityModelVertex>> computeMeshVertices(
   return vertices;
 }
 
+bool isFiniteVertex(const mdl::EntityModelVertex& vertex)
+{
+  return std::isfinite(vertex.attr.x()) && std::isfinite(vertex.attr.y())
+         && std::isfinite(vertex.attr.z());
+}
+
 AssimpComputedMeshData computeMeshData(
   const AssimpMeshWithTransforms& mesh,
   const size_t meshIndex,
   const std::vector<mdl::EntityModelVertex>& vertices)
 {
-  // build the mesh faces as triangles
-  const auto numTriangles = mesh.m_mesh->mNumFaces;
+  // build the mesh faces as triangles, skipping faces with non-finite vertices
+  const auto numFaces = mesh.m_mesh->mNumFaces;
+  auto numTriangles = size_t{0};
+  for (unsigned int i = 0; i < numFaces; ++i)
+  {
+    const auto& face = mesh.m_mesh->mFaces[i];
+    if (
+      face.mNumIndices == 3 && isFiniteVertex(vertices[face.mIndices[0]])
+      && isFiniteVertex(vertices[face.mIndices[1]])
+      && isFiniteVertex(vertices[face.mIndices[2]]))
+    {
+      ++numTriangles;
+    }
+  }
+
   const auto numIndices = numTriangles * 3;
 
   auto size = render::IndexRangeMap::Size{};
@@ -632,12 +653,15 @@ AssimpComputedMeshData computeMeshData(
   auto builder =
     render::IndexRangeMapBuilder<mdl::EntityModelVertex::Type>{numIndices, size};
 
-  for (unsigned int i = 0; i < numTriangles; ++i)
+  for (unsigned int i = 0; i < numFaces; ++i)
   {
     const auto& face = mesh.m_mesh->mFaces[i];
 
-    // ignore anything that's not a triangle
-    if (face.mNumIndices == 3)
+    // ignore anything that's not a valid finite triangle
+    if (
+      face.mNumIndices == 3 && isFiniteVertex(vertices[face.mIndices[0]])
+      && isFiniteVertex(vertices[face.mIndices[1]])
+      && isFiniteVertex(vertices[face.mIndices[2]]))
     {
       builder.addTriangle(
         vertices[face.mIndices[0]],
@@ -763,7 +787,10 @@ Result<void> loadSceneFrame(
                     | kdl::transform([&](const auto& vertices) {
                         for (const auto& v : vertices)
                         {
-                          bounds.add(v.attr);
+                          if (isFiniteVertex(v))
+                          {
+                            bounds.add(v.attr);
+                          }
                         }
 
                         return computeMeshData(mesh, meshIndex, vertices);
@@ -872,7 +899,11 @@ Result<mdl::EntityModelData> AssimpLoader::load(tb::Logger& logger)
            })
            | kdl::fold | kdl::transform([&]() { return std::move(data); });
   }
-  catch (const ParserException& e)
+  catch (const Exception& e)
+  {
+    return Error{e.what()};
+  }
+  catch (const std::exception& e)
   {
     return Error{e.what()};
   }
